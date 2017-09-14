@@ -1,0 +1,13 @@
+[package]
+name = "asprite"
+version = "0.1.0"
+authors = ["Lain-dono <lain.dono@gmail.com>"]
+
+[dependencies]
+nalgebra = "0.13.0"
+num-traits = "0.1"
+
+[dependencies.sdl2]
+version = "0.30"
+default-features = false
+features = ["ttf","image","gfx","mixer"]
