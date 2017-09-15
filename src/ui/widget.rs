@@ -1,18 +1,6 @@
-use math::*;
+use common::*;
 
-pub enum Align {
-	Left,
-	Right,
-	Center,
-}
-
-pub enum Event {
-	Press,
-	Release,
-
-	MouseEnter,
-	MouseLeave,
-}
+use super::render::*;
 
 pub trait Widget<Color> {
 	//type State;
@@ -29,21 +17,6 @@ pub trait Widget<Color> {
 	fn update(&mut self, e: Event) -> Self::Result;
 
 	fn draw<R: Render<Color=Color>>(&self, r: &R);
-}
-
-
-pub trait Render {
-	type Color;
-	//fn bounds(&self) -> Rect<i16>;
-
-	fn pixel(&self, p: Point<i16>, color: Self::Color);
-	fn line(&self, start: Point<i16>, end: Point<i16>, color: Self::Color);
-	fn rect(&self, r: Rect<i16>, color: &Self::Color);
-	fn outline(&self, r: Rect<i16>, color: Self::Color);
-	fn icon(&self, r: Rect<i16>, index: usize);
-	fn text(&mut self, r: Rect<i16>, align: Align, color: Self::Color, s: &str);
-
-	//fn bezier(&self, vx: &[i16], vy: &[i16], s: i32, color: u32);
 }
 
 #[derive(Clone, Copy)]
@@ -69,8 +42,8 @@ impl<Color> FrameStyle<Color> {
 	}
 }
 
-pub struct Theme {
 /*
+pub struct Theme {
 float       Alpha;                      // Global alpha applies to everything in ImGui
 ImVec2      WindowPadding;              // Padding within a window
 ImVec2      WindowMinSize;              // Minimum window size
@@ -95,9 +68,9 @@ bool        AntiAliasedLines;           // Enable anti-aliasing on lines/borders
 bool        AntiAliasedShapes;          // Enable anti-aliasing on filled shapes (rounded rectangles, circles, etc.)
 float       CurveTessellationTol;       // Tessellation tolerance. Decrease for highly tessellated curves (higher quality, more polygons), increase to reduce quality.
 ImVec4 Colors[ImGuiCol_COUNT];
-*/
 	//pub frame: FrameStyle<Color>,
 }
+*/
 
 pub struct Frame<Color> {
 	pub r: Rect<i16>,

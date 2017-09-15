@@ -1,4 +1,4 @@
-use math::*;
+use super::*;
 
 pub fn draw_line<N, F>(start: Point<N>, end: Point<N>, mut pixel: F)
 	where
@@ -32,7 +32,7 @@ pub fn draw_line<N, F>(start: Point<N>, end: Point<N>, mut pixel: F)
 			}
 		} else {
 			let mut cumul = delta.x / two;
-			for i in one..delta.x {
+			for _ in one..delta.x {
 				pos.x += incr.x;
 				cumul += delta.y;
 				if cumul >= delta.x {

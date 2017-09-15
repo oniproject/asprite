@@ -1,5 +1,4 @@
-use bre::*;
-use math::*;
+use common::*;
 
 #[derive(Clone)]
 pub struct Pt {
@@ -117,4 +116,3 @@ impl BB {
 		self.pts.iter().any(|pt| pt.active && pt.x == x && pt.y == y)
 	}
 }
-
