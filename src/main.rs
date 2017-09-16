@@ -12,11 +12,11 @@ use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::gfx::primitives::DrawRenderer;
 
 mod tool;
+use tool::*;
 
 mod common;
 use common::*;
 
-mod bb;
 mod mask;
 
 mod ui;
@@ -135,22 +135,25 @@ fn main() {
 
 	// let brush = mask::Mask::new_square(64, 64);
 
-	let mut draw = bb::BB {
-		grid: vec![false; (120 * 100) as usize],
+	let mut draw = SimpleContext {
+		grid: vec![0; (120 * 100) as usize],
 		zoom: 6,
 		pos: Point::new(200, 100),
 		size: Point::new(120, 100),
+		color: 1,
+		mouse: Point::new(0, 0),
+	};
+
+	let mut freehand = freehand::Freehand {
+		mode: freehand::Mode::PixelPerfect,
+		// mode: freehand::Mode::Continious,
+		last: Point::new(0, 0),
 		pts: Vec::new(),
-		last: None,
-		drawing: false,
 	};
 
 	let mut texture = creator
 		.create_texture_target(PixelFormatEnum::RGBA8888, draw.size.x as u32, draw.size.y as u32)
 		.unwrap();
-
-
-	let mut paint_color = 0u8;
 
 	let mut render = RenderSDL { canvas, font };
 
@@ -160,14 +163,11 @@ fn main() {
 	let gray1 = Color::RGB(0x26, 0x26, 0x26);
 	// let gray2 = Color::RGB(0x4F, 0x4F, 0x4F);
 
-	//let white = Color::RGB(0xFF, 0xFF, 0xFF);
 	let green = Color::RGB(0x00, 0xFF, 0x00);
 	let red = Color::RGB(0xFF, 0x00, 0x00);
 
-	// let black = Color::RGB(0x00, 0x00, 0x00);
-
 	let frame = Frame {
-		r: Rect::with_coords(10, 30, 100, 70),
+		r: Rect::with_coords(10, 30, 230, 70),
 		style: FrameStyle {
 			normal: gray0,
 			hovered: green,
@@ -176,7 +176,7 @@ fn main() {
 		state: State::Normal,
 	};
 
-	let mut paint = |draw: &bb::BB, paint_color| {
+	let mut paint = |draw: &SimpleContext, freehand: &freehand::Freehand| {
 		render.canvas.set_draw_color(gray1);
 		render.canvas.clear();
 
@@ -185,17 +185,15 @@ fn main() {
 			canvas.clear();
 
 			// TODO redraw only some area
-			for (idx, is) in draw.grid.iter().enumerate() {
-				if *is {
-					let x = idx as i16 % draw.size.x;
-					let y = idx as i16 / draw.size.x;
-					canvas.pixel(x, y, palette[paint_color]).unwrap();
-				}
+			for (idx, c) in draw.grid.iter().enumerate() {
+				let x = idx as i16 % draw.size.x;
+				let y = idx as i16 / draw.size.x;
+				canvas.pixel(x, y, palette[*c]).unwrap();
 			}
 
-			for g in &draw.pts {
+			for g in &freehand.pts {
 				let c = if g.active { green } else { red };
-				canvas.pixel(g.x, g.y, c).unwrap();
+				canvas.pixel(g.pt.x, g.pt.y, c).unwrap();
 			}
 		}).unwrap();
 
@@ -206,43 +204,49 @@ fn main() {
 
 		{
 			frame.draw(&render);
-			render.text(frame.r, Align::Center, red, &"Hello Rust!");
+			let s = format!("c#{} {:?} pos:{}", draw.color, freehand.mode, draw.mouse);
+			render.text(frame.r, Align::Center, red, &s);
 		}
 
 		render.canvas.present();
 	};
 
 	let mut drag = false;
+	let mut drawing = false;
 	let mut update = true;
 	'main: loop {
 		if update {
-			paint(&draw, paint_color);
+			paint(&draw, &freehand);
 		}
 		update = false;
 
 		for event in events.poll_iter() {
 			match event {
 				Event::MouseMotion {x, y, xrel, yrel, ..} => {
+					update = true;
+					let p = draw.set_mouse(x, y);
 					if drag {
 						draw.pos.x += xrel as i16;
 						draw.pos.y += yrel as i16;
-						update = true;
-					} else {
-						let x = (x as i16 - draw.pos.x) / draw.zoom;
-						let y = (y as i16 - draw.pos.y) / draw.zoom;
-						update = draw.update(Point::new(x, y));
+					} else if drawing {
+						freehand.run(Input::Move(p), &mut draw);
 					}
 				}
 
 				Event::Quit {..} => break 'main,
 
-				Event::KeyDown {keycode: Some(keycode), ..} => {
+				Event::KeyDown { keycode: Some(keycode), ..} => {
 					match keycode {
 						Keycode::Escape => break 'main,
-						Keycode::Num1 => paint_color = 1,
-						Keycode::Num2 => paint_color = 2,
-						Keycode::Num3 => paint_color = 3,
-						Keycode::Num4 => paint_color = 4,
+						Keycode::Num1 => draw.color = 1,
+						Keycode::Num2 => draw.color = 2,
+						Keycode::Num3 => draw.color = 3,
+						Keycode::Num4 => draw.color = 4,
+
+						Keycode::Num5 => freehand.mode = freehand::Mode::Single,
+						Keycode::Num6 => freehand.mode = freehand::Mode::Discontinious,
+						Keycode::Num7 => freehand.mode = freehand::Mode::Continious,
+						Keycode::Num8 => freehand.mode = freehand::Mode::PixelPerfect,
 						_ => (),
 					}
 					update = true;
@@ -257,13 +261,17 @@ fn main() {
 					update = true;
 				}
 
-				Event::MouseButtonDown { mouse_btn: MouseButton::Left, .. } => {
-					draw.down();
+				Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
+					let p = draw.set_mouse(x, y);
+					freehand.run(Input::Press(p), &mut draw);
+					drawing = true;
 					update = true;
 				}
-				Event::MouseButtonUp { mouse_btn: MouseButton::Left, .. } => {
-					draw.up();
+				Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
+					let p = draw.set_mouse(x, y);
+					freehand.run(Input::Release(p), &mut draw);
 					update = true;
+					drawing = false;
 				}
 
 				Event::MouseWheel { y, ..} => {
