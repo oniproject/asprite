@@ -34,7 +34,7 @@ pub trait Render {
 }
 
 pub struct RenderSDL<'ttf_module, 'rwops, T: sdl2::render::RenderTarget> {
-	pub canvas: sdl2::render::Canvas<T>,
+	pub ctx: sdl2::render::Canvas<T>,
 	pub font: sdl2::ttf::Font<'ttf_module, 'rwops>,
 }
 
@@ -44,24 +44,24 @@ impl<'ttf_module, 'rwops> Render for RenderSDL<'ttf_module, 'rwops, sdl2::video:
 	//fn bounds(&self) -> Rect<i16> { }
 
 	fn pixel(&self, p: Point<i16>, color: &Self::Color) {
-		self.canvas.pixel(p.x, p.y, *color).unwrap()
+		self.ctx.pixel(p.x, p.y, *color).unwrap()
 	}
 	fn line(&self, start: Point<i16>, end: Point<i16>, color: &Self::Color) {
-		self.canvas.line(
+		self.ctx.line(
 			start.x, start.y,
 			end.x, end.y,
 			*color).unwrap()
 	}
 
 	fn rect(&self, r: Rect<i16>, color: &Self::Color) {
-		self.canvas.box_(
+		self.ctx.box_(
 			r.min.x, r.min.y,
 			r.max.x, r.max.y,
 			*color).unwrap()
 	}
 
 	fn outline(&self, r: Rect<i16>, color: &Self::Color) {
-		self.canvas.rectangle(
+		self.ctx.rectangle(
 			r.min.x, r.min.y,
 			r.max.x, r.max.y,
 			*color).unwrap()
@@ -79,7 +79,7 @@ impl<'ttf_module, 'rwops> Render for RenderSDL<'ttf_module, 'rwops, sdl2::video:
 			.blended(color)
 			.unwrap();
 
-		let creator = self.canvas.texture_creator();
+		let creator = self.ctx.texture_creator();
 
 		let texture = creator
 			.create_texture_from_surface(&surface)
@@ -100,7 +100,7 @@ impl<'ttf_module, 'rwops> Render for RenderSDL<'ttf_module, 'rwops, sdl2::video:
 			(r.min.x + addx) as i32,
 			(r.min.y + addy) as i32, width, height);
 
-		self.canvas
+		self.ctx
 			.copy(&texture, None, Some(r))
 			.unwrap();
 	}

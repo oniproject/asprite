@@ -18,6 +18,7 @@ pub struct Freehand {
 	pub mode: Mode,
 	pub last: Point<i16>,
 	pub pts: Vec<Pt>,
+	pub color: u8,
 }
 
 impl Tool for Freehand {
@@ -30,17 +31,18 @@ impl Tool for Freehand {
 					Mode::Continious => {
 						let line = Bresenham::new(p, self.last);
 						for p in line {
-							ctx.brush(p)
+							ctx.brush(p, self.color)
 						}
 					},
-					Mode::Discontinious => ctx.brush(p),
+					Mode::Discontinious => ctx.brush(p, self.color),
 					Mode::Single => (),
 				}
 				self.last = p;
 			}
 
 			Input::Press(p) => {
-				ctx.brush(p);
+				self.color = ctx.start();
+				ctx.brush(p, self.color);
 				self.pts.push(Pt { pt: p, active: true });
 				self.last = p;
 			}
@@ -80,7 +82,7 @@ impl Freehand {
 	fn flatten_first_point<C: Context>(&mut self, ctx: &mut C) {
 		let p = self.pts.remove(0);
 		if p.active {
-			ctx.brush(p.pt);
+			ctx.brush(p.pt, self.color);
 		}
 		while !self.pts.is_empty() && !self.pts[0].active {
 			self.pts.remove(0);
@@ -89,9 +91,9 @@ impl Freehand {
 
 	fn cleanup_points(&mut self) {
 		// XXX clone?
-		let mut rpts = self.pts.clone();
-		rpts.reverse();
-		for p in &mut rpts {
+		let mut pts = self.pts.clone();
+		pts.reverse();
+		for p in &mut pts {
 			let pt = p.pt;
 			let n = self.active_point_exists(pt.x + 0, pt.y - 1);
 			let s = self.active_point_exists(pt.x + 0, pt.y + 1);
@@ -106,8 +108,8 @@ impl Freehand {
 
 			p.active = !(count == 2 && (n && w || n && e || s && w || s && e))
 		}
-		rpts.reverse();
-		self.pts = rpts;
+		pts.reverse();
+		self.pts = pts;
 	}
 
 	fn point_exists(&self, x: i16, y: i16) -> bool {

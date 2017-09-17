@@ -38,6 +38,12 @@ impl<T: Signed> Rect<T> {
 			max: Point::new(x2, y2),
 		}
 	}
+	pub fn with_size(x: T, y: T, w: T, h: T) -> Self {
+		Self {
+			min: Point::new(x, y),
+			max: Point::new(x + w, y + h),
+		}
+	}
 	pub fn contains(&self, p: Point<T>) -> bool {
 		self.min.x >= p.x && p.x <= self.max.x &&
 		self.min.y >= p.y && p.y <= self.max.y

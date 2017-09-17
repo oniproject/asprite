@@ -23,12 +23,10 @@ impl Mask {
 		let mut ptr = self.pix.as_ptr();
 		for y in at.y..ey {
 			for x in at.x..ex {
-				unsafe {
-					if *ptr {
-						pixel(x, y);
-					}
-					ptr = ptr.offset(1);
+				if unsafe { *ptr } {
+					pixel(x, y);
 				}
+				ptr = unsafe { ptr.offset(1) };
 			}
 		}
 	}

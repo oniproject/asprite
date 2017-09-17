@@ -11,15 +11,14 @@ use sdl2::pixels::{Color, PixelFormatEnum};
 
 use sdl2::gfx::primitives::DrawRenderer;
 
-mod tool;
-use tool::*;
-
 mod common;
-use common::*;
-
-mod mask;
-
+mod tool;
 mod ui;
+mod mask;
+mod editor;
+
+use common::*;
+use tool::*;
 use ui::*;
 
 /*
@@ -103,7 +102,7 @@ fn main() {
 	let (w, h) = video_subsys.display_bounds(0)
 		.unwrap().size();
 
-	let mut window = video_subsys.window("rust-sdl2_gfx: draw line & FPSManager", w, h)
+	let mut window = video_subsys.window("ASprite", w, h)
 		.position_centered()
 		.resizable()
 		.maximized()
@@ -113,14 +112,14 @@ fn main() {
 	window.hide();
 	window.show();
 
-	let mut canvas = window.into_canvas()
+	let mut ctx = window.into_canvas()
 		.software()
 		.build().unwrap();
-	let creator = canvas.texture_creator();
+	let creator = ctx.texture_creator();
 
-	canvas.set_draw_color(Color::RGB(100, 10, 100));
-	canvas.clear();
-	canvas.present();
+	ctx.set_draw_color(Color::RGB(100, 10, 100));
+	ctx.clear();
+	ctx.present();
 
 	let cur = create_cursor();
 	cur.set();
@@ -135,27 +134,20 @@ fn main() {
 
 	// let brush = mask::Mask::new_square(64, 64);
 
-	let mut draw = SimpleContext {
-		grid: vec![0; (120 * 100) as usize],
-		zoom: 6,
-		pos: Point::new(200, 100),
-		size: Point::new(120, 100),
-		color: 1,
-		mouse: Point::new(0, 0),
-	};
+	let mut draw = editor::SimpleContext::new(6, Point::new(200, 100), Point::new(120, 100));
 
 	let mut freehand = freehand::Freehand {
 		mode: freehand::Mode::PixelPerfect,
-		// mode: freehand::Mode::Continious,
 		last: Point::new(0, 0),
 		pts: Vec::new(),
+		color: 0,
 	};
 
 	let mut texture = creator
 		.create_texture_target(PixelFormatEnum::RGBA8888, draw.size.x as u32, draw.size.y as u32)
 		.unwrap();
 
-	let mut render = RenderSDL { canvas, font };
+	let mut render = RenderSDL { ctx, font };
 
 	let palette = create_pal();
 
@@ -166,8 +158,10 @@ fn main() {
 	let green = Color::RGB(0x00, 0xFF, 0x00);
 	let red = Color::RGB(0xFF, 0x00, 0x00);
 
-	let frame = Frame {
-		r: Rect::with_coords(10, 30, 230, 70),
+	let (winx, winy) = render.ctx.output_size().unwrap();
+
+	let statusbar = Frame {
+		r: Rect::with_size(0, winy as i16 - 20, winx as i16, 20),
 		style: FrameStyle {
 			normal: gray0,
 			hovered: green,
@@ -176,12 +170,12 @@ fn main() {
 		state: State::Normal,
 	};
 
-	let mut paint = |draw: &SimpleContext, freehand: &freehand::Freehand| {
-		render.canvas.set_draw_color(gray1);
-		render.canvas.clear();
+	let mut paint = |draw: &editor::SimpleContext, freehand: &freehand::Freehand| {
+		render.ctx.set_draw_color(gray1);
+		render.ctx.clear();
 
-		render.canvas.with_texture_canvas(&mut texture, |canvas| {
-			canvas.set_draw_color(palette[0]);
+		render.ctx.with_texture_canvas(&mut texture, |canvas| {
+			canvas.set_draw_color(palette[draw.bg]);
 			canvas.clear();
 
 			// TODO redraw only some area
@@ -195,20 +189,24 @@ fn main() {
 				let c = if g.active { green } else { red };
 				canvas.pixel(g.pt.x, g.pt.y, c).unwrap();
 			}
+
+			// preview brush
+			canvas.pixel(draw.mouse.x, draw.mouse.y, palette[draw.fg]).unwrap();
 		}).unwrap();
 
 		let size = draw.size * draw.zoom;
 
 		let dst = Some(rect!(draw.pos.x, draw.pos.y, size.x, size.y));
-		render.canvas.copy(&texture, None, dst).unwrap();
+		render.ctx.copy(&texture, None, dst).unwrap();
 
 		{
-			frame.draw(&render);
-			let s = format!("c#{} {:?} pos:{}", draw.color, freehand.mode, draw.mouse);
-			render.text(frame.r, Align::Center, red, &s);
+			statusbar.draw(&render);
+			let s = format!(" Freehand::{:?}  zoom:{}  [{:+} {:+}]  {:>3}#{:<3}",
+				freehand.mode, draw.zoom, draw.mouse.x, draw.mouse.y, draw.fg, draw.bg);
+			render.text(statusbar.r, Align::Left, red, &s);
 		}
 
-		render.canvas.present();
+		render.ctx.present();
 	};
 
 	let mut drag = false;
@@ -238,10 +236,10 @@ fn main() {
 				Event::KeyDown { keycode: Some(keycode), ..} => {
 					match keycode {
 						Keycode::Escape => break 'main,
-						Keycode::Num1 => draw.color = 1,
-						Keycode::Num2 => draw.color = 2,
-						Keycode::Num3 => draw.color = 3,
-						Keycode::Num4 => draw.color = 4,
+						Keycode::Num1 => draw.fg = 1,
+						Keycode::Num2 => draw.fg = 2,
+						Keycode::Num3 => draw.fg = 3,
+						Keycode::Num4 => draw.fg = 4,
 
 						Keycode::Num5 => freehand.mode = freehand::Mode::Single,
 						Keycode::Num6 => freehand.mode = freehand::Mode::Discontinious,
