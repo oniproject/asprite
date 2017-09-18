@@ -1,6 +1,6 @@
 #![feature(step_trait)]
 
-extern crate redo;
+extern crate undo;
 extern crate sdl2;
 extern crate num_traits;
 extern crate nalgebra as na;
@@ -17,6 +17,8 @@ mod tool;
 mod ui;
 mod mask;
 mod editor;
+mod cmd_page;
+mod sprite;
 
 use common::*;
 use tool::*;
@@ -65,12 +67,6 @@ macro_rules! rect(
 		sdl2::rect::Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
 	)
 );
-
-// macro_rules! point(
-// 	($x:expr, $y:expr) => (
-// 		sdl2::rect::Point::new($x as i32, $y as i32)
-// 	)
-// );
 
 use sdl2::mouse::{Cursor, SystemCursor};
 
@@ -166,7 +162,7 @@ fn main() {
 
 	// let gray2 = Color::RGB(0x4F, 0x4F, 0x4F);
 
-	let green = 0x00FF00_FF;
+	// let green = 0x00FF00_FF;
 	let red =   0xFF4136_FF;
 
 	let (winx, winy) = render.ctx.output_size().unwrap();
@@ -182,10 +178,23 @@ fn main() {
 			canvas.clear();
 
 			// TODO: redraw only changed area
-			for (idx, c) in draw.image.as_receiver().iter().enumerate() {
-				let x = idx as i16 % draw.size.x;
-				let y = idx as i16 / draw.size.x;
-				canvas.pixel(x, y, palette[*c]).unwrap();
+			{
+				let image = &draw.image.as_receiver().data;
+				for (frame, layers) in image.iter().enumerate() {
+					for (layer, page) in layers.iter().enumerate() {
+						let page = if layer == draw.layer && frame == draw.frame {
+							&draw.canvas
+						} else {
+							page
+						};
+
+						for (idx, c) in page.page.iter().enumerate() {
+							let x = idx as i16 % draw.size.x;
+							let y = idx as i16 / draw.size.x;
+							canvas.pixel(x, y, palette[*c]).unwrap();
+						}
+					}
+				}
 			}
 
 			// tool preview

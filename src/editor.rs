@@ -1,14 +1,17 @@
 use common::*;
 use tool::*;
 
-pub type Page = Vec<u8>;
+use cmd_page::*;
+use sprite::*;
 
-use redo::Command;
-use redo::record::Record;
-use std::mem;
+use undo::record::Record;
 
 pub struct Editor<'a> {
-	pub image: Record<'a, Page, Cmd>,
+	pub image: Record<'a, Sprite>,
+	pub canvas: Page,
+
+	pub frame: usize,
+	pub layer: usize,
 
 	pub size: Point<i16>,
 	pub pos: Point<i16>,
@@ -25,7 +28,9 @@ impl<'a> Editor<'a> {
 		let len = (size.x * size.y) as usize;
 		Editor {
 			zoom, pos, size,
-			image: Record::new(vec![0u8; len]),
+			image: Record::new(Sprite{ data: vec![vec![Page::new(len)]] }),
+			canvas: Page::new(len),
+			frame: 0, layer: 0,
 			bg: 0,
 			fg: 1,
 			mouse: Point::new(-100, -100),
@@ -38,23 +43,33 @@ impl<'a> Editor<'a> {
 		self.mouse
 	}
 
+	fn sync(&mut self) {
+		self.canvas.copy_from(&self.image.as_receiver().page(0, 0));
+	}
+
 	pub fn redo(&mut self) {
 		self.image.redo();
+		self.sync();
 	}
 
 	pub fn undo(&mut self) {
 		self.image.undo();
+		self.sync();
 	}
 }
 
 impl<'a> Context for Editor<'a> {
 	fn start(&mut self) -> u8 {
+		self.sync();
 		self.fg
 	}
 	fn commit(&mut self) {
-		self.image.push(Cmd::finish());
+		let page = self.canvas.clone();
+		let _ = self.image.push(PageCmd::new(0, 0, page));
+		self.sync();
 	}
 	fn rollback(&mut self) {
+		self.sync();
 	}
 
 	fn brush(&mut self, p: Point<i16>, color: u8) {
@@ -62,64 +77,7 @@ impl<'a> Context for Editor<'a> {
 		let y = p.y >= 0 && p.y < self.size.y;
 		if x && y {
 			let idx = p.x + p.y * self.size.x;
-			self.image.push(Cmd::next(idx as u32, color));
-		}
-	}
-}
-
-struct Paint(Vec<(u32, u8)>);
-impl Paint {
-	fn swap(&mut self, page: &mut Page) {
-		for d in self.0.iter_mut().rev() {
-			mem::swap(&mut page[d.0 as usize], &mut d.1);
-		}
-	}
-	fn merge(&mut self, mut other: Self) {
-		self.0.append(&mut other.0);
-	}
-}
-
-pub struct Cmd {
-	data: Paint,
-	finish: bool,
-}
-
-impl Cmd {
-	fn next(idx: u32, color: u8) -> Self {
-		Self {
-			data: Paint(vec![(idx, color)]),
-			finish: false,
-		}
-	}
-	fn finish() -> Self {
-		Self {
-			data: Paint(Vec::new()),
-			finish: true,
-		}
-	}
-}
-
-impl Command<Page> for Cmd {
-	type Err = ();
-
-	fn redo(&mut self, page: &mut Page) -> Result<(), Self::Err> {
-		self.data.swap(page);
-		Ok(())
-	}
-	fn undo(&mut self, page: &mut Page) -> Result<(), Self::Err> {
-		self.data.swap(page);
-		Ok(())
-	}
-
-	fn merge(&mut self, cmd: Self) -> Result<(), Self> {
-		if self.finish {
-			Err(cmd)
-		} else {
-			if cmd.data.0.len() == 0 {
-				self.finish = true;
-			}
-			self.data.merge(cmd.data);
-			Ok(())
+			self.canvas.page[idx as usize] = color;
 		}
 	}
 }
