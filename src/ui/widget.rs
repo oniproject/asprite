@@ -2,7 +2,7 @@ use common::*;
 
 use super::render::*;
 
-pub trait Widget<Color> {
+pub trait Widget {
 	//type State;
 	//type Style;
 
@@ -16,7 +16,7 @@ pub trait Widget<Color> {
 	type Result;
 	fn update(&mut self, e: Event) -> Self::Result;
 
-	fn draw<R: Render<Color=Color>>(&self, r: &R);
+	fn draw<R: Render>(&self, r: &R);
 }
 
 #[derive(Clone, Copy)]
@@ -26,18 +26,18 @@ pub enum State {
 	Hovered,
 }
 
-pub struct FrameStyle<Color> {
-	pub normal: Color,
-	pub hovered: Color,
-	pub active: Color,
+pub struct FrameStyle {
+	pub normal: u32,
+	pub hovered: u32,
+	pub active: u32,
 }
 
-impl<Color> FrameStyle<Color> {
-	pub fn from_state(&self, state: State) -> &Color {
+impl FrameStyle {
+	pub fn from_state(&self, state: State) -> u32 {
 		match state {
-			State::Normal  => &self.normal,
-			State::Active  => &self.active,
-			State::Hovered => &self.hovered,
+			State::Normal  => self.normal,
+			State::Active  => self.active,
+			State::Hovered => self.hovered,
 		}
 	}
 }
@@ -72,13 +72,13 @@ ImVec4 Colors[ImGuiCol_COUNT];
 }
 */
 
-pub struct Frame<Color> {
+pub struct Frame {
 	pub r: Rect<i16>,
-	pub style: FrameStyle<Color>,
+	pub style: FrameStyle,
 	pub state: State,
 }
 
-impl<Color> Widget<Color> for Frame<Color> {
+impl Widget for Frame {
 	type Result = ();
 
 	fn bounds(&self) -> Rect<i16> { self.r }
@@ -94,7 +94,7 @@ impl<Color> Widget<Color> for Frame<Color> {
 		}
 	}
 
-	fn draw<R: Render<Color=Color>>(&self, r: &R) {
+	fn draw<R: Render>(&self, r: &R) {
 		r.rect(self.r, self.style.from_state(self.state));
 	}
 }

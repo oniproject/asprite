@@ -23,7 +23,6 @@ pub struct Freehand {
 
 impl Tool for Freehand {
 	fn run<C: Context>(&mut self, input: Input, ctx: &mut C) {
-		println!("input: {:?}", input);
 		match input {
 			Input::Move(p) => {
 				match self.mode {

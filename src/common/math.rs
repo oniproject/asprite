@@ -45,7 +45,17 @@ impl<T: Signed> Rect<T> {
 		}
 	}
 	pub fn contains(&self, p: Point<T>) -> bool {
-		self.min.x >= p.x && p.x <= self.max.x &&
-		self.min.y >= p.y && p.y <= self.max.y
+		self.min.x <= p.x && p.x <= self.max.x &&
+		self.min.y <= p.y && p.y <= self.max.y
+	}
+
+	pub fn w(&self) -> T { self.max.x - self.min.x }
+	pub fn h(&self) -> T { self.max.y - self.min.y }
+
+	pub fn set_w(&mut self, w: T) {
+		self.max.x = self.min.x + w;
+	}
+	pub fn set_h(&mut self, h: T) {
+		self.max.y = self.min.y + h;
 	}
 }

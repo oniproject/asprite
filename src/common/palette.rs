@@ -1,17 +1,20 @@
 use std::ops::Index;
 use std::ops::IndexMut;
 
-pub struct Palette<T> (pub [T; 256]);
+pub struct Palette<T> {
+	pub map: [T; 256],
+	pub transparent: u8,
+}
 
 impl<T> Index<u8> for Palette<T> {
 	type Output = T;
 	fn index(&self, idx: u8) -> &Self::Output {
-		&self.0[idx as usize]
+		&self.map[idx as usize]
 	}
 }
 impl<T> IndexMut<u8> for Palette<T> {
 	fn index_mut<'a>(&'a mut self, idx: u8) -> &'a mut T {
-		&mut self.0[idx as usize]
+		&mut self.map[idx as usize]
 	}
 }
 

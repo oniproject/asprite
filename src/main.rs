@@ -1,5 +1,6 @@
 #![feature(step_trait)]
 
+extern crate redo;
 extern crate sdl2;
 extern crate num_traits;
 extern crate nalgebra as na;
@@ -37,12 +38,17 @@ use ui::*;
 fn create_pal() -> Palette<Color> {
 	const C_EMPTY: Color = Color { r: 0, g: 0, b: 0, a: 0 };
 	const GB0: Color = Color { r: 202, g: 220, b: 159, a: 0xFF };
-	const GB1: Color = Color { r:  15, g:  56, b:  15, a: 0xFF };
-	const GB2: Color = Color { r:  48, g:  98, b:  48, a: 0xFF };
-	const GB3: Color = Color { r: 139, g: 172, b:  15, a: 0xFF };
-	const GB4: Color = Color { r: 155, g: 188, b:  15, a: 0xFF };
 
-	let mut pal = Palette ([C_EMPTY; 256]);
+	const GB1: Color = Color { r: 0x0F, g: 0x38, b: 0x0F, a: 0xFF };
+	const GB2: Color = Color { r: 0x30, g: 0x62, b: 0x30, a: 0xFF };
+	const GB3: Color = Color { r: 0x8B, g: 0xAC, b: 0x0F, a: 0xFF };
+	const GB4: Color = Color { r: 0x9B, g: 0xBC, b: 0x0F, a: 0xFF };
+
+	let mut pal = Palette {
+		map: [C_EMPTY; 256],
+		transparent: 0,
+	};
+
 	pal[0] = GB0;
 	pal[1] = GB1;
 	pal[2] = GB2;
@@ -134,7 +140,7 @@ fn main() {
 
 	// let brush = mask::Mask::new_square(64, 64);
 
-	let mut draw = editor::SimpleContext::new(6, Point::new(200, 100), Point::new(120, 100));
+	let mut draw = editor::Editor::new(6, Point::new(200, 100), Point::new(120, 100));
 
 	let mut freehand = freehand::Freehand {
 		mode: freehand::Mode::PixelPerfect,
@@ -147,30 +153,27 @@ fn main() {
 		.create_texture_target(PixelFormatEnum::RGBA8888, draw.size.x as u32, draw.size.y as u32)
 		.unwrap();
 
-	let mut render = RenderSDL { ctx, font };
+	let mut render = RenderSDL { ctx, font,
+		last: 0, hot: 0, active: 0, kbd: 0,
+		key: None,
+		mouse: (false, Point::new(0, 0)),
+	};
 
 	let palette = create_pal();
 
-	let gray0 = Color::RGB(0x19, 0x19, 0x19);
-	let gray1 = Color::RGB(0x26, 0x26, 0x26);
+	//let gray0 = Color::RGB(0x19, 0x19, 0x19);
+	let gray1 = Color::RGB(0x22, 0x22, 0x22);
+
 	// let gray2 = Color::RGB(0x4F, 0x4F, 0x4F);
 
-	let green = Color::RGB(0x00, 0xFF, 0x00);
-	let red = Color::RGB(0xFF, 0x00, 0x00);
+	let green = 0x00FF00_FF;
+	let red =   0xFF4136_FF;
 
 	let (winx, winy) = render.ctx.output_size().unwrap();
 
-	let statusbar = Frame {
-		r: Rect::with_size(0, winy as i16 - 20, winx as i16, 20),
-		style: FrameStyle {
-			normal: gray0,
-			hovered: green,
-			active: red,
-		},
-		state: State::Normal,
-	};
+	let statusbar = Rect::with_size(0, winy as i16 - 20, winx as i16, 20);
 
-	let mut paint = |draw: &editor::SimpleContext, freehand: &freehand::Freehand| {
+	let mut paint = |render: &mut RenderSDL<sdl2::video::Window>, draw: &mut editor::Editor, freehand: &mut freehand::Freehand| {
 		render.ctx.set_draw_color(gray1);
 		render.ctx.clear();
 
@@ -178,16 +181,21 @@ fn main() {
 			canvas.set_draw_color(palette[draw.bg]);
 			canvas.clear();
 
-			// TODO redraw only some area
-			for (idx, c) in draw.grid.iter().enumerate() {
+			// TODO: redraw only changed area
+			for (idx, c) in draw.image.as_receiver().iter().enumerate() {
 				let x = idx as i16 % draw.size.x;
 				let y = idx as i16 / draw.size.x;
 				canvas.pixel(x, y, palette[*c]).unwrap();
 			}
 
+			// tool preview
 			for g in &freehand.pts {
-				let c = if g.active { green } else { red };
-				canvas.pixel(g.pt.x, g.pt.y, c).unwrap();
+				let p = g.pt;
+				if g.active {
+					canvas.pixel(p.x, p.y, palette[freehand.color]).unwrap();
+				} else {
+					canvas.pixel(p.x, p.y, red).unwrap();
+				}
 			}
 
 			// preview brush
@@ -200,10 +208,37 @@ fn main() {
 		render.ctx.copy(&texture, None, dst).unwrap();
 
 		{
-			statusbar.draw(&render);
+			// ui
+			render.prepare();
 			let s = format!(" Freehand::{:?}  zoom:{}  [{:+} {:+}]  {:>3}#{:<3}",
 				freehand.mode, draw.zoom, draw.mouse.x, draw.mouse.y, draw.fg, draw.bg);
-			render.text(statusbar.r, Align::Left, red, &s);
+			render.label_bg(1, statusbar, Align::Left, red, 0x001f3f_FF, &s);
+
+			let btns = 4;
+			for i in 0..5 {
+				let r = Rect::with_size(10, 20 + 20*i as i16, 21, 21);
+				render.btn_label(btns+ i, r, &format!("{}", i), || {
+					draw.fg = i as u8;
+				});
+			}
+
+			let r = Rect::with_size(10, 120, 100, 20);
+			render.text(r, Align::Left, 0xFFFFFF_FF, "freehand:");
+
+			let modes = [
+				freehand::Mode::Single,
+				freehand::Mode::Discontinious,
+				freehand::Mode::Continious,
+				freehand::Mode::PixelPerfect,
+			];
+			for (i, m) in modes.iter().enumerate() {
+				let r = Rect::with_size(10, 140 + 20*i as i16, 100, 21);
+				render.btn_label(10 + i as u32, r, &format!("{:?}", m), || {
+					freehand.mode = *m;
+				});
+			}
+
+			render.finish();
 		}
 
 		render.ctx.present();
@@ -213,8 +248,8 @@ fn main() {
 	let mut drawing = false;
 	let mut update = true;
 	'main: loop {
-		if update {
-			paint(&draw, &freehand);
+		if true || update {
+			paint(&mut render, &mut draw, &mut freehand);
 		}
 		update = false;
 
@@ -222,7 +257,11 @@ fn main() {
 			match event {
 				Event::MouseMotion {x, y, xrel, yrel, ..} => {
 					update = true;
-					let p = draw.set_mouse(x, y);
+
+					let p = Point::new(x as i16, y as i16);
+					render.mouse.1 = p;
+
+					let p = draw.set_mouse(p);
 					if drag {
 						draw.pos.x += xrel as i16;
 						draw.pos.y += yrel as i16;
@@ -245,6 +284,8 @@ fn main() {
 						Keycode::Num6 => freehand.mode = freehand::Mode::Discontinious,
 						Keycode::Num7 => freehand.mode = freehand::Mode::Continious,
 						Keycode::Num8 => freehand.mode = freehand::Mode::PixelPerfect,
+						Keycode::U => draw.undo(),
+						Keycode::R => draw.redo(),
 						_ => (),
 					}
 					update = true;
@@ -260,13 +301,19 @@ fn main() {
 				}
 
 				Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
-					let p = draw.set_mouse(x, y);
+					let p = Point::new(x as i16, y as i16);
+					render.mouse = (true, p);
+
+					let p = draw.set_mouse(p);
 					freehand.run(Input::Press(p), &mut draw);
 					drawing = true;
 					update = true;
 				}
 				Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
-					let p = draw.set_mouse(x, y);
+					let p = Point::new(x as i16, y as i16);
+					render.mouse = (false, p);
+
+					let p = draw.set_mouse(p);
 					freehand.run(Input::Release(p), &mut draw);
 					update = true;
 					drawing = false;

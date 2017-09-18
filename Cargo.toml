@@ -6,6 +6,7 @@ authors = ["Lain-dono <lain.dono@gmail.com>"]
 [dependencies]
 nalgebra = "0.13.0"
 num-traits = "0.1"
+redo = "0.14"
 
 [dependencies.sdl2]
 version = "0.30"
