@@ -37,27 +37,18 @@ use ui::*;
  */
 
 
-fn create_pal() -> Palette<Color> {
-	const C_EMPTY: Color = Color { r: 0, g: 0, b: 0, a: 0 };
-	const GB0: Color = Color { r: 202, g: 220, b: 159, a: 0xFF };
-
-	const GB1: Color = Color { r: 0x0F, g: 0x38, b: 0x0F, a: 0xFF };
-	const GB2: Color = Color { r: 0x30, g: 0x62, b: 0x30, a: 0xFF };
-	const GB3: Color = Color { r: 0x8B, g: 0xAC, b: 0x0F, a: 0xFF };
-	const GB4: Color = Color { r: 0x9B, g: 0xBC, b: 0x0F, a: 0xFF };
-
-	let mut pal = Palette {
-		map: [C_EMPTY; 256],
-		transparent: 0,
-	};
+fn create_pal(pal: &mut Palette<u32>) {
+	const GB0: u32 = 0xCADC9F_FF;
+	const GB1: u32 = 0x0F380F_FF;
+	const GB2: u32 = 0x306230_FF;
+	const GB3: u32 = 0x8BAC0F_FF;
+	const GB4: u32 = 0x9BBC0F_FF;
 
 	pal[0] = GB0;
 	pal[1] = GB1;
 	pal[2] = GB2;
 	pal[3] = GB3;
 	pal[4] = GB4;
-
-	pal
 }
 
 const FONT_PATH: &str = "f/TerminusTTF-4.46.0.ttf";
@@ -136,7 +127,14 @@ fn main() {
 
 	// let brush = mask::Mask::new_square(64, 64);
 
-	let mut draw = editor::Editor::new(6, Point::new(200, 100), Point::new(120, 100));
+	let mut sprite = sprite::Sprite::new(120, 100);
+	create_pal(&mut sprite.palette);
+
+	let mut texture = creator
+		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
+		.unwrap();
+
+	let mut draw = editor::Editor::new(6, Point::new(200, 100), sprite);
 
 	let mut freehand = freehand::Freehand {
 		mode: freehand::Mode::PixelPerfect,
@@ -145,17 +143,11 @@ fn main() {
 		color: 0,
 	};
 
-	let mut texture = creator
-		.create_texture_target(PixelFormatEnum::RGBA8888, draw.size.x as u32, draw.size.y as u32)
-		.unwrap();
-
 	let mut render = RenderSDL { ctx, font,
 		last: 0, hot: 0, active: 0, kbd: 0,
 		key: None,
 		mouse: (false, Point::new(0, 0)),
 	};
-
-	let palette = create_pal();
 
 	//let gray0 = Color::RGB(0x19, 0x19, 0x19);
 	let gray1 = Color::RGB(0x22, 0x22, 0x22);
@@ -174,25 +166,23 @@ fn main() {
 		render.ctx.clear();
 
 		render.ctx.with_texture_canvas(&mut texture, |canvas| {
-			canvas.set_draw_color(palette[draw.bg]);
-			canvas.clear();
 
 			// TODO: redraw only changed area
-			{
-				let image = &draw.image.as_receiver().data;
-				for (frame, layers) in image.iter().enumerate() {
-					for (layer, page) in layers.iter().enumerate() {
-						let page = if layer == draw.layer && frame == draw.frame {
-							&draw.canvas
-						} else {
-							page
-						};
+			canvas.set_draw_color(Color::RGBA(0xCA, 0xDC, 0x9F, 0xFF));
+			canvas.clear();
 
-						for (idx, c) in page.page.iter().enumerate() {
-							let x = idx as i16 % draw.size.x;
-							let y = idx as i16 / draw.size.x;
-							canvas.pixel(x, y, palette[*c]).unwrap();
-						}
+			let image = draw.image.as_receiver();
+			for (frame, layers) in image.data.iter().enumerate() {
+				for (layer, page) in layers.iter().enumerate() {
+					let page = if layer == draw.layer && frame == draw.frame {
+						&draw.canvas
+					} else {
+						page
+					};
+					for (idx, c) in page.page.iter().enumerate() {
+						let x = idx % image.width;
+						let y = idx / image.width;
+						canvas.pixel(x as i16, y as i16, image.palette[*c]).unwrap();
 					}
 				}
 			}
@@ -201,17 +191,27 @@ fn main() {
 			for g in &freehand.pts {
 				let p = g.pt;
 				if g.active {
-					canvas.pixel(p.x, p.y, palette[freehand.color]).unwrap();
+					canvas.pixel(p.x, p.y, image.palette[freehand.color]).unwrap();
+				} else {
+					canvas.pixel(p.x, p.y, red).unwrap();
+				}
+			}
+
+			// tool preview
+			for g in &freehand.pts {
+				let p = g.pt;
+				if g.active {
+					canvas.pixel(p.x, p.y, image.palette[freehand.color]).unwrap();
 				} else {
 					canvas.pixel(p.x, p.y, red).unwrap();
 				}
 			}
 
 			// preview brush
-			canvas.pixel(draw.mouse.x, draw.mouse.y, palette[draw.fg]).unwrap();
+			canvas.pixel(draw.mouse.x, draw.mouse.y, image.palette[draw.fg]).unwrap();
 		}).unwrap();
 
-		let size = draw.size * draw.zoom;
+		let size = draw.size() * draw.zoom;
 
 		let dst = Some(rect!(draw.pos.x, draw.pos.y, size.x, size.y));
 		render.ctx.copy(&texture, None, dst).unwrap();
@@ -335,8 +335,8 @@ fn main() {
 					if draw.zoom > 16 { draw.zoom = 16 }
 					let diff = last - draw.zoom;
 
-					draw.pos.x += draw.size.x * diff / 2;
-					draw.pos.y += draw.size.y * diff / 2;
+					draw.pos.x += draw.size().x * diff / 2;
+					draw.pos.y += draw.size().y * diff / 2;
 
 					update = true;
 				}

@@ -13,7 +13,6 @@ pub struct Editor<'a> {
 	pub frame: usize,
 	pub layer: usize,
 
-	pub size: Point<i16>,
 	pub pos: Point<i16>,
 
 	pub m: Point<i16>,
@@ -24,18 +23,21 @@ pub struct Editor<'a> {
 }
 
 impl<'a> Editor<'a> {
-	pub fn new(zoom: i16, pos: Point<i16>, size: Point<i16>) -> Self {
-		let len = (size.x * size.y) as usize;
+	pub fn new(zoom: i16, pos: Point<i16>, image: Sprite) -> Self {
 		Editor {
-			zoom, pos, size,
-			image: Record::new(Sprite{ data: vec![vec![Page::new(len)]] }),
-			canvas: Page::new(len),
+			zoom, pos,
+			canvas: Page::new(image.width, image.height),
+			image: Record::new(image),
 			frame: 0, layer: 0,
 			bg: 0,
 			fg: 1,
 			mouse: Point::new(-100, -100),
 			m: Point::new(-100, -100),
 		}
+	}
+
+	pub fn size(&self) -> Point<i16> {
+		Point::new(self.canvas.width as i16, self.canvas.height as i16)
 	}
 
 	pub fn set_mouse(&mut self, p: Point<i16>) -> Point<i16> {
@@ -73,10 +75,11 @@ impl<'a> Context for Editor<'a> {
 	}
 
 	fn brush(&mut self, p: Point<i16>, color: u8) {
-		let x = p.x >= 0 && p.x < self.size.x;
-		let y = p.y >= 0 && p.y < self.size.y;
+		let (w, h) = (self.canvas.width as i16, self.canvas.height as i16);
+		let x = p.x >= 0 && p.x < w;
+		let y = p.y >= 0 && p.y < h;
 		if x && y {
-			let idx = p.x + p.y * self.size.x;
+			let idx = p.x + p.y * w;
 			self.canvas.page[idx as usize] = color;
 		}
 	}
