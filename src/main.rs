@@ -182,7 +182,7 @@ fn main() {
 					for (idx, c) in page.page.iter().enumerate() {
 						let x = idx % image.width;
 						let y = idx / image.width;
-						canvas.pixel(x as i16, y as i16, image.palette[*c]).unwrap();
+						canvas.pixel(x as i16, y as i16, image.palette[*c].to_be()).unwrap();
 					}
 				}
 			}
@@ -191,7 +191,7 @@ fn main() {
 			for g in &freehand.pts {
 				let p = g.pt;
 				if g.active {
-					canvas.pixel(p.x, p.y, image.palette[freehand.color]).unwrap();
+					canvas.pixel(p.x, p.y, image.palette[freehand.color].to_be()).unwrap();
 				} else {
 					canvas.pixel(p.x, p.y, red).unwrap();
 				}
@@ -201,14 +201,14 @@ fn main() {
 			for g in &freehand.pts {
 				let p = g.pt;
 				if g.active {
-					canvas.pixel(p.x, p.y, image.palette[freehand.color]).unwrap();
+					canvas.pixel(p.x, p.y, image.palette[freehand.color].to_be()).unwrap();
 				} else {
 					canvas.pixel(p.x, p.y, red).unwrap();
 				}
 			}
 
 			// preview brush
-			canvas.pixel(draw.mouse.x, draw.mouse.y, image.palette[draw.fg]).unwrap();
+			canvas.pixel(draw.mouse.x, draw.mouse.y, image.palette[draw.fg].to_be()).unwrap();
 		}).unwrap();
 
 		let size = draw.size() * draw.zoom;
