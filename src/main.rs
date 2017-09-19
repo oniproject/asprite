@@ -20,6 +20,8 @@ mod editor;
 mod cmd_page;
 mod sprite;
 
+mod tilemap;
+
 use common::*;
 use tool::*;
 use ui::*;
@@ -134,7 +136,7 @@ fn main() {
 		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
 		.unwrap();
 
-	let mut draw = editor::Editor::new(6, Point::new(200, 100), sprite);
+	let mut editor = editor::Editor::new(6, Point::new(200, 100), sprite);
 
 	let mut freehand = freehand::Freehand {
 		mode: freehand::Mode::PixelPerfect,
@@ -157,25 +159,22 @@ fn main() {
 	// let green = 0x00FF00_FF;
 	let red =   0xFF4136_FF;
 
-	let (winx, winy) = render.ctx.output_size().unwrap();
+	let mut paint = |render: &mut RenderSDL<sdl2::video::Window>, editor: &mut editor::Editor, freehand: &mut freehand::Freehand, statusbar: Rect<i16>| {
+		let mut update = false;
 
-	let statusbar = Rect::with_size(0, winy as i16 - 20, winx as i16, 20);
-
-	let mut paint = |render: &mut RenderSDL<sdl2::video::Window>, draw: &mut editor::Editor, freehand: &mut freehand::Freehand| {
 		render.ctx.set_draw_color(gray1);
 		render.ctx.clear();
 
 		render.ctx.with_texture_canvas(&mut texture, |canvas| {
-
 			// TODO: redraw only changed area
 			canvas.set_draw_color(Color::RGBA(0xCA, 0xDC, 0x9F, 0xFF));
 			canvas.clear();
 
-			let image = draw.image.as_receiver();
+			let image = editor.image.as_receiver();
 			for (frame, layers) in image.data.iter().enumerate() {
 				for (layer, page) in layers.iter().enumerate() {
-					let page = if layer == draw.layer && frame == draw.frame {
-						&draw.canvas
+					let page = if layer == editor.layer && frame == editor.frame {
+						&editor.canvas
 					} else {
 						page
 					};
@@ -208,26 +207,27 @@ fn main() {
 			}
 
 			// preview brush
-			canvas.pixel(draw.mouse.x, draw.mouse.y, image.palette[draw.fg].to_be()).unwrap();
+			canvas.pixel(editor.mouse.x, editor.mouse.y, image.palette[editor.fg].to_be()).unwrap();
 		}).unwrap();
 
-		let size = draw.size() * draw.zoom;
+		let size = editor.size() * editor.zoom;
 
-		let dst = Some(rect!(draw.pos.x, draw.pos.y, size.x, size.y));
+		let dst = Some(rect!(editor.pos.x, editor.pos.y, size.x, size.y));
 		render.ctx.copy(&texture, None, dst).unwrap();
 
-		{
-			// ui
+		{ // ui
 			render.prepare();
 			let s = format!(" Freehand::{:?}  zoom:{}  [{:+} {:+}]  {:>3}#{:<3}",
-				freehand.mode, draw.zoom, draw.mouse.x, draw.mouse.y, draw.fg, draw.bg);
+				freehand.mode, editor.zoom, editor.mouse.x, editor.mouse.y, editor.fg, editor.bg);
 			render.label_bg(1, statusbar, Align::Left, red, 0x001f3f_FF, &s);
 
-			let btns = 4;
+			let r = Rect::with_size(10, 0, 100, 20);
+			render.text(r, Align::Left, 0xFFFFFF_FF, "palette:");
+
 			for i in 0..5 {
-				let r = Rect::with_size(10, 20 + 20*i as i16, 21, 21);
-				render.btn_label(btns+ i, r, &format!("{}", i), || {
-					draw.fg = i as u8;
+				let r = Rect::with_size(10, 20 + 20*i as i16, 20, 20);
+				render.btn_label(10 + i, r, &format!("{}", i), || {
+					editor.fg = i as u8;
 				});
 			}
 
@@ -241,9 +241,25 @@ fn main() {
 				freehand::Mode::PixelPerfect,
 			];
 			for (i, m) in modes.iter().enumerate() {
-				let r = Rect::with_size(10, 140 + 20*i as i16, 100, 21);
-				render.btn_label(10 + i as u32, r, &format!("{:?}", m), || {
+				let r = Rect::with_size(10, 140 + 20*i as i16, 100, 20);
+				render.btn_label(20 + i as u32, r, &format!("{:?}", m), || {
 					freehand.mode = *m;
+				});
+			}
+
+			{
+				let r = Rect::with_size(10, 240, 100, 20);
+				render.text(r, Align::Left, 0xFFFFFF_FF, "undo/redo:");
+
+				let r = Rect::with_size(10, 260, 20, 20);
+				render.btn_label(30, r, &"\u{2190}", || {
+					editor.undo();
+					update = true;
+				});
+				let r = Rect::with_size(30, 260, 20, 20);
+				render.btn_label(31, r, &"\u{2192}", || {
+					editor.redo();
+					update = true;
 				});
 			}
 
@@ -251,16 +267,20 @@ fn main() {
 		}
 
 		render.ctx.present();
+		update
 	};
 
 	let mut drag = false;
 	let mut drawing = false;
 	let mut update = true;
+
+	let (winx, winy) = render.ctx.output_size().unwrap();
+	let mut statusbar = Rect::with_size(0, winy as i16 - 20, winx as i16, 20);
+
 	'main: loop {
 		if true || update {
-			paint(&mut render, &mut draw, &mut freehand);
+			update = paint(&mut render, &mut editor, &mut freehand, statusbar);
 		}
-		update = false;
 
 		for event in events.poll_iter() {
 			match event {
@@ -270,12 +290,12 @@ fn main() {
 					let p = Point::new(x as i16, y as i16);
 					render.mouse.1 = p;
 
-					let p = draw.set_mouse(p);
+					let p = editor.set_mouse(p);
 					if drag {
-						draw.pos.x += xrel as i16;
-						draw.pos.y += yrel as i16;
+						editor.pos.x += xrel as i16;
+						editor.pos.y += yrel as i16;
 					} else if drawing {
-						freehand.run(Input::Move(p), &mut draw);
+						freehand.run(Input::Move(p), &mut editor);
 					}
 				}
 
@@ -284,17 +304,17 @@ fn main() {
 				Event::KeyDown { keycode: Some(keycode), ..} => {
 					match keycode {
 						Keycode::Escape => break 'main,
-						Keycode::Num1 => draw.fg = 1,
-						Keycode::Num2 => draw.fg = 2,
-						Keycode::Num3 => draw.fg = 3,
-						Keycode::Num4 => draw.fg = 4,
+						Keycode::Num1 => editor.fg = 1,
+						Keycode::Num2 => editor.fg = 2,
+						Keycode::Num3 => editor.fg = 3,
+						Keycode::Num4 => editor.fg = 4,
 
 						Keycode::Num5 => freehand.mode = freehand::Mode::Single,
 						Keycode::Num6 => freehand.mode = freehand::Mode::Discontinious,
 						Keycode::Num7 => freehand.mode = freehand::Mode::Continious,
 						Keycode::Num8 => freehand.mode = freehand::Mode::PixelPerfect,
-						Keycode::U => draw.undo(),
-						Keycode::R => draw.redo(),
+						Keycode::U => editor.undo(),
+						Keycode::R => editor.redo(),
 						_ => (),
 					}
 					update = true;
@@ -313,36 +333,41 @@ fn main() {
 					let p = Point::new(x as i16, y as i16);
 					render.mouse = (true, p);
 
-					let p = draw.set_mouse(p);
-					freehand.run(Input::Press(p), &mut draw);
-					drawing = true;
+					let p = editor.set_mouse(p);
+					if p.x >= 0 && p.y >= 0 {
+						freehand.run(Input::Press(p), &mut editor);
+						drawing = true;
+					}
 					update = true;
 				}
 				Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
 					let p = Point::new(x as i16, y as i16);
 					render.mouse = (false, p);
 
-					let p = draw.set_mouse(p);
-					freehand.run(Input::Release(p), &mut draw);
+					let p = editor.set_mouse(p);
+					if p.x >= 0 && p.y >= 0 {
+						freehand.run(Input::Release(p), &mut editor);
+						drawing = false;
+					}
 					update = true;
-					drawing = false;
 				}
 
 				Event::MouseWheel { y, ..} => {
-					let last = draw.zoom;
-					draw.zoom += y as i16;
-					if draw.zoom < 1 { draw.zoom = 1 }
-					if draw.zoom > 16 { draw.zoom = 16 }
-					let diff = last - draw.zoom;
+					let last = editor.zoom;
+					editor.zoom += y as i16;
+					if editor.zoom < 1 { editor.zoom = 1 }
+					if editor.zoom > 16 { editor.zoom = 16 }
+					let diff = last - editor.zoom;
 
-					draw.pos.x += draw.size().x * diff / 2;
-					draw.pos.y += draw.size().y * diff / 2;
+					editor.pos.x += editor.size().x * diff / 2;
+					editor.pos.y += editor.size().y * diff / 2;
 
 					update = true;
 				}
 
-				Event::Window { win_event, .. } => {
-					println!("win_event {:?}", win_event);
+				Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
+					println!("resize {} {}", w, h);
+					statusbar = Rect::with_size(0, h as i16 - 20, w as i16, 20);
 					update = true;
 				}
 

@@ -61,7 +61,7 @@ impl<'ttf_module, 'rwops> RenderSDL<'ttf_module, 'rwops, sdl2::video::Window> {
 		self.rect(r, bg);
 		self.text(r, align, color, text);
 	}
-	pub fn btn_label<F: FnOnce()>(&mut self, id: u32, r: Rect<i16>, label: &str, cb: F) {
+	pub fn btn_label<F: FnMut()>(&mut self, id: u32, r: Rect<i16>, label: &str, mut cb: F) {
 		self.widget(id, r);
 
 		let bg = 0x0074D9_FF;
@@ -75,11 +75,20 @@ impl<'ttf_module, 'rwops> RenderSDL<'ttf_module, 'rwops, sdl2::video::Window> {
 			0xFFFFFF_FF
 		};
 		self.outline(r, bg);
-		self.text(r, Align::Center, label_color, label);
+
+		// FIXME: fucking hack
+		{
+			let mut r = r.clone();
+			let w = r.w() + 2;
+			let h = r.h() + 2;
+			r.set_w(w);
+			r.set_h(h);
+			self.text(r, Align::Center, label_color, label);
+		}
 
 		if !self.mouse.0 && self.hot == id && self.active == id {
-			println!("click: {}", label);
 			cb();
+			println!("click: {}", label);
 		}
 	}
 
@@ -128,7 +137,6 @@ impl<'ttf_module, 'rwops> RenderSDL<'ttf_module, 'rwops, sdl2::video::Window> {
 	}
 }
 
-//impl<'a, T: sdl2::render::RenderTarget + 'a> widget::Render for Render<'a, T> {
 impl<'ttf_module, 'rwops> Render for RenderSDL<'ttf_module, 'rwops, sdl2::video::Window> {
 	fn pixel(&self, p: Point<i16>, color: u32) {
 		self.ctx.pixel(p.x, p.y, color.to_be()).unwrap()
@@ -143,16 +151,20 @@ impl<'ttf_module, 'rwops> Render for RenderSDL<'ttf_module, 'rwops, sdl2::video:
 	fn rect(&self, r: Rect<i16>, color: u32) {
 		self.ctx.box_(
 			r.min.x, r.min.y,
-			r.max.x-1, r.max.y-1,
+			r.max.x, r.max.y-1,
 			color.to_be()).unwrap()
 	}
 
 	fn outline(&self, r: Rect<i16>, color: u32) {
-		self.ctx.rectangle(
-			r.min.x, r.min.y,
-			r.max.x, r.max.y,
-			color.to_be()).unwrap()
+		let color = color.to_be();
 
+		let (x1, x2) = (r.min.x, r.max.x);
+		self.ctx.hline(x1, x2, r.min.y, color).unwrap();
+		self.ctx.hline(x1, x2, r.max.y, color).unwrap();
+
+		let (y1, y2) = (r.min.y, r.max.y);
+		self.ctx.vline(r.min.x, y1, y2, color).unwrap();
+		self.ctx.vline(r.max.x, y1, y2, color).unwrap();
 	}
 
 	fn icon(&self, _: Rect<i16>, _: usize) {
@@ -177,15 +189,13 @@ impl<'ttf_module, 'rwops> Render for RenderSDL<'ttf_module, 'rwops, sdl2::video:
 			.unwrap();
 
 		let sdl2::render::TextureQuery { width, height, .. } = texture.query();
-		let rw = r.max.x - r.min.x;
-		let rh = r.max.y - r.min.y;
 
 		let addx = match align {
 			Align::Left => 0,
-			Align::Center => (rw - width as i16) / 2,
-			Align::Right => rw - width as i16,
+			Align::Center => (r.w() - width as i16) / 2,
+			Align::Right => r.w() - width as i16,
 		};
-		let addy = (rh - height as i16) / 2;
+		let addy = (r.h() - height as i16) / 2;
 
 		let r = sdl2::rect::Rect::new(
 			(r.min.x + addx) as i32,
