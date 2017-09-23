@@ -8,6 +8,7 @@ nalgebra = "0.13.0"
 num-traits = "0.1"
 undo = "0.14"
 redo = "0.14"
+image = "0.15"
 
 [dependencies.sdl2]
 version = "0.30"

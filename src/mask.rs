@@ -2,9 +2,9 @@
 use common::*;
 
 pub struct Mask {
-	pix: Vec<bool>,
-	w: usize,
-	h: usize,
+	pub pix: Vec<bool>,
+	pub w: usize,
+	pub h: usize,
 }
 
 impl Mask {
@@ -15,7 +15,19 @@ impl Mask {
 		}
 	}
 
-	pub fn draw<F>(&self, at: Point<i16>, pixel: F)
+	pub fn draw<F>(&self, pixel: F)
+		where F: Fn(i16, i16, bool)
+	{
+		let mut ptr = self.pix.as_ptr();
+		for y in 0..self.h {
+			for x in 0..self.w {
+				pixel(x as i16, y as i16, unsafe { *ptr });
+				ptr = unsafe { ptr.offset(1) };
+			}
+		}
+	}
+
+	pub fn draw_at<F>(&self, at: Point<i16>, pixel: F)
 		where F: Fn(i16, i16)
 	{
 		let ex = at.x + self.w as i16;

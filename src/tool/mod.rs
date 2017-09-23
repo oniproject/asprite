@@ -15,6 +15,7 @@ pub trait Context {
 	fn start(&mut self) -> u8;
 	fn commit(&mut self);
 	fn rollback(&mut self);
+	fn sync(&mut self);
 
 	fn brush(&mut self, Point<i16>, u8);
 }

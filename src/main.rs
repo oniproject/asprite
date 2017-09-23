@@ -1,5 +1,6 @@
 #![feature(step_trait)]
 
+extern crate image;
 extern crate undo;
 extern crate sdl2;
 extern crate num_traits;
@@ -10,6 +11,8 @@ use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::{Color, PixelFormatEnum};
 
+use sdl2::render::Texture;
+
 use sdl2::gfx::primitives::DrawRenderer;
 
 mod common;
@@ -19,8 +22,9 @@ mod mask;
 mod editor;
 mod cmd_page;
 mod sprite;
+mod flood_fill;
 
-mod tilemap;
+//mod tilemap;
 
 use common::*;
 use tool::*;
@@ -89,6 +93,97 @@ fn create_cursor() -> Cursor {
 	Cursor::new(&data[..], &mask[..], 8, 8, 4, 4).unwrap()
 }
 
+struct Tilemap {
+	data: Vec<usize>,
+	width: usize,
+	height: usize,
+	tiles: Vec<mask::Mask>,
+}
+
+impl Tilemap {
+	fn draw<F: Fn(usize, usize, bool)>(&self, f: F) {
+		for y in 0..self.height {
+			for x in 0..self.width {
+				let idx = x + y * self.width;
+				let tile = &self.tiles[self.data[idx]];
+				tile.draw(|mx, my, is| {
+					let x = mx as usize + x * 16;
+					let y = my as usize + y * 16;
+					f(x, y, is)
+				})
+			}
+		}
+	}
+
+	fn draw_tilemap<F: Fn(usize, usize, bool)>(&self, f: F) {
+		for (idx, tile) in self.tiles.iter().enumerate() {
+			let x = idx % 8;
+			let y = idx / 8;
+			tile.draw(|mx, my, is| {
+				let x = mx as usize + x * 16;
+				let y = my as usize + y * 16;
+				f(x, y, is)
+			})
+		}
+	}
+
+	fn at(&mut self, p: Point<i16>) -> Option<usize> {
+		let x = p.x as usize;
+		let y = p.y as usize;
+		let idx = x + y * self.width;
+		self.data.get(idx).map(|&t| t)
+	}
+
+	fn set(&mut self, p: Point<i16>, tile: usize) {
+		let x = p.x as usize;
+		let y = p.y as usize;
+		if x >= self.width || y >= self.height {
+			return;
+		}
+		let idx = x + y * self.width;
+		self.data[idx] = tile;
+	}
+}
+
+fn load_tilemap(width: usize, height: usize, fill: usize) -> Tilemap {
+	use std::path::Path;
+	use image::GenericImage;
+
+	const ONE: &str = "tileset_1bit.png";
+	const TWO: &str = "extra-1bits.png";
+
+	let mut map = Tilemap {
+		width, height,
+		data: vec![fill; width*height],
+		tiles: Vec::new(),
+	};
+
+	let mut one = image::open(&Path::new(ONE)).unwrap();
+	let mut two = image::open(&Path::new(TWO)).unwrap();
+
+	fn tiles(map: &mut Tilemap, m: &mut image::DynamicImage) {
+		for y in 0..8 {
+			for x in 0..8 {
+				let sub = m.sub_image(x*16, y*16, 16, 16);
+				let mut mask = mask::Mask::new_square(16, 16);
+				for y in 0..16 {
+					for x in 0..16 {
+						let r = sub.get_pixel(x, y).data[0];
+						let idx = x + y * 16;
+						mask.pix[idx as usize] = r > 0;
+					}
+				}
+				map.tiles.push(mask);
+			}
+		}
+	}
+
+	tiles(&mut map, &mut one);
+	tiles(&mut map, &mut two);
+	map
+}
+
+
 fn main() {
 	let sdl_context = sdl2::init().unwrap();
 	let video_subsys = sdl_context.video().unwrap();
@@ -96,6 +191,7 @@ fn main() {
 
 	let (w, h) = video_subsys.display_bounds(0)
 		.unwrap().size();
+
 
 	let mut window = video_subsys.window("ASprite", w, h)
 		.position_centered()
@@ -136,45 +232,83 @@ fn main() {
 		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
 		.unwrap();
 
-	let mut editor = editor::Editor::new(6, Point::new(200, 100), sprite);
-
-	let mut freehand = freehand::Freehand {
-		mode: freehand::Mode::PixelPerfect,
-		last: Point::new(0, 0),
-		pts: Vec::new(),
-		color: 0,
-	};
-
 	let mut render = RenderSDL { ctx, font,
 		last: 0, hot: 0, active: 0, kbd: 0,
 		key: None,
+		next_rect: Rect::with_coords(0, 0, 0, 0),
 		mouse: (false, Point::new(0, 0)),
 	};
 
-	//let gray0 = Color::RGB(0x19, 0x19, 0x19);
-	let gray1 = Color::RGB(0x22, 0x22, 0x22);
+	let (winx, winy) = render.ctx.output_size().unwrap();
 
-	// let gray2 = Color::RGB(0x4F, 0x4F, 0x4F);
+	let mut app = App {
+		update: true,
+		quit: false,
+		drag: false,
+		drawing: false,
 
-	// let green = 0x00FF00_FF;
-	let red =   0xFF4136_FF;
+		tile: 0,
 
-	let mut paint = |render: &mut RenderSDL<sdl2::video::Window>, editor: &mut editor::Editor, freehand: &mut freehand::Freehand, statusbar: Rect<i16>| {
-		let mut update = false;
+		statusbar: Rect::with_size(0, winy as i16 - 20, winx as i16, 20),
+		freehand: freehand::Freehand {
+			mode: freehand::Mode::PixelPerfect,
+			last: Point::new(0, 0),
+			pts: Vec::new(),
+			color: 0,
+		},
+		editor: editor::Editor::new(6, Point::new(200, 100), sprite),
+		map: load_tilemap(40, 30, 63),
+	};
+
+	while !app.quit {
+		if app.update {
+			app.paint(&mut texture, &mut render);
+		}
+
+		for event in events.poll_iter() {
+			app.event(event, &mut render);
+		}
+	}
+}
+
+struct App<'a> {
+	update: bool,
+	quit: bool,
+	drag: bool,
+	drawing: bool,
+	statusbar: Rect<i16>,
+	freehand: freehand::Freehand,
+	editor: editor::Editor<'a>,
+
+	tile: usize,
+	map: Tilemap,
+}
+
+impl<'a> App<'a> {
+	fn paint<'t>(&mut self, texture: &mut Texture<'t>, render: &mut RenderSDL<sdl2::video::Window>) {
+		//let gray0 = Color::RGB(0x19, 0x19, 0x19);
+		let gray1 = Color::RGB(0x22, 0x22, 0x22);
+
+		// let gray2 = Color::RGB(0x4F, 0x4F, 0x4F);
+
+		// let green = 0x00FF00_FF;
+		let red =   0xFF4136_FF;
+
+		self.update = false;
 
 		render.ctx.set_draw_color(gray1);
 		render.ctx.clear();
 
-		render.ctx.with_texture_canvas(&mut texture, |canvas| {
+		render.ctx.with_texture_canvas(texture, |canvas| {
 			// TODO: redraw only changed area
 			canvas.set_draw_color(Color::RGBA(0xCA, 0xDC, 0x9F, 0xFF));
 			canvas.clear();
 
-			let image = editor.image.as_receiver();
+			let image = self.editor.image.as_receiver();
 			for (frame, layers) in image.data.iter().enumerate() {
 				for (layer, page) in layers.iter().enumerate() {
-					let page = if layer == editor.layer && frame == editor.frame {
-						&editor.canvas
+					let page = if layer == self.editor.layer && frame == self.editor.frame {
+						&self.editor.canvas
 					} else {
 						page
 					};
@@ -187,47 +321,48 @@ fn main() {
 			}
 
 			// tool preview
-			for g in &freehand.pts {
+			for g in &self.freehand.pts {
 				let p = g.pt;
 				if g.active {
-					canvas.pixel(p.x, p.y, image.palette[freehand.color].to_be()).unwrap();
+					canvas.pixel(p.x, p.y, image.palette[self.freehand.color].to_be()).unwrap();
 				} else {
 					canvas.pixel(p.x, p.y, red).unwrap();
 				}
 			}
 
 			// tool preview
-			for g in &freehand.pts {
+			for g in &self.freehand.pts {
 				let p = g.pt;
 				if g.active {
-					canvas.pixel(p.x, p.y, image.palette[freehand.color].to_be()).unwrap();
+					canvas.pixel(p.x, p.y, image.palette[self.freehand.color].to_be()).unwrap();
 				} else {
 					canvas.pixel(p.x, p.y, red).unwrap();
 				}
 			}
 
 			// preview brush
-			canvas.pixel(editor.mouse.x, editor.mouse.y, image.palette[editor.fg].to_be()).unwrap();
+			canvas.pixel(self.editor.mouse.x, self.editor.mouse.y, image.palette[self.editor.fg].to_be()).unwrap();
 		}).unwrap();
 
-		let size = editor.size() * editor.zoom;
+		let size = self.editor.size() * self.editor.zoom;
 
-		let dst = Some(rect!(editor.pos.x, editor.pos.y, size.x, size.y));
+		let dst = Some(rect!(self.editor.pos.x, self.editor.pos.y, size.x, size.y));
 		render.ctx.copy(&texture, None, dst).unwrap();
 
 		{ // ui
 			render.prepare();
 			let s = format!(" Freehand::{:?}  zoom:{}  [{:+} {:+}]  {:>3}#{:<3}",
-				freehand.mode, editor.zoom, editor.mouse.x, editor.mouse.y, editor.fg, editor.bg);
-			render.label_bg(1, statusbar, Align::Left, red, 0x001f3f_FF, &s);
+				self.freehand.mode, self.editor.zoom, self.editor.mouse.x, self.editor.mouse.y, self.editor.fg, self.editor.bg);
+			render.r(self.statusbar);
+			render.label_bg(1, Align::Left, red, 0x001f3f_FF, &s);
 
 			let r = Rect::with_size(10, 0, 100, 20);
 			render.text(r, Align::Left, 0xFFFFFF_FF, "palette:");
 
 			for i in 0..5 {
-				let r = Rect::with_size(10, 20 + 20*i as i16, 20, 20);
-				render.btn_label(10 + i, r, &format!("{}", i), || {
-					editor.fg = i as u8;
+				render.r(Rect::with_size(10, 20 + 20*i as i16, 20, 20));
+				render.btn_label(10 + i, &format!("{}", i), || {
+					self.editor.fg = i as u8;
 				});
 			}
 
@@ -239,140 +374,151 @@ fn main() {
 				freehand::Mode::Discontinious,
 				freehand::Mode::Continious,
 				freehand::Mode::PixelPerfect,
+				freehand::Mode::Line,
+
 			];
 			for (i, m) in modes.iter().enumerate() {
-				let r = Rect::with_size(10, 140 + 20*i as i16, 100, 20);
-				render.btn_label(20 + i as u32, r, &format!("{:?}", m), || {
-					freehand.mode = *m;
+				render.r(Rect::with_size(10, 140 + 20*i as i16, 100, 20));
+				render.btn_label(20 + i as u32, &format!("{:?}", m), || {
+					self.freehand.mode = *m;
 				});
 			}
 
 			{
-				let r = Rect::with_size(10, 240, 100, 20);
-				render.text(r, Align::Left, 0xFFFFFF_FF, "undo/redo:");
-
-				let r = Rect::with_size(10, 260, 20, 20);
-				render.btn_label(30, r, &"\u{2190}", || {
-					editor.undo();
-					update = true;
+				render.r(Rect::with_size(10, 260, 20, 20));
+				render.btn_label(30, &"\u{2190}", || {
+					self.editor.undo();
+					self.update = true;
 				});
-				let r = Rect::with_size(30, 260, 20, 20);
-				render.btn_label(31, r, &"\u{2192}", || {
-					editor.redo();
-					update = true;
+				render.r(Rect::with_size(30, 260, 20, 20));
+				render.btn_label(31, &"\u{2192}", || {
+					self.editor.redo();
+					self.update = true;
 				});
 			}
 
 			render.finish();
 		}
 
+		let ww = 0xFFFFFF_FFu32.to_be();
+		let bb = 0x000000_FFu32.to_be();
+
+		self.map.draw(|x, y, is| {
+			let c = if is { ww } else { bb };
+			render.ctx.pixel(x as i16 + 600, y as i16, c).unwrap();
+		});
+
+		self.map.draw_tilemap(|x, y, is| {
+			let c = if is { ww } else { bb };
+			render.ctx.pixel(x as i16 + 600, y as i16 + 600, c).unwrap();
+		});
+
 		render.ctx.present();
-		update
-	};
+	}
 
-	let mut drag = false;
-	let mut drawing = false;
-	let mut update = true;
+	fn event(&mut self, event: sdl2::event::Event, render: &mut RenderSDL<sdl2::video::Window>) {
+		match event {
+			Event::MouseMotion {x, y, xrel, yrel, ..} => {
+				self.update = true;
 
-	let (winx, winy) = render.ctx.output_size().unwrap();
-	let mut statusbar = Rect::with_size(0, winy as i16 - 20, winx as i16, 20);
+				let p = Point::new(x as i16, y as i16);
+				render.mouse.1 = p;
 
-	'main: loop {
-		if true || update {
-			update = paint(&mut render, &mut editor, &mut freehand, statusbar);
-		}
-
-		for event in events.poll_iter() {
-			match event {
-				Event::MouseMotion {x, y, xrel, yrel, ..} => {
-					update = true;
-
-					let p = Point::new(x as i16, y as i16);
-					render.mouse.1 = p;
-
-					let p = editor.set_mouse(p);
-					if drag {
-						editor.pos.x += xrel as i16;
-						editor.pos.y += yrel as i16;
-					} else if drawing {
-						freehand.run(Input::Move(p), &mut editor);
-					}
+				let p = self.editor.set_mouse(p);
+				if self.drag {
+					self.editor.pos.x += xrel as i16;
+					self.editor.pos.y += yrel as i16;
+				} else if self.drawing {
+					self.freehand.run(Input::Move(p), &mut self.editor);
 				}
-
-				Event::Quit {..} => break 'main,
-
-				Event::KeyDown { keycode: Some(keycode), ..} => {
-					match keycode {
-						Keycode::Escape => break 'main,
-						Keycode::Num1 => editor.fg = 1,
-						Keycode::Num2 => editor.fg = 2,
-						Keycode::Num3 => editor.fg = 3,
-						Keycode::Num4 => editor.fg = 4,
-
-						Keycode::Num5 => freehand.mode = freehand::Mode::Single,
-						Keycode::Num6 => freehand.mode = freehand::Mode::Discontinious,
-						Keycode::Num7 => freehand.mode = freehand::Mode::Continious,
-						Keycode::Num8 => freehand.mode = freehand::Mode::PixelPerfect,
-						Keycode::U => editor.undo(),
-						Keycode::R => editor.redo(),
-						_ => (),
-					}
-					update = true;
-				}
-
-				Event::MouseButtonDown { mouse_btn: MouseButton::Right, .. } => {
-					drag = true;
-					update = true;
-				}
-				Event::MouseButtonUp { mouse_btn: MouseButton::Right, .. } => {
-					drag = false;
-					update = true;
-				}
-
-				Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
-					let p = Point::new(x as i16, y as i16);
-					render.mouse = (true, p);
-
-					let p = editor.set_mouse(p);
-					if p.x >= 0 && p.y >= 0 {
-						freehand.run(Input::Press(p), &mut editor);
-						drawing = true;
-					}
-					update = true;
-				}
-				Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
-					let p = Point::new(x as i16, y as i16);
-					render.mouse = (false, p);
-
-					let p = editor.set_mouse(p);
-					if p.x >= 0 && p.y >= 0 {
-						freehand.run(Input::Release(p), &mut editor);
-						drawing = false;
-					}
-					update = true;
-				}
-
-				Event::MouseWheel { y, ..} => {
-					let last = editor.zoom;
-					editor.zoom += y as i16;
-					if editor.zoom < 1 { editor.zoom = 1 }
-					if editor.zoom > 16 { editor.zoom = 16 }
-					let diff = last - editor.zoom;
-
-					editor.pos.x += editor.size().x * diff / 2;
-					editor.pos.y += editor.size().y * diff / 2;
-
-					update = true;
-				}
-
-				Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
-					println!("resize {} {}", w, h);
-					statusbar = Rect::with_size(0, h as i16 - 20, w as i16, 20);
-					update = true;
-				}
-
-				_ => (),
 			}
+
+			Event::Quit {..} => self.quit = true,
+
+			Event::KeyDown { keycode: Some(keycode), keymod, ..} => {
+				self.update = true;
+				match keycode {
+					Keycode::Escape => self.quit = true,
+					Keycode::Num1 => self.editor.fg = 1,
+					Keycode::Num2 => self.editor.fg = 2,
+					Keycode::Num3 => self.editor.fg = 3,
+					Keycode::Num4 => self.editor.fg = 4,
+
+					Keycode::Num5 => self.freehand.mode = freehand::Mode::Single,
+					Keycode::Num6 => self.freehand.mode = freehand::Mode::Discontinious,
+					Keycode::Num7 => self.freehand.mode = freehand::Mode::Continious,
+					Keycode::Num8 => self.freehand.mode = freehand::Mode::PixelPerfect,
+					Keycode::U => self.editor.undo(),
+					Keycode::R => self.editor.redo(),
+
+					Keycode::Tab => {
+						render.key = if keymod.contains(sdl2::keyboard::LSHIFTMOD) {
+							Some(ui::Key::PrevWidget)
+						} else {
+							Some(ui::Key::NextWidget)
+						};
+					}
+					_ => (),
+				}
+			}
+
+			Event::MouseButtonDown { mouse_btn: MouseButton::Right, .. } => {
+				self.drag = true;
+				self.update = true;
+			}
+			Event::MouseButtonUp { mouse_btn: MouseButton::Right, .. } => {
+				self.drag = false;
+				self.update = true;
+			}
+
+			Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
+				let p = Point::new(x as i16, y as i16);
+				render.mouse = (true, p);
+
+				{
+					let p = Point::from_coordinates((p - Point::new(600, 0)) / 16);
+					self.map.set(p, self.tile);
+				}
+				{
+					let p = Point::from_coordinates((p - Point::new(600, 600)) / 16);
+					let r = Rect::with_size(0, 0, 8, 16);
+					if r.contains(p) {
+						println!("{}", p);
+						self.tile = (p.x + p.y * 8) as usize;
+					}
+				}
+
+				let p = self.editor.set_mouse(p);
+				if p.x >= 0 && p.y >= 0 {
+					self.freehand.run(Input::Press(p), &mut self.editor);
+					self.drawing = true;
+				}
+				self.update = true;
+			}
+			Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
+				let p = Point::new(x as i16, y as i16);
+				render.mouse = (false, p);
+
+				let p = self.editor.set_mouse(p);
+				if p.x >= 0 && p.y >= 0 {
+					self.freehand.run(Input::Release(p), &mut self.editor);
+					self.drawing = false;
+				}
+				self.update = true;
+			}
+
+			Event::MouseWheel { y, ..} => {
+				self.editor.zoom(y as i16);
+				self.update = true;
+			}
+
+			Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
+				println!("resize {} {}", w, h);
+				self.statusbar = Rect::with_size(0, h as i16 - 20, w as i16, 20);
+				self.update = true;
+			}
+
+			_ => (),
 		}
 	}
 }

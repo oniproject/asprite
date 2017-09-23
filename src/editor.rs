@@ -36,6 +36,17 @@ impl<'a> Editor<'a> {
 		}
 	}
 
+	pub fn zoom(&mut self, y: i16) {
+		let last = self.zoom;
+		self.zoom += y;
+		if self.zoom < 1 { self.zoom = 1 }
+		if self.zoom > 16 { self.zoom = 16 }
+		let diff = last - self.zoom;
+
+		self.pos.x += self.size().x * diff / 2;
+		self.pos.y += self.size().y * diff / 2;
+	}
+
 	pub fn size(&self) -> Point<i16> {
 		Point::new(self.canvas.width as i16, self.canvas.height as i16)
 	}
@@ -43,10 +54,6 @@ impl<'a> Editor<'a> {
 	pub fn set_mouse(&mut self, p: Point<i16>) -> Point<i16> {
 		self.mouse = Point::from_coordinates((p - self.pos) / self.zoom);
 		self.mouse
-	}
-
-	fn sync(&mut self) {
-		self.canvas.copy_from(&self.image.as_receiver().page(0, 0));
 	}
 
 	pub fn redo(&mut self) {
@@ -61,6 +68,10 @@ impl<'a> Editor<'a> {
 }
 
 impl<'a> Context for Editor<'a> {
+	fn sync(&mut self) {
+		self.canvas.copy_from(&self.image.as_receiver().page(0, 0));
+	}
+
 	fn start(&mut self) -> u8 {
 		self.sync();
 		self.fg

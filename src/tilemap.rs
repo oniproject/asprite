@@ -403,7 +403,7 @@ enum
 };
 */
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum Event {
 	Paint,
 
@@ -430,41 +430,55 @@ struct Panel {
 }
 
 struct ColorRect  {
-	x0: isize,y0: isize,x1: isize,y1: isize,
+	x0: usize,
+	y0: usize,
+	x1: usize,
+	y1: usize,
 	color: u32,
 }
 
 const MAX_DELAYRECT: usize = 256;
 
 struct UI {
+	tool: usize, active_event: Event,
+
+	active_id: u32, hot_id: u32, next_hot_id: u32,
+	event: Event,
+	mx: usize,my: usize, dx: usize,dy: usize,
 	/*
-	int tool, active_event;
-	int active_id, hot_id, next_hot_id;
-	int event;
-	int mx,my, dx,dy;
 	int ms_time;
 	int shift, scrollkey;
 	int initted;
 	int side_extended[2];
-	stbte__colorrect delayrect[STBTE__MAX_DELAYRECT];
-	int delaycount;
+	*/
+	delayrect: [ColorRect; MAX_DELAYRECT],
+	delaycount: usize,
+	/*
 	int show_grid, show_links;
 	int brush_state; // used to decide which kind of erasing
 	int eyedrop_x, eyedrop_y, eyedrop_last_layer;
 	int pasting, paste_x, paste_y;
 	int scrolling, start_x, start_y;
 	int last_mouse_x, last_mouse_y;
-	int accum_x, accum_y;
+	*/
+	accum_x: usize, accum_y: usize,
+	/*
 	int linking;
 	int dragging;
 	int drag_x, drag_y, drag_w, drag_h;
 	int drag_offx, drag_offy, drag_dest_x, drag_dest_y;
 	int undoing;
-	int has_selection, select_x0, select_y0, select_x1, select_y1;
-	int sx,sy;
-	int x0,y0,x1,y1, left_width, right_width; // configurable widths
-	float alert_timer;
-	const char *alert_msg;
+	*/
+	has_selection: bool, select_x0: usize, select_y0: usize, select_x1: usize, select_y1: usize,
+	sx: u32,sy: u32,
+
+	// configurable widths
+	x0: usize,y0: usize,x1: usize,y1: usize, left_width: usize, right_width: usize,
+
+	alert_timer: f32,
+	alert_msg: String,
+
+/*
 	float dt;
 	stbte__panel panel[STBTE__num_panel];
 	short copybuffer[STBTE_MAX_COPY][STBTE_MAX_LAYERS];
@@ -575,6 +589,7 @@ static void stbte__init_gui(void)
 */
 
 
+// #define STBTE__BG(tm,layer) ((layer) == 0 ? (tm)->background_tile : STBTE__NO_TILE)
 macro_rules! bg {
 	($self: ident, $layer: expr) => {
 		if $layer == 0 {
@@ -794,13 +809,15 @@ impl Tilemap {
 		for (i=0; i < self.num_tiles; ++i) {
 			stbte__tileinfo *t = &self.tiles[i];
 			// find category
-			for (j=0; j < self.num_categories; ++j)
-				if (stbte__strequal(t->category, self.categories[j]))
+			for (j=0; j < self.num_categories; ++j) {
+				if t.category == self.categories[j]) {
 					goto found;
+				}
+			}
 			self.categories[j] = t->category;
 			++self.num_categories;
 		found:
-			t->category_id = (unsigned short) j;
+			t.category_id = j as u16;
 		}
 		*/
 
@@ -954,62 +971,55 @@ trait Draw {
 	}
 }
 
-	/*
-	void stbte_set_sidewidths(int left, int right)
-	{
-		stbte__ui.left_width  = left;
-		stbte__ui.right_width = right;
+impl UI {
+	fn set_sidewidths(&mut self, left: usize, right: usize) {
+		self.left_width  = left;
+		self.right_width = right;
 	}
 
-	void stbte_set_display(int x0, int y0, int x1, int y1)
-	{
-		stbte__ui.x0 = x0;
-		stbte__ui.y0 = y0;
-		stbte__ui.x1 = x1;
-		stbte__ui.y1 = y1;
+	fn set_display(&mut self, x0: usize, y0: usize, x1: usize, y1: usize) {
+		self.x0 = x0;
+		self.y0 = y0;
+		self.x1 = x1;
+		self.y1 = y1;
 	}
-	*/
-
-/*
 
 
-	static void stbte__draw_frame_delayed(int x0, int y0, int x1, int y1, int color)
-	{
-		if (stbte__ui.delaycount < STBTE__MAX_DELAYRECT) {
-			stbte__colorrect r = { x0,y0,x1,y1,color };
-			stbte__ui.delayrect[stbte__ui.delaycount++] = r;
+	fn draw_frame_delayed(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
+		if self.delaycount < MAX_DELAYRECT {
+			let r = ColorRect { x0, y0, x1, y1, color };
+			self.delayrect[self.delaycount] = r;
+			self.delaycount += 1
 		}
 	}
 
-	static void stbte__flush_delay(void)
-	{
-		stbte__colorrect *r;
-		int i;
-		r = stbte__ui.delayrect;
-		for (i=0; i < stbte__ui.delaycount; ++i,++r)
-			stbte__draw_frame(r->x0,r->y0,r->x1,r->y1,r->color);
-		stbte__ui.delaycount = 0;
+/* TODO:
+	fn flush_delay(&mut self) {
+		for i in 0..self.delaycount {
+			let r = self.delayrect[i];
+			self.draw_frame(r.x0, r.y0, r.x1, r.y1, r.color);
+		}
+		self.delaycount = 0;
+	}
+*/
+
+	fn activate(&mut self, id: u32) {
+		self.active_id = id;
+		self.active_event = self.event;
+		self.accum_x = 0;
+		self.accum_y = 0;
 	}
 
-	static void stbte__activate(int id)
-	{
-		stbte__ui.active_id = id;
-		stbte__ui.active_event = stbte__ui.event;
-		stbte__ui.accum_x = 0;
-		stbte__ui.accum_y = 0;
+	fn hittest(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, id: u32) -> bool {
+		let over =
+			self.mx >= x0 && self.my >= y0 &&
+			self.mx <  x1 && self.my <  y1;
+		if over && self.event != Event::Tick {
+			self.next_hot_id = id;
+		}
+		over
 	}
-
-	static int stbte__hittest(int x0, int y0, int x1, int y1, int id)
-	{
-		int over =	 stbte__ui.mx >= x0 && stbte__ui.my >= y0
-					&& stbte__ui.mx <  x1 && stbte__ui.my <  y1;
-
-		if (over && stbte__ui.event >= STBTE__tick)
-			stbte__ui.next_hot_id = id;
-
-		return over;
-	}
-	*/
+}
 
 /* TODO:
 	static void stbte__draw_box(int x0, int y0, int x1, int y1, int colormode, int colorindex)
@@ -1024,7 +1034,15 @@ trait Draw {
 		stbte__draw_text(x0+xoff,y0+yoff, text, x1-x0-xoff-1, stbte__color_table[colormode][STBTE__text][colorindex]);
 	}
 	*/
-trait UI_ {
+
+
+enum Change {
+	Begin,
+	End,
+	Change,
+}
+
+trait UI_: Draw {
 	fn event(&self) -> Event;
 	fn active_event(&self) -> Event;
 	fn hot_id(&self) -> u16;
@@ -1041,8 +1059,6 @@ trait UI_ {
 	fn draw_textbox(&mut self,
 		x0: usize, y0: usize, x1: usize, y1: usize,
 		text: &str, xoff: usize, yoff: usize, colormode: ColorMode, colorindex: usize);
-
-
 
 
 	fn inactive(&self) -> bool { self.active_id() == 0 }
@@ -1197,109 +1213,102 @@ trait UI_ {
 
 		self.button_core(id) == Some(true)
 	}
-}
-
-
-/*
-
-
-	enum
-	{
-		STBTE__none,
-		STBTE__begin,
-		STBTE__end,
-		STBTE__change,
-	};
 
 	// returns -1 if value changes, 1 at end of drag
-	static int stbte__slider(int x0, int w, int y, int range, int *value, int id)
-	{
-		int x1 = x0+w;
-		int pos = *value * w / (range+1);
-		int over = stbte__hittest(x0,y-2,x1,y+3,id);
-		int event_mouse_move = STBTE__change;
-		switch (stbte__ui.event) {
-			case STBTE__paint:
-				stbte__draw_rect(x0,y,x1,y+1, 0x808080);
-				stbte__draw_rect(x0+pos-1,y-1,x0+pos+2,y+2, 0xffffff);
-				break;
-			case STBTE__leftdown:
-				if (STBTE__IS_HOT(id) && STBTE__INACTIVE()) {
-					stbte__activate(id);
-					event_mouse_move = STBTE__begin;
+	fn slider(&mut self, x0: usize, w: usize, y: usize, range: isize, value: &mut isize, id: u16) -> Option<Change> {
+		let x1 = x0+w;
+		let pos = (*value as isize * w as isize) / (range+1);
+		let _over = self.hittest(x0,y-2,x1,y+3,id);
+		let ev = self.event();
+		let leftdown = self.event() == Event::LeftDown;
+		match ev {
+			Event::Paint => {
+				self.rect(x0,y,x1,y+1, 0x808080);
+				self.rect(x0+pos as usize -1,y-1,x0+pos as usize +2,y+2, 0xffffff);
+			}
+			Event::LeftDown |
+			Event::MouseMove => {
+				let ev = if leftdown && self.is_hot(id) && self.inactive() {
+					self.activate(id);
+					Change::Begin
+				} else {
+					Change::Change
+				};
+				if self.is_active(id) {
+					let v = (*self.mx() - x0 as isize) * (range+1)/w as isize;
+					*value = if v < 0 { 0 } else if v > range { range } else { v };
+					return Some(ev);
 				}
-				// fall through
-			case STBTE__mousemove:
-				if (STBTE__IS_ACTIVE(id)) {
-					int v = (stbte__ui.mx-x0)*(range+1)/w;
-					if (v < 0) v = 0; else if (v > range) v = range;
-					*value = v;
-					return event_mouse_move;
+			}
+			Event::LeftUp => {
+				if self.is_active(id) {
+					self.activate(0);
+					return Some(Change::End);
 				}
-				break;
-			case STBTE__leftup:
-				if (STBTE__IS_ACTIVE(id)) {
-					stbte__activate(0);
-					return STBTE__end;
-				}
-				break;
+			}
+			_ => (),
 		}
-		return STBTE__none;
+		None
 	}
 
-	static int stbte__float_control(int x0, int y0, int w, float minv, float maxv, float scale, char *fmt, float *value, int colormode, int id)
-	{
-		int x1 = x0+w;
-		int y1 = y0+11;
-		int over = stbte__hittest(x0,y0,x1,y1,id);
-		switch (stbte__ui.event) {
+	fn float_control(&mut self, x0: usize, y0: usize, w: usize, minv: f32, maxv: f32, scale: f32, fmt: &str, value: &mut f32, colormode: ColorMode, id: u16) -> Option<Change> {
+		let x1 = x0+w;
+		let y1 = y0+11;
+		let _over = self.hittest(x0,y0,x1,y1, id);
+		match self.event() {
+		/* TODO:
 			case STBTE__paint: {
 				char text[32];
 				sprintf(text, fmt ? fmt : "%6.2f", *value);
 				stbte__draw_textbox(x0,y0,x1,y1, text, 1,2, colormode, STBTE__INDEX_FOR_ID(id,0,0));
 				break;
 			}
-			case STBTE__leftdown:
-			case STBTE__rightdown:
-				if (STBTE__IS_HOT(id) && STBTE__INACTIVE())
-					stbte__activate(id);
-					return STBTE__begin;
-				break;
-			case STBTE__leftup:
-			case STBTE__rightup:
-				if (STBTE__IS_ACTIVE(id)) {
-					stbte__activate(0);
-					return STBTE__end;
+			*/
+			Event::LeftDown | Event::RightDown => {
+				if self.is_hot(id) && self.inactive() {
+					self.activate(id);
+					return Some(Change::Begin);
 				}
-				break;
-			case STBTE__mousemove:
-				if (STBTE__IS_ACTIVE(id)) {
-					float v = *value, delta;
-					int ax = stbte__ui.accum_x/STBTE_FLOAT_CONTROL_GRANULARITY;
-					int ay = stbte__ui.accum_y/STBTE_FLOAT_CONTROL_GRANULARITY;
-					stbte__ui.accum_x -= ax*STBTE_FLOAT_CONTROL_GRANULARITY;
-					stbte__ui.accum_y -= ay*STBTE_FLOAT_CONTROL_GRANULARITY;
-					if (stbte__ui.shift) {
-						if (stbte__ui.active_event == STBTE__leftdown)
-							delta = ax * 16.0f + ay;
-						else
-							delta = ax / 16.0f + ay / 256.0f;
+			}
+			Event::LeftUp | Event::RightUp => {
+				if self.is_active(id) {
+					self.activate(0);
+					return Some(Change::End);
+				}
+			}
+			Event::MouseMove if self.is_active(id) => {
+			/* TODO:
+				float v = *value, delta;
+				int ax = stbte__ui.accum_x/FLOAT_CONTROL_GRANULARITY;
+				int ay = stbte__ui.accum_y/FLOAT_CONTROL_GRANULARITY;
+				stbte__ui.accum_x -= ax*FLOAT_CONTROL_GRANULARITY;
+				stbte__ui.accum_y -= ay*FLOAT_CONTROL_GRANULARITY;
+				let delta = if self.shift()) {
+					if self.active_event() == Event::LeftDown) {
+						ax * 16.0f + ay
 					} else {
-						if (stbte__ui.active_event == STBTE__leftdown)
-							delta = ax*10.0f + ay;
-						else
-							delta = ax * 0.1f + ay * 0.01f;
+						ax / 16.0f + ay / 256.0f
 					}
-					v += delta * scale;
-					if (v < minv) v = minv;
-					if (v > maxv) v = maxv;
-					*value = v;
-					return STBTE__change;
+				} else {
+					if self.active_event() == Event::LeftDown) {
+						ax*10.0f + ay
+					} else {
+						ax * 0.1f + ay * 0.01f
+					}
+				};
+				v += delta * scale;
+				if (v < minv) v = minv;
+				if (v > maxv) v = maxv;
+				*value = v;
+			*/
+				return Some(Change::Change);
 				}
-				break;
+			_ => (),
 		}
-		return STBTE__none;
+		None
 	}
+}
+/* TODO:
 
 	static void stbte__scrollbar(int x, int y0, int y1, int *val, int v0, int v1, int num_vis, int id)
 	{
@@ -1342,15 +1351,16 @@ trait UI_ {
 			*val = v0;
 	}
 
-
-
-	static int stbte__is_single_selection(void)
-	{
-		return stbte__ui.has_selection
-			&& stbte__ui.select_x0 == stbte__ui.select_x1
-			&& stbte__ui.select_y0 == stbte__ui.select_y1;
-	}
 	*/
+
+
+impl UI {
+	fn is_single_selection(&self) -> bool {
+		self.has_selection
+			&& self.select_x0 == self.select_x1
+			&& self.select_y0 == self.select_y1
+	}
+}
 
 struct Region {
 	width: isize, height: isize,
@@ -1503,53 +1513,68 @@ struct Region {
 			}
 		}
 	}
+*/
 
-	// unique identifiers for imgui
-	enum
-	{
-		STBTE__map=1,
-		STBTE__region,
-		STBTE__panel,								  // panel background to hide map, and misc controls
-		STBTE__info,									// info data
-		STBTE__toolbarA, STBTE__toolbarB,		// toolbar buttons: param is tool number
-		STBTE__palette,								// palette selectors: param is tile index
-		STBTE__categories,							// category selectors: param is category index
-		STBTE__layer,								  //
-		STBTE__solo, STBTE__hide, STBTE__lock, // layer controls: param is layer
-		STBTE__scrollbar,							 // param is panel ID
-		STBTE__panel_mover,						  // p1 is panel ID, p2 is destination side
-		STBTE__panel_sizer,						  // param panel ID
-		STBTE__scrollbar_id,
-		STBTE__colorpick_id,
-		STBTE__prop_flag,
-		STBTE__prop_float,
-		STBTE__prop_int,
-	};
+// unique identifiers for imgui
+enum Ids {
+	Map = 1,
+	Region,
+	// panel background to hide map, and misc controls
+	Panel,
+	// info data
+	Info,
+	// toolbar buttons: param is tool number
+	ToolbarA,
+	ToolbarB,
+	// palette selectors: param is tile index
+	Palette,
+	// category selectors: param is category index
+	Categories,
+	Layer,								  //
+	// layer controls: param is layer
+	Solo,
+	Hide, Lock,
 
-	// id is:		[		24-bit data	  : 7-bit identifer ]
-	// map id is:  [  12-bit y : 12 bit x : 7-bit identifier ]
+	// param is panel ID
+	Scrollbar,
+	// p1 is panel ID, p2 is destination side
+	PanelMover,
+	// param panel ID
+	PanelSizer,
 
-	#define STBTE__ID(n,p)	  ((n) + ((p)<<7))
-	#define STBTE__ID2(n,p,q)  STBTE__ID(n, ((p)<<12)+(q) )
-	#define STBTE__IDMAP(x,y)  STBTE__ID2(STBTE__map, x,y)
+	ScrollbarId,
+	ColorpickId,
+	PropFlag,
+	PropFloat,
+	PropInt,
+}
 
-	static void stbte__activate_map(int x, int y)
-	{
-		stbte__ui.active_id = STBTE__IDMAP(x,y);
-		stbte__ui.active_event = stbte__ui.event;
-		stbte__ui.sx = x;
-		stbte__ui.sy = y;
+// id is:      [          24-bit data : 7-bit identifier ]
+// map id is:  [  12-bit y : 12 bit x : 7-bit identifier ]
+
+fn id(n: u32, p: u32) -> u32 {
+	n + (p<<7)
+}
+fn id2(n: u32, p: u32, q: u32) -> u32 {
+	id(n, (p<<12) + q)
+}
+fn idmap(x: u32, y: u32) -> u32 {
+	id2(Ids::Map as u32, x, y)
+}
+
+impl UI {
+	fn activate_map(&mut self, x: u32, y: u32) {
+		self.active_id = idmap(x, y);
+		self.active_event = self.event;
+		self.sx = x;
+		self.sy = y;
 	}
 
-	static void stbte__alert(const char *msg)
-	{
-		stbte__ui.alert_msg = msg;
-		stbte__ui.alert_timer = 3;
+	fn alert(&mut self, msg: String) {
+		self.alert_msg = msg;
+		self.alert_timer = 3.0;
 	}
-
-	#define STBTE__BG(tm,layer) ((layer) == 0 ? (tm)->background_tile : STBTE__NO_TILE)
-
-	*/
+}
 
 
 #[derive(PartialEq)]
@@ -1571,7 +1596,6 @@ impl Tilemap {
 		let layer_to_paint = self.cur_layer;
 
 		// find lowest legit layer to paint it on, and put it there
-		//int i;
 
 		if layer_to_paint < 0 {
 			return;

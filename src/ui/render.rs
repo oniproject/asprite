@@ -47,21 +47,30 @@ pub struct RenderSDL<'ttf_module, 'rwops, T: sdl2::render::RenderTarget> {
 	pub kbd: u32,
 	pub last: u32,
 
+	pub next_rect: Rect<i16>,
+
 	pub key: Option<Key>,
 	pub mouse: (bool, Point<i16>),
 }
 
 impl<'ttf_module, 'rwops> RenderSDL<'ttf_module, 'rwops, sdl2::video::Window> {
-	pub fn label(&mut self, id: u32, r: Rect<i16>, align: Align, color: u32, text: &str) {
+	pub fn r(&mut self, r: Rect<i16>) {
+		self.next_rect = r;
+	}
+
+	pub fn label(&mut self, id: u32, align: Align, color: u32, text: &str) {
+		let r = self.next_rect;
 		self.widget(id, r);
 		self.text(r, align, color, text);
 	}
-	pub fn label_bg(&mut self, id: u32, r: Rect<i16>, align: Align, color: u32, bg: u32, text: &str) {
+	pub fn label_bg(&mut self, id: u32, align: Align, color: u32, bg: u32, text: &str) {
+		let r = self.next_rect;
 		self.widget(id, r);
 		self.rect(r, bg);
 		self.text(r, align, color, text);
 	}
-	pub fn btn_label<F: FnMut()>(&mut self, id: u32, r: Rect<i16>, label: &str, mut cb: F) {
+	pub fn btn_label<F: FnMut()>(&mut self, id: u32, label: &str, mut cb: F) {
+		let r = self.next_rect;
 		self.widget(id, r);
 
 		let bg = 0x0074D9_FF;

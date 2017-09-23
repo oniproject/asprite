@@ -6,6 +6,7 @@ pub enum Mode {
 	PixelPerfect,
 	Discontinious,
 	Single,
+	Line,
 }
 
 #[derive(Clone)]
@@ -25,18 +26,25 @@ impl Tool for Freehand {
 	fn run<C: Context>(&mut self, input: Input, ctx: &mut C) {
 		match input {
 			Input::Move(p) => {
+				let last = self.last;
+				self.last = p;
 				match self.mode {
-					Mode::PixelPerfect => self.update(p, ctx),
+					Mode::PixelPerfect => self.update(p, last, ctx),
 					Mode::Continious => {
-						let line = Bresenham::new(p, self.last);
-						for p in line {
+						draw_line(p, last, |p| {
 							ctx.brush(p, self.color)
-						}
+						})
 					},
 					Mode::Discontinious => ctx.brush(p, self.color),
 					Mode::Single => (),
+					Mode::Line => {
+						ctx.sync();
+						self.last = last;
+						draw_line(p, last, |p| {
+							ctx.brush(p, self.color)
+						})
+					}
 				}
-				self.last = p;
 			}
 
 			Input::Press(p) => {
@@ -60,17 +68,16 @@ impl Tool for Freehand {
 }
 
 impl Freehand {
-	pub fn update<C: Context>(&mut self, m: Point<i16>, ctx: &mut C) {
+	pub fn update<C: Context>(&mut self, m: Point<i16>, last: Point<i16>, ctx: &mut C) {
 		if self.point_exists(m.x, m.y) {
 			return;
 		}
 
-		let line = Bresenham::new(m, self.last.clone());
-		for p in line {
+		draw_line(last, m, |p|{
 			if !self.point_exists(p.x, p.y) {
 				self.pts.push(Pt { pt: p, active: true });
 			}
-		}
+		});
 
 		self.cleanup_points();
 		while self.pts.len() > 4 {
