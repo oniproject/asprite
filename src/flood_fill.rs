@@ -1,124 +1,84 @@
-#![allow(dead_code)]
+use common::*;
 
 // see http://will.thimbleby.net/scanline-flood-fill/
 
-pub struct Scanline {
-	stack: Vec<El>, 
-}
-
-struct El {
-	x_min: usize,
-	x_max: usize,
-	y: usize,
-	up_down: Option<bool>,
-	extend_left: bool,
-	extend_right: bool,
-}
-
-
-pub trait Image {
+pub trait Scanline<C: PartialEq + Copy> {
 	fn width(&self) -> usize;
 	fn height(&self) -> usize;
-	fn test(&self, x: usize, y: usize) -> bool;
-	fn paint(&self, x: usize, y: usize);
-}
+	fn at(&self, x: i16, y: i16) -> C;
+	fn paint(&mut self, x: i16, y: i16, color: C);
 
-impl Scanline {
-	pub fn new() -> Self {
-		Self {
-			stack: Vec::new(),
-		}
-	}
+	fn fill(&mut self, p: Point<i16>, color: C) {
+		let x = p.x;
+		let y = p.y;
 
-	pub fn fill<M: Image>(&mut self, x: usize, y: usize, m: &mut Image) {
-		self.stack.clear();
-		self.stack.push(El {
-			x_min: x,
-			x_max: x,
-			y,
-			up_down: None,
-			extend_left: true,
-			extend_right: true,
-		});
+		// x_min, x_max, y, down[true] / up[false], extend_left, extend_right
+		let mut ranges = vec![(x, x, y, None, true, true)];
+		let test = self.at(x, y);
+		let width = self.width() as i16;
+		let height = self.height() as i16;
+		self.paint(x, y, color);
 
-		let width = m.width();
-		let height = m.height();
+		while let Some((mut r0, mut r1, y, r3, extend_left, extend_right)) = ranges.pop() {
+			let down = r3 == Some(true);
+			let up =   r3 == Some(false);
 
-		m.paint(x, y);
-
-		while !self.stack.is_empty() {
-			let mut r = self.stack.pop().unwrap();
-			let down = r.up_down == Some(true);
-			let up =   r.up_down == Some(false);
-
-			let y = r.y;
-
-			let mut min_x = r.x_min;
-			if r.extend_left {
-				while min_x > 0 && m.test(min_x - 1, y) {
+			// extend left
+			let mut min_x = r0;
+			if extend_left {
+				while min_x > 0 && self.at(min_x-1, y) == test {
 					min_x -= 1;
-					m.paint(min_x, y);
+					self.paint(min_x, y, color);
 				}
 			}
 
-			let mut max_x = r.x_max;
-			if r.extend_right {
-				while max_x < width - 1 && m.test(max_x+1, y) {
-					max_x -= 1;
-					m.paint(max_x, y);
+			// extend right
+			let mut max_x = r1;
+			if extend_right {
+				while max_x < width-1 && self.at(max_x+1, y) == test {
+					max_x += 1;
+					self.paint(max_x, y, color);
 				}
 			}
 
 			// extend range ignored from previous line
-			r.x_min -= 1;
-			r.x_max += 1;
+			r0 -= 1;
+			r1 += 1;
 
-			let mut line = |new_y, next, downwards| {
-				let mut rmx = min_x;
+			let mut line = |y, is_next, downwards: bool| {
+				let mut rmin = min_x;
 				let mut in_range = false;
 
 				let mut x = min_x;
 
 				while x <= max_x {
 					// skip testing, if testing previous line within previous range
-					let empty = (next || (x < r.x_min || x > r.x_max)) && m.test(x, new_y);
+					let empty = (is_next || x < r0 || x > r1) && self.at(x, y) == test;
 
-					if !in_range && empty  {
-						rmx = x;
-						in_range = true;
+					in_range = if !in_range && empty {
+						rmin = x;
+						true
 					} else if in_range && !empty {
-						self.stack.push(El {
-							x_min: rmx,
-							x_max: x-1,
-							y: new_y,
-							up_down: Some(downwards),
-							extend_left: rmx==min_x,
-							extend_right: false,
-						});
-						in_range = false;
-					}
+						ranges.push((rmin, x-1, y, Some(downwards), rmin == min_x, false));
+						false
+					} else {
+						in_range
+					};
 
-					if in_range  {
-						m.paint(x, new_y);
+					if in_range {
+						self.paint(x, y, color);
 					}
 
 					// skip
-					if !next && x==r.x_min  {
-						x = r.x_max;
+					if !is_next && x == r0 {
+						x = r1;
 					}
 
 					x += 1;
 				}
 
 				if in_range {
-					self.stack.push(El {
-						x_min: rmx,
-						x_max: x-1,
-						y: new_y,
-						up_down: Some(downwards),
-						extend_left: rmx==min_x,
-						extend_right: true,
-					});
+					ranges.push((rmin, x-1, y, Some(downwards), rmin == min_x, true));
 				}
 			};
 
@@ -130,5 +90,4 @@ impl Scanline {
 			}
 		}
 	}
-
 }

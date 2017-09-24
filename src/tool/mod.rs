@@ -4,10 +4,17 @@ use common::*;
 pub mod freehand;
 
 #[derive(Clone, Debug)]
+pub enum Key {
+	Shift,
+}
+
+#[derive(Clone, Debug)]
 pub enum Input {
 	Press(Point<i16>),
 	Release(Point<i16>),
 	Move(Point<i16>),
+	Down(Key),
+	Up(Key),
 	Cancel, // press ESC
 }
 
@@ -18,6 +25,7 @@ pub trait Context {
 	fn sync(&mut self);
 
 	fn brush(&mut self, Point<i16>, u8);
+	fn pixel(&mut self, Point<i16>, u8);
 }
 
 pub trait Tool {

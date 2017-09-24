@@ -1,12 +1,11 @@
 use super::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Mode {
 	Continious,
 	PixelPerfect,
-	Discontinious,
-	Single,
 	Line,
+	Rect,
 }
 
 #[derive(Clone)]
@@ -17,49 +16,74 @@ pub struct Pt {
 
 pub struct Freehand {
 	pub mode: Mode,
+	pub line: bool,
+
 	pub last: Point<i16>,
 	pub pts: Vec<Pt>,
 	pub color: u8,
+	pub active: bool,
 }
 
 impl Tool for Freehand {
 	fn run<C: Context>(&mut self, input: Input, ctx: &mut C) {
 		match input {
+			Input::Down(Key::Shift) => self.line = true,
+			Input::Up(Key::Shift) => self.line = false,
+
 			Input::Move(p) => {
 				let last = self.last;
 				self.last = p;
 				match self.mode {
 					Mode::PixelPerfect => self.update(p, last, ctx),
 					Mode::Continious => {
-						draw_line(p, last, |p| {
-							ctx.brush(p, self.color)
-						})
-					},
-					Mode::Discontinious => ctx.brush(p, self.color),
-					Mode::Single => (),
+						draw_line(p, last, |p| ctx.brush(p, self.color))
+					}
 					Mode::Line => {
-						ctx.sync();
 						self.last = last;
-						draw_line(p, last, |p| {
-							ctx.brush(p, self.color)
-						})
+						ctx.sync();
+						draw_line(p, last, |p| ctx.brush(p, self.color))
+					}
+					Mode::Rect => {
+						self.last = last;
+						ctx.sync();
+						let (mut sx, mut sy) = (p.x, p.y);
+						let (mut ex, mut ey) = (last.x, last.y);
+						if sx > ex {
+							::std::mem::swap(&mut sx, &mut ex);
+						}
+						if sy > ey {
+							::std::mem::swap(&mut sy, &mut ey);
+						}
+						for y in sy..ey {
+							for x in sx..ex {
+								ctx.pixel(Point::new(x, y), self.color);
+							}
+						}
 					}
 				}
 			}
 
 			Input::Press(p) => {
+				assert!(!self.active);
+				self.active = true;
 				self.color = ctx.start();
-				ctx.brush(p, self.color);
-				self.pts.push(Pt { pt: p, active: true });
+				if self.mode != Mode::Rect {
+					ctx.brush(p, self.color);
+					self.pts.push(Pt { pt: p, active: true });
+				}
 				self.last = p;
 			}
 			Input::Release(_) => {
-				while self.pts.len() > 0 {
-					self.flatten_first_point(ctx);
+				if self.active {
+					self.active = false;
+					while self.pts.len() > 0 {
+						self.flatten_first_point(ctx);
+					}
+					ctx.commit();
 				}
-				ctx.commit();
 			}
 			Input::Cancel => {
+				self.active = false;
 				self.pts.clear();
 				ctx.rollback();
 			}

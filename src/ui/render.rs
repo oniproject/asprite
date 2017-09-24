@@ -19,6 +19,18 @@ pub enum Event {
 	MouseLeave,
 }
 
+pub enum RenderCommand {
+	Color(u32),
+
+	Pixel(Point<i16>),
+	Line(Point<i16>, Point<i16>),
+	BorderRect(Rect<i16>),
+	FillRect(Rect<i16>),
+
+	Clip(Rect<i16>),
+	ClipReset,
+}
+
 pub trait Render {
 	fn pixel(&self, p: Point<i16>, color: u32);
 	fn line(&self, start: Point<i16>, end: Point<i16>, color: u32);
@@ -59,31 +71,57 @@ impl<'ttf_module, 'rwops> RenderSDL<'ttf_module, 'rwops, sdl2::video::Window> {
 	}
 
 	pub fn label(&mut self, id: u32, align: Align, color: u32, text: &str) {
+		self.widget(id);
 		let r = self.next_rect;
-		self.widget(id, r);
 		self.text(r, align, color, text);
 	}
 	pub fn label_bg(&mut self, id: u32, align: Align, color: u32, bg: u32, text: &str) {
+		self.widget(id);
 		let r = self.next_rect;
-		self.widget(id, r);
 		self.rect(r, bg);
 		self.text(r, align, color, text);
 	}
+
+	pub fn btn_mini<F: FnMut()>(&mut self, id: u32, r: Rect<i16>, label: &str, active: u32, mut cb: F) {
+		self.r(r);
+		self.widget(id);
+
+		if self.hot == id && self.active == id {
+			self.rect(r, active);
+		};
+
+		let label_color = 0xFFFFFF_FF;
+
+		// FIXME: fucking hack
+		{
+			let mut r = r.clone();
+			let w = r.w() + 2;
+			let h = r.h() + 2;
+			r.set_w(w);
+			r.set_h(h);
+			self.text(r, Align::Center, label_color, label);
+		}
+
+		if !self.mouse.0 && self.hot == id && self.active == id {
+			cb();
+			println!("click: {}", label);
+		}
+	}
+
 	pub fn btn_label<F: FnMut()>(&mut self, id: u32, label: &str, mut cb: F) {
+		self.widget(id);
+
 		let r = self.next_rect;
-		self.widget(id, r);
+		let bg = 0x353D4B_FF;
+		let active_color = 0x0076FF_FF;
 
-		let bg = 0x0074D9_FF;
-		let active_color = 0x7FDBFF_FF;
-
-		let label_color = if self.hot == id {
+		if self.hot == id {
 			let bg = if self.active == id { active_color } else { bg };
 			self.rect(r, bg);
-			0x222222_FF
-		} else {
-			0xFFFFFF_FF
 		};
 		self.outline(r, bg);
+
+		let label_color = 0xECECEC_FF;
 
 		// FIXME: fucking hack
 		{
@@ -105,7 +143,10 @@ impl<'ttf_module, 'rwops> RenderSDL<'ttf_module, 'rwops, sdl2::video::Window> {
 		self.hot = 0;
 	}
 
-	pub fn finish(&mut self) {
+	pub fn finish(&mut self) -> bool {
+		let last_active = self.active;
+		let last_kbd = self.kbd;
+
 		if !self.mouse.0 {
 			self.active = 0;
 		} else if self.active == 0 {
@@ -119,10 +160,12 @@ impl<'ttf_module, 'rwops> RenderSDL<'ttf_module, 'rwops, sdl2::video::Window> {
 
 		// Clear the entered key
 		self.key = None;
+
+		last_active != self.active || last_kbd != self.kbd
 	}
 
-	pub fn widget(&mut self, id: u32, r: Rect<i16>) {
-		if self.hot == 0 && r.contains(self.mouse.1) {
+	pub fn widget(&mut self, id: u32) {
+		if self.hot == 0 && self.next_rect.contains(self.mouse.1) {
 			self.hot = id;
 			if self.active == 0 && self.mouse.0 {
 				self.active = id;
@@ -137,6 +180,7 @@ impl<'ttf_module, 'rwops> RenderSDL<'ttf_module, 'rwops, sdl2::video::Window> {
 				Some(Key::NextWidget) => (true, 0),
 				Some(Key::PrevWidget) => (true, self.last),
 			};
+
 			if reset {
 				self.key = None;
 			}
