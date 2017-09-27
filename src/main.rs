@@ -20,10 +20,11 @@ mod tool;
 mod ui;
 mod mask;
 mod editor;
-mod cmd_page;
+mod cmd;
 mod sprite;
 
 //mod tilemap;
+use cmd::*;
 
 use common::*;
 use tool::*;
@@ -525,7 +526,18 @@ impl<'a> App<'a> {
 		}
 	}
 
+	fn input(&mut self, ev: Input<i16>) {
+		match self.tool {
+			CurrentTool::Freehand => self.freehand.run(ev, &mut self.editor),
+			CurrentTool::Rectangle => self.rectangle.run(ev, &mut self.editor),
+			CurrentTool::Bucket => self.bucket.run(ev, &mut self.editor),
+			CurrentTool::EyeDropper => self.dropper.run(ev, &mut self.editor),
+			CurrentTool::Ellipse => self.ellipse.run(ev, &mut self.editor),
+		}
+	}
+
 	fn event(&mut self, event: sdl2::event::Event, render: &mut RenderSDL<sdl2::video::Window>) {
+		/*
 		let freehand = &mut self.freehand;
 		let rectangle = &mut self.rectangle;
 		let bucket = &mut self.bucket;
@@ -542,11 +554,11 @@ impl<'a> App<'a> {
 				CurrentTool::Ellipse => ellipse.run(ev, editor),
 			};
 		};
+		*/
 
+		self.update = true;
 		match event {
 			Event::MouseMotion {x, y, xrel, yrel, ..} => {
-				self.update = true;
-
 				let p = Point::new(x as i16, y as i16);
 				render.mouse.1 = p;
 				/* 
@@ -563,23 +575,21 @@ impl<'a> App<'a> {
 					self.editor.pos.x += xrel as i16;
 					self.editor.pos.y += yrel as i16;
 				} else {
-					input(Input::Move(p), &mut self.editor);
+					self.input(Input::Move(p));
 				}
 			}
 
 			Event::Quit {..} => self.quit = true,
 
 			Event::KeyUp { keycode: Some(keycode), ..} => {
-				self.update = true;
 				match keycode {
 					Keycode::LShift |
 					Keycode::RShift => 
-						input(Input::Special(false), &mut self.editor),
+						self.input(Input::Special(false)),
 					_ => (),
 				}
 			}
 			Event::KeyDown { keycode: Some(keycode), keymod, ..} => {
-				self.update = true;
 				let shift = keymod.intersects(sdl2::keyboard::LSHIFTMOD | sdl2::keyboard::RSHIFTMOD);
 				let _alt = keymod.intersects(sdl2::keyboard::LALTMOD | sdl2::keyboard::RALTMOD);
 				let _ctrl = keymod.intersects(sdl2::keyboard::LCTRLMOD | sdl2::keyboard::RCTRLMOD);
@@ -598,7 +608,7 @@ impl<'a> App<'a> {
 					// Keycode::Num9 => self.freehand.mode = freehand::Mode::Line,
 					Keycode::LShift |
 					Keycode::RShift => 
-						input(Input::Special(true), &mut self.editor),
+						self.input(Input::Special(true)),
 
 					/*
 					Keycode::S if ctrl => {
@@ -625,11 +635,9 @@ impl<'a> App<'a> {
 
 			Event::MouseButtonDown { mouse_btn: MouseButton::Middle, .. } => {
 				self.drag = true;
-				self.update = true;
 			}
 			Event::MouseButtonUp { mouse_btn: MouseButton::Middle, .. } => {
 				self.drag = false;
-				self.update = true;
 			}
 
 			Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
@@ -659,9 +667,8 @@ impl<'a> App<'a> {
 
 				let p = self.editor.set_mouse(p);
 				if p.x >= 0 && p.y >= 0 {
-					input(Input::Press(p), &mut self.editor);
+					self.input(Input::Press(p));
 				}
-				self.update = true;
 			}
 			Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
 				let p = Point::new(x as i16, y as i16);
@@ -669,20 +676,16 @@ impl<'a> App<'a> {
 
 				let p = self.editor.set_mouse(p);
 				if p.x >= 0 && p.y >= 0 {
-					input(Input::Release(p), &mut self.editor);
+					self.input(Input::Release(p));
 				}
-				self.update = true;
 			}
 
 			Event::MouseWheel { y, ..} => {
 				self.editor.zoom(y as i16);
-				self.update = true;
 			}
 
 			Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
-				println!("resize {} {}", w, h);
 				self.statusbar = Rect::with_size(0, h as i16 - 20, w as i16, 20);
-				self.update = true;
 			}
 
 			_ => (),
