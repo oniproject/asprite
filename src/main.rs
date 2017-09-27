@@ -278,6 +278,7 @@ fn main() {
 		rectangle: Rectangle::new(),
 		bucket: Bucket::new(),
 		freehand: Freehand::new(),
+		dropper: EyeDropper::new(),
 
 		/*
 		map: Tilemap::load(40, 30, 63),
@@ -307,6 +308,7 @@ enum CurrentTool {
 	Freehand,
 	Rectangle,
 	Bucket,
+	EyeDropper,
 }
 
 struct App<'a> {
@@ -318,6 +320,7 @@ struct App<'a> {
 	freehand: Freehand<i16, u8>,
 	rectangle: Rectangle<i16, u8>,
 	bucket: Bucket<i16, u8>,
+	dropper: EyeDropper<i16, u8>,
 
 	tool: CurrentTool,
 	editor: editor::Editor<'a>,
@@ -521,6 +524,7 @@ impl<'a> App<'a> {
 		let freehand = &mut self.freehand;
 		let rectangle = &mut self.rectangle;
 		let bucket = &mut self.bucket;
+		let dropper = &mut self.dropper;
 
 		let tool = self.tool;
 		let mut input = move |ev, editor| {
@@ -528,6 +532,7 @@ impl<'a> App<'a> {
 				CurrentTool::Freehand => freehand.run(ev, editor),
 				CurrentTool::Rectangle => rectangle.run(ev, editor),
 				CurrentTool::Bucket => bucket.run(ev, editor),
+				CurrentTool::EyeDropper => dropper.run(ev, editor),
 			};
 		};
 
