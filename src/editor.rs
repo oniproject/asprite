@@ -150,6 +150,10 @@ impl<'a> Context<i16, u8> for Editor<'a> {
 	}
 
 	fn change_foreground(&mut self, color: u8) {
-		let _ = self.image.push(ChangeColor::foreground(color));
+		let _ = self.image.push(ChangeColor::Foreground(color));
+	}
+
+	fn change_background(&mut self, color: u8) {
+		let _ = self.image.push(ChangeColor::Background(color));
 	}
 }

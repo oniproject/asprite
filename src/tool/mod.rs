@@ -28,6 +28,7 @@ pub trait Context<N: Signed, C: Copy + PartialEq>: Image<N, C> {
 	fn sync(&mut self);
 
 	fn change_foreground(&mut self, C);
+	fn change_background(&mut self, C);
 }
 
 pub trait Tool<N: Signed, C: Copy + PartialEq> {

@@ -41,7 +41,6 @@ use ui::*;
  * 4F4F4F
  */
 
-const MAP_FILE: &str = "MAP.BIN";
 
 fn create_pal(pal: &mut Palette<u32>) {
 	const GB0: u32 = 0xCADC9F_FF;
@@ -94,6 +93,7 @@ fn create_cursor() -> Cursor {
 }
 
 /*
+const MAP_FILE: &str = "MAP.BIN";
 struct Tilemap {
 	data: Vec<usize>,
 	width: usize,

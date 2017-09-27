@@ -30,9 +30,6 @@ pub enum ChangeColor {
 }
 
 impl ChangeColor {
-	pub fn foreground(color: u8) -> Self {
-		ChangeColor::Foreground(color)
-	}
 	fn run(&mut self, image: &mut Sprite) -> Result<(), Box<Error>> {
 		match self {
 			&mut ChangeColor::Foreground(ref mut c) => swap(c, &mut image.fg),
