@@ -5,10 +5,12 @@ use common::*;
 mod freehand;
 mod rectangle;
 mod bucket;
+mod eye_dropper;
 
 pub use self::freehand::Freehand;
 pub use self::rectangle::Rectangle;
 pub use self::bucket::Bucket;
+pub use self::eye_dropper::EyeDropper;
 
 #[derive(Clone, Debug)]
 pub enum Input<N: Signed> {
@@ -24,6 +26,8 @@ pub trait Context<N: Signed, C: Copy + PartialEq>: Image<N, C> {
 	fn commit(&mut self);
 	fn rollback(&mut self);
 	fn sync(&mut self);
+
+	fn change_foreground(&mut self, C);
 }
 
 pub trait Tool<N: Signed, C: Copy + PartialEq> {

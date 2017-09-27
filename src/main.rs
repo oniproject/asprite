@@ -495,7 +495,7 @@ impl<'a> App<'a> {
 				render.r(Rect::with_size(width - 200, 140 + 20*i as i16, 20, 20));
 				let color = self.editor.image().palette[i];
 				if render.btn_color(10 + i as u32, color) {
-					self.editor.image.push(cmd_page::ChangeColor::foreground(i as u8));
+					self.editor.change_foreground(i as u8);
 				}
 			}
 		}

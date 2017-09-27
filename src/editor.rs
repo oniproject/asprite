@@ -95,10 +95,16 @@ impl<'a> Image<i16, u8> for Editor<'a> {
 	fn width(&self) -> i16 { self.canvas.width as i16 }
 	fn height(&self) -> i16 { self.canvas.height as i16 }
 
-	fn at(&self, x: i16, y: i16) -> u8 {
-		let w = self.canvas.width as i16;
-		let idx = x + y * w;
-		self.canvas.page[idx as usize]
+	fn at(&self, x: i16, y: i16) -> Option<u8> {
+		let (w, h) = (self.canvas.width as i16, self.canvas.height as i16);
+		let ix = x >= 0 && x < w;
+		let iy = y >= 0 && y < h;
+		if ix && iy {
+			let idx = x + y * w;
+			Some(self.canvas.page[idx as usize])
+		} else {
+			None
+		}
 	}
 
 	fn paint_brush(&mut self, p: Point<i16>, color: u8) {
@@ -141,5 +147,9 @@ impl<'a> Context<i16, u8> for Editor<'a> {
 	}
 	fn rollback(&mut self) {
 		self.sync();
+	}
+
+	fn change_foreground(&mut self, color: u8) {
+		let _ = self.image.push(ChangeColor::foreground(color));
 	}
 }

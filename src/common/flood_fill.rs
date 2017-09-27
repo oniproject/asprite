@@ -5,7 +5,7 @@ use super::*;
 pub trait Image<N: Signed, C: Copy + PartialEq> {
 	fn paint_pixel(&mut self, p: Point<N>, color: C);
 	fn paint_brush(&mut self, p: Point<N>, color: C);
-	fn at(&self, x: N, y: N) -> C;
+	fn at(&self, x: N, y: N) -> Option<C>;
 
 	fn width(&self) -> N;
 	fn height(&self) -> N;
@@ -35,6 +35,10 @@ pub trait Image<N: Signed, C: Copy + PartialEq> {
 		}
 
 		let test = self.at(x, y);
+		if test.is_none() {
+			return;
+		}
+
 		self.paint_pixel(p, color);
 
 		while let Some((mut r0, mut r1, y, r3, extend_left, extend_right)) = ranges.pop() {
