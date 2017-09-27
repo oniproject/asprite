@@ -18,7 +18,86 @@ pub trait Image<N: Signed, C: Copy + PartialEq> {
 		draw_line(start, end, |p| self.paint_brush(p, color));
 	}
 
-	fn fill(&mut self, p: Point<N>, color: C) {
+	fn ellipse(&mut self, r: Rect<N>, color: C) {
+		let (mut x0, mut y0, mut x1, mut y1) = (
+			r.min.x.to_i64().unwrap(),
+			r.min.y.to_i64().unwrap(),
+			r.max.x.to_i64().unwrap(),
+			r.max.y.to_i64().unwrap(),
+		); 
+
+		let mut a = (x1-x0).abs();
+		let b = (y1-y0).abs();
+		// values of diameter
+		let mut b1 = b & 1;
+
+		// error increment
+		let mut dx = 4*(1-a)*b*b;
+		let mut dy = 4*(b1+1)*a*a;
+		let mut err = dx+dy+b1*a*a;
+		let mut e2; // error of 1.step
+
+		// if called with swapped points
+		if x0 > x1 {
+			x0 = x1;
+			x1 += a;
+		}
+		// .. exchange them
+		if y0 > y1 {
+			y0 = y1;
+		}
+		// starting pixel 
+		y0 += (b+1)/2;
+		y1 = y0-b1;
+		a *= 8*a;
+		b1 = 8*b*b;
+
+		while {
+			let p = Point::new(N::from(x1).unwrap(), N::from(y0).unwrap());
+			self.paint_pixel(p, color); //   I. Quadrant
+			let p = Point::new(N::from(x0).unwrap(), N::from(y0).unwrap());
+			self.paint_pixel(p, color); //  II. Quadrant
+			let p = Point::new(N::from(x0).unwrap(), N::from(y1).unwrap());
+			self.paint_pixel(p, color); // III. Quadrant
+			let p = Point::new(N::from(x1).unwrap(), N::from(y1).unwrap());
+			self.paint_pixel(p, color); //  IV. Quadrant
+			e2 = 2*err;
+			// y step 
+			if e2 <= dy {
+				y0 += 1;
+				y1 -= 1;
+				dy += a;
+				err += dy;
+			}
+			// x step
+			if e2 >= dx || 2*err > dy {
+				x0 += 1;
+				x1 -= 1;
+				dx += b1;
+				err += dx;
+			}
+
+			x0 <= x1
+		} {}
+		
+		// too early stop of flat ellipses a=1
+		while y0-y1 < b {
+			// -> finish tip of ellipse 
+			let p = Point::new(N::from(x0-1).unwrap(), N::from(y0).unwrap());
+			self.paint_pixel(p, color);
+			let p = Point::new(N::from(x1+1).unwrap(), N::from(y0).unwrap());
+			self.paint_pixel(p, color);
+			y0 += 1;
+
+			let p = Point::new(N::from(x0-1).unwrap(), N::from(y1).unwrap());
+			self.paint_pixel(p, color);
+			let p = Point::new(N::from(x1+1).unwrap(), N::from(y1).unwrap());
+			self.paint_pixel(p, color);
+			y1 -= 1;
+		}
+	}
+
+	fn scanline_fill(&mut self, p: Point<N>, color: C) {
 		let x = p.x;
 		let y = p.y;
 

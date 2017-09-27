@@ -11,6 +11,9 @@ pub type Point<N> = Point2<N>;
 pub trait Signed:
 	num_traits::sign::Signed +
 	num_traits::NumAssign +
+
+	num_traits::int::PrimInt +
+
 	Ord +
 	PartialOrd<Self> +
 	Copy +
@@ -18,7 +21,6 @@ pub trait Signed:
 	Debug + 'static
 {}
 
-impl Signed for i8 {}
 impl Signed for i16 {}
 impl Signed for i32 {}
 impl Signed for i64 {}

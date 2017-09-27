@@ -19,7 +19,7 @@ impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Bucket<N, C> {
 		match input {
 			Input::Press(p) => {
 				let color = ctx.start();
-				ctx.fill(p, color);
+				ctx.scanline_fill(p, color);
 				ctx.commit();
 			}
 			_ => (),

@@ -279,6 +279,7 @@ fn main() {
 		bucket: Bucket::new(),
 		freehand: Freehand::new(),
 		dropper: EyeDropper::new(),
+		ellipse: Ellipse::new(),
 
 		/*
 		map: Tilemap::load(40, 30, 63),
@@ -309,6 +310,7 @@ enum CurrentTool {
 	Rectangle,
 	Bucket,
 	EyeDropper,
+	Ellipse,
 }
 
 struct App<'a> {
@@ -321,6 +323,7 @@ struct App<'a> {
 	rectangle: Rectangle<i16, u8>,
 	bucket: Bucket<i16, u8>,
 	dropper: EyeDropper<i16, u8>,
+	ellipse: Ellipse<i16, u8>,
 
 	tool: CurrentTool,
 	editor: editor::Editor<'a>,
@@ -476,7 +479,7 @@ impl<'a> App<'a> {
 		{ // statusbar
 			let s = format!(" perfect pixel: {} zoom:{}  {:>3}#{:<3}  [{:+} {:+}]",
 				self.freehand.perfect, self.editor.zoom,
-				self.editor.fg(), self.editor.bg(),
+				self.editor.image().fg, self.editor.image().bg,
 				self.editor.mouse.x, self.editor.mouse.y,
 			);
 			render.r(self.statusbar);
@@ -512,6 +515,7 @@ impl<'a> App<'a> {
 			CurrentTool::Rectangle,
 			CurrentTool::Bucket,
 			CurrentTool::EyeDropper,
+			CurrentTool::Ellipse,
 		];
 		for (i, m) in modes.iter().enumerate() {
 			render.r(Rect::with_size(10, 160 + 20 * i as i16, 150, 20));
@@ -526,6 +530,7 @@ impl<'a> App<'a> {
 		let rectangle = &mut self.rectangle;
 		let bucket = &mut self.bucket;
 		let dropper = &mut self.dropper;
+		let ellipse = &mut self.ellipse;
 
 		let tool = self.tool;
 		let mut input = move |ev, editor| {
@@ -534,6 +539,7 @@ impl<'a> App<'a> {
 				CurrentTool::Rectangle => rectangle.run(ev, editor),
 				CurrentTool::Bucket => bucket.run(ev, editor),
 				CurrentTool::EyeDropper => dropper.run(ev, editor),
+				CurrentTool::Ellipse => ellipse.run(ev, editor),
 			};
 		};
 
