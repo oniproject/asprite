@@ -5,6 +5,10 @@ use sdl2::pixels::Color;
 
 use sdl2;
 
+pub struct Panel {
+	pub r: Rect<i16>,
+}
+
 pub enum Align {
 	Left,
 	Right,
@@ -80,6 +84,13 @@ impl<'ttf_module, 'rwops> RenderSDL<'ttf_module, 'rwops, sdl2::video::Window> {
 		let r = self.next_rect;
 		self.rect(r, bg);
 		self.text(r, align, color, text);
+	}
+
+	pub fn btn_color(&mut self, id: u32, color: u32) -> bool {
+		let r = self.next_rect;
+		self.widget(id);
+		self.rect(r, color);
+		!self.mouse.0 && self.hot == id && self.active == id
 	}
 
 	pub fn btn_mini<F: FnMut()>(&mut self, id: u32, r: Rect<i16>, label: &str, active: u32, mut cb: F) {

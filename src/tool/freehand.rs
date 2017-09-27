@@ -1,4 +1,5 @@
 use super::*;
+use std::cmp;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Mode {
@@ -14,6 +15,50 @@ pub struct Pt {
 	pub active: bool,
 }
 
+pub struct Rectangle {
+	pub start: Point<i16>,
+	pub color: u8,
+	pub active: bool,
+	pub square: bool,
+}
+
+impl Rectangle {
+	pub fn new() -> Self {
+		Self {
+			start: Point::new(0, 0),
+			color: 0,
+			active: false,
+			square: false,
+		}
+	}
+}
+
+impl Tool for Rectangle {
+	fn run<C: Context>(&mut self, input: Input, ctx: &mut C) {
+		match input {
+			Input::Move(p) => {
+				ctx.sync();
+				let mut r = Rect::with_points(p, self.start).normalize();
+				if self.square {
+					let v = cmp::min(r.max.x, r.max.y);
+					r.max.x = v;
+					r.max.y = v;
+				}
+				fill_rect(r, |p| ctx.pixel(p, self.color));
+			}
+
+			Input::Special(on) => self.square = on,
+			Input::Press(p) => {
+				assert!(!self.active);
+				self.color = ctx.start();
+				self.start = p;
+			}
+			Input::Release(_) => ctx.commit(),
+			Input::Cancel => ctx.rollback(),
+		}
+	}
+}
+
 pub struct Freehand {
 	pub mode: Mode,
 	pub line: bool,
@@ -27,8 +72,7 @@ pub struct Freehand {
 impl Tool for Freehand {
 	fn run<C: Context>(&mut self, input: Input, ctx: &mut C) {
 		match input {
-			Input::Down(Key::Shift) => self.line = true,
-			Input::Up(Key::Shift) => self.line = false,
+			Input::Special(on) => self.line = on,
 
 			Input::Move(p) => {
 				let last = self.last;
@@ -46,19 +90,8 @@ impl Tool for Freehand {
 					Mode::Rect => {
 						self.last = last;
 						ctx.sync();
-						let (mut sx, mut sy) = (p.x, p.y);
-						let (mut ex, mut ey) = (last.x, last.y);
-						if sx > ex {
-							::std::mem::swap(&mut sx, &mut ex);
-						}
-						if sy > ey {
-							::std::mem::swap(&mut sy, &mut ey);
-						}
-						for y in sy..ey {
-							for x in sx..ex {
-								ctx.pixel(Point::new(x, y), self.color);
-							}
-						}
+						let r = Rect::with_points(p, last).normalize();
+						fill_rect(r, |p| ctx.pixel(p, self.color));
 					}
 				}
 			}
@@ -73,11 +106,14 @@ impl Tool for Freehand {
 				}
 				self.last = p;
 			}
-			Input::Release(_) => {
+			Input::Release(p) => {
 				if self.active {
 					self.active = false;
 					while self.pts.len() > 0 {
 						self.flatten_first_point(ctx);
+					}
+					if self.mode != Mode::Rect {
+						ctx.brush(p, self.color);
 					}
 					ctx.commit();
 				}

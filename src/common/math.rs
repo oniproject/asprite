@@ -2,6 +2,7 @@ use num_traits;
 
 use std::iter::Step;
 use std::fmt::Debug;
+use std::mem::swap;
 
 use na::Point2;
 
@@ -57,5 +58,18 @@ impl<T: Signed> Rect<T> {
 	}
 	pub fn set_h(&mut self, h: T) {
 		self.max.y = self.min.y + h;
+	}
+
+	pub fn normalize(self) -> Self {
+		let Rect { mut min, mut max } = self;
+		if min.x > max.x {
+			swap(&mut min.x, &mut max.x);
+		}
+		if min.y > max.y {
+			swap(&mut min.y, &mut max.y);
+		}
+		Self {
+			min, max
+		}
 	}
 }

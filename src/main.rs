@@ -11,7 +11,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::{Color, PixelFormatEnum};
 
-use sdl2::render::Texture;
+use sdl2::render::{Texture, BlendMode};
 
 use sdl2::gfx::primitives::DrawRenderer;
 
@@ -229,6 +229,7 @@ fn main() {
 	let mut ctx = window.into_canvas()
 		.software()
 		.build().unwrap();
+
 	let creator = ctx.texture_creator();
 
 	ctx.set_draw_color(Color::RGB(100, 10, 100));
@@ -254,6 +255,12 @@ fn main() {
 	let mut texture = creator
 		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
 		.unwrap();
+
+	let mut texture_preview = creator
+		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
+		.unwrap();
+
+	texture_preview.set_blend_mode(BlendMode::Blend);
 
 	let mut render = RenderSDL { ctx, font,
 		last: 0, hot: 0, active: 0, kbd: 0,
@@ -289,7 +296,7 @@ fn main() {
 
 	while !app.quit {
 		if app.update {
-			app.paint(&mut texture, &mut render);
+			app.paint(&mut texture, &mut texture_preview, &mut render);
 		}
 
 		for event in events.poll_iter() {
@@ -313,15 +320,8 @@ struct App<'a> {
 }
 
 impl<'a> App<'a> {
-	fn paint<'t>(&mut self, texture: &mut Texture<'t>, render: &mut RenderSDL<sdl2::video::Window>) {
+	fn paint<'t>(&mut self, sprite: &mut Texture<'t>,  preview: &mut Texture<'t>, render: &mut RenderSDL<sdl2::video::Window>) {
 		let editor_bg = Color::RGB(0x20, 0x24, 0x2F);
-
-		//let gray0 = Color::RGB(0x19, 0x19, 0x19);
-		// let gray1 = Color::RGB(0x22, 0x22, 0x22);
-
-		// let gray2 = Color::RGB(0x4F, 0x4F, 0x4F);
-
-		// let green = 0x00FF00_FF;
 		let red =  0xFF4136_FFu32;
 
 		self.update = false;
@@ -329,10 +329,18 @@ impl<'a> App<'a> {
 		render.ctx.set_draw_color(editor_bg);
 		render.ctx.clear();
 
-		if self.editor.redraw {
-			self.editor.redraw = false;
 
-			render.ctx.with_texture_canvas(texture, |canvas| {
+		enum Layer {
+			Sprite,
+			Preview,
+		}
+		let textures = [(sprite, Layer::Sprite), (preview, Layer::Preview)];
+
+		render.ctx.with_multiple_texture_canvas(textures.iter(), |canvas, layer| {
+			match *layer {
+			Layer::Sprite => if self.editor.redraw {
+				self.editor.redraw = false;
+
 				// TODO: redraw only changed area
 				canvas.set_draw_color(Color::RGBA(0xCA, 0xDC, 0x9F, 0xFF));
 				canvas.clear();
@@ -352,7 +360,11 @@ impl<'a> App<'a> {
 						}
 					}
 				}
-
+			}
+			Layer::Preview => {
+				canvas.set_draw_color(Color::RGBA(0x00, 0x00, 0x00, 0x00));
+				canvas.clear();
+				let image = self.editor.image.as_receiver();
 				// tool preview
 				for g in &self.freehand.pts {
 					let p = g.pt;
@@ -375,13 +387,18 @@ impl<'a> App<'a> {
 
 				// preview brush
 				canvas.pixel(self.editor.mouse.x, self.editor.mouse.y, image.palette[self.editor.fg].to_be()).unwrap();
-			}).unwrap();
-		}
+			}
+			}
+		}).unwrap();
 
 		let size = self.editor.size() * self.editor.zoom;
 
 		let dst = Some(rect!(self.editor.pos.x, self.editor.pos.y, size.x, size.y));
-		render.ctx.copy(&texture, None, dst).unwrap();
+		render.ctx.set_blend_mode(BlendMode::Blend);
+		for t in &textures {
+			render.ctx.copy(t.0, None, dst).unwrap();
+		}
+		render.ctx.set_blend_mode(BlendMode::None);
 
 		{ // ui
 			render.prepare();
@@ -391,7 +408,7 @@ impl<'a> App<'a> {
 			}
 		}
 
-		{ // tilemap
+		if false { // tilemap
 			let ww = 0xFFFFFF_FFu32.to_be();
 			let bb = 0x000000_FFu32.to_be();
 			let rr = 0xFF0000_FFu32.to_be();
@@ -423,24 +440,27 @@ impl<'a> App<'a> {
 		let statusbar_bg = 0x3F4350_FFu32;
 		let statusbar_color = 0xA7A8AE_FFu32;
 		let menubar_bg = 0x222833_FFu32;
-		let menubar_color = 0xFFFFFF_FF;
-		let contextbar_bg = 0x3f4957_FF;
+		let color = 0xFFFFFF_FF;
+		let bar_bg = 0x3f4957_FF;
 
 		let cb_btn_border = 0x4E5763_FF;
 		let cb_btn_bg = 0x3E4855_FF;
 		let cb_btn_active = 0x0076FF_FF;
 
-		let w = self.statusbar.w();
+		let timeline_bg = 0x3a4351_FF;
+		let header_bg = 0x525b68_FF;
+
+		let width = self.statusbar.w();
 		{
 			// menubar
-			let r = Rect::with_size(0, 0, w, 20);
+			let r = Rect::with_size(0, 0, width, 20);
 			render.r(r);
 			render.rect(r, menubar_bg);
-			render.text(r, Align::Left, menubar_color, " File  Edit  Select  View  Image  Layer  Tools  Help");
+			render.text(r, Align::Left, color, " File  Edit  Select  View  Image  Layer  Tools  Help");
 
 			// contextbar 
-			let r = Rect::with_size(0, 20, w, 40);
-			render.rect(r, contextbar_bg);
+			let r = Rect::with_size(0, 20, width, 40);
+			render.rect(r, bar_bg);
 
 			// undo/redo
 			let r1 = Rect::with_size(40, 30, 20, 20);
@@ -454,22 +474,30 @@ impl<'a> App<'a> {
 			render.btn_mini(34, r2, &"\u{2192}", cb_btn_active, || self.editor.redo());
 		}
 
-
 		let s = format!(" Freehand::{:?}  zoom:{}  [{:+} {:+}]  {:>3}#{:<3}",
 			self.freehand.mode, self.editor.zoom, self.editor.mouse.x, self.editor.mouse.y, self.editor.fg, self.editor.bg);
 		render.r(self.statusbar);
 		render.label_bg(1, Align::Left, statusbar_color, statusbar_bg, &s);
 
-		/*
-		let r = Rect::with_size(10, 0, 100, 20);
-		render.text(r, Align::Left, 0xFFFFFF_FF, "palette:");
-		*/
+		let rr = Rect::with_size(0, self.statusbar.max.y - self.statusbar.h() - 200, width, 200);
+		render.rect(rr, timeline_bg);
 
-		for i in 0..5 {
-			render.r(Rect::with_size(w - 100, 20 + 20*i as i16, 20, 20));
-			render.btn_label(10 + i, &format!("{}", i), || {
-				self.editor.fg = i as u8;
-			});
+		{
+			let rr = Rect::with_size(width-250, 100, 250, 500);
+			render.rect(rr, bar_bg);
+			let rr = Rect::with_size(width-250, 100, 250, 20);
+			render.rect(rr, header_bg);
+			render.text(rr, Align::Right, color, &"\u{25BC} ");
+		}
+
+		{
+			for i in 0..5u8 {
+				render.r(Rect::with_size(width - 100, 20 + 20*i as i16, 20, 20));
+				let image = self.editor.image.as_receiver();
+				if render.btn_color(10 + i as u32, image.palette[i]) {
+					self.editor.fg = i as u8;
+				}
+			}
 		}
 
 		let r = Rect::with_size(10, 120, 100, 20);
@@ -521,7 +549,7 @@ impl<'a> App<'a> {
 				match keycode {
 					Keycode::LShift |
 					Keycode::RShift => 
-						self.freehand.run(Input::Up(tool::Key::Shift), &mut self.editor),
+						self.freehand.run(Input::Special(false), &mut self.editor),
 					_ => (),
 				}
 			}
@@ -545,7 +573,7 @@ impl<'a> App<'a> {
 					Keycode::Num9 => self.freehand.mode = freehand::Mode::Line,
 					Keycode::LShift |
 					Keycode::RShift => 
-						self.freehand.run(Input::Down(tool::Key::Shift), &mut self.editor),
+						self.freehand.run(Input::Special(true), &mut self.editor),
 
 					Keycode::S if ctrl => {
 						use std::fs::File;
@@ -568,11 +596,11 @@ impl<'a> App<'a> {
 				}
 			}
 
-			Event::MouseButtonDown { mouse_btn: MouseButton::Right, .. } => {
+			Event::MouseButtonDown { mouse_btn: MouseButton::Middle, .. } => {
 				self.drag = true;
 				self.update = true;
 			}
-			Event::MouseButtonUp { mouse_btn: MouseButton::Right, .. } => {
+			Event::MouseButtonUp { mouse_btn: MouseButton::Middle, .. } => {
 				self.drag = false;
 				self.update = true;
 			}

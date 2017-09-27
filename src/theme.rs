@@ -15,4 +15,18 @@ shift - lines
 ctrl  - hold by 30deg (momevent)
 alt   - picker
 
+normal:
+	left - paint
+	middle - move / zoom
+	right - picker
+
+shift:
+	left - line paint
+	middle - ???
+	right - ???
+
+ctlr:
+
+alt:
+
 */

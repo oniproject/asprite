@@ -4,17 +4,11 @@ use common::*;
 pub mod freehand;
 
 #[derive(Clone, Debug)]
-pub enum Key {
-	Shift,
-}
-
-#[derive(Clone, Debug)]
 pub enum Input {
 	Press(Point<i16>),
 	Release(Point<i16>),
 	Move(Point<i16>),
-	Down(Key),
-	Up(Key),
+	Special(bool),
 	Cancel, // press ESC
 }
 

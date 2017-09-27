@@ -38,9 +38,13 @@ impl Page {
 		}
 	}
 	pub fn copy_from(&mut self, other: &Page) {
+		assert_eq!(self.width, other.width);
+		assert_eq!(self.height, other.height);
 		self.page.copy_from_slice(&other.page);
 	}
 	pub fn swap(&mut self, other: &mut Page) {
+		assert_eq!(self.width, other.width);
+		assert_eq!(self.height, other.height);
 		for (a, b) in self.page.iter_mut().zip(other.page.iter_mut()) {
 			mem::swap(a, b);
 		}

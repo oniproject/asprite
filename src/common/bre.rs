@@ -1,5 +1,18 @@
 use super::*;
 
+pub fn fill_rect<N, F>(r: Rect<N>, mut pixel: F)
+	where
+		F: FnMut(Point<N>),
+		N: Signed
+{
+	let one = N::one();
+	for y in r.min.y..r.max.y + one {
+		for x in r.min.x..r.max.x + one {
+			pixel(Point::new(x, y))
+		}
+	}
+}
+
 pub fn draw_line<N, F>(start: Point<N>, end: Point<N>, mut pixel: F)
 	where
 		F: FnMut(Point<N>),
