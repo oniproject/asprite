@@ -511,6 +511,7 @@ impl<'a> App<'a> {
 			CurrentTool::Freehand,
 			CurrentTool::Rectangle,
 			CurrentTool::Bucket,
+			CurrentTool::EyeDropper,
 		];
 		for (i, m) in modes.iter().enumerate() {
 			render.r(Rect::with_size(10, 160 + 20 * i as i16, 150, 20));
