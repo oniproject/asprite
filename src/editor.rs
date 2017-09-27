@@ -70,25 +70,7 @@ impl<'a> Editor<'a> {
 	}
 }
 
-impl<'a> Context for Editor<'a> {
-	fn sync(&mut self) {
-		self.canvas.copy_from(&self.image.as_receiver().page(0, 0));
-		self.redraw = true;
-	}
-
-	fn start(&mut self) -> u8 {
-		self.sync();
-		self.fg
-	}
-	fn commit(&mut self) {
-		let page = self.canvas.clone();
-		let _ = self.image.push(PageCmd::new(0, 0, page));
-		self.sync();
-	}
-	fn rollback(&mut self) {
-		self.sync();
-	}
-
+impl<'a> Image<i16, u8> for Editor<'a> {
 	fn brush(&mut self, p: Point<i16>, color: u8) {
 		let (w, h) = (self.canvas.width as i16, self.canvas.height as i16);
 		let x = p.x >= 0 && p.x < w;
@@ -109,5 +91,25 @@ impl<'a> Context for Editor<'a> {
 			let idx = p.x + p.y * w;
 			self.canvas.page[idx as usize] = color;
 		}
+	}
+}
+
+impl<'a> Context<i16, u8> for Editor<'a> {
+	fn sync(&mut self) {
+		self.canvas.copy_from(&self.image.as_receiver().page(0, 0));
+		self.redraw = true;
+	}
+
+	fn start(&mut self) -> u8 {
+		self.sync();
+		self.fg
+	}
+	fn commit(&mut self) {
+		let page = self.canvas.clone();
+		let _ = self.image.push(PageCmd::new(0, 0, page));
+		self.sync();
+	}
+	fn rollback(&mut self) {
+		self.sync();
 	}
 }

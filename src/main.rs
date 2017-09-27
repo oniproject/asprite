@@ -275,23 +275,24 @@ fn main() {
 		update: true,
 		quit: false,
 		drag: false,
-		drawing: false,
 
+		/*
+		map: Tilemap::load(40, 30, 63),
 		fill: false,
-
 		tile: 0,
+		*/
 
 		statusbar: Rect::with_size(0, winy as i16 - 20, winx as i16, 20),
 		freehand: freehand::Freehand {
-			mode: freehand::Mode::PixelPerfect,
 			last: Point::new(0, 0),
 			pts: Vec::new(),
 			color: 0,
 			active: false,
+
+			perfect: true,
 			line: false,
 		},
 		editor: editor::Editor::new(6, Point::new(200, 100), sprite),
-		map: Tilemap::load(40, 30, 63),
 	};
 
 	while !app.quit {
@@ -309,14 +310,15 @@ struct App<'a> {
 	update: bool,
 	quit: bool,
 	drag: bool,
-	drawing: bool,
 	statusbar: Rect<i16>,
-	freehand: freehand::Freehand,
+	freehand: freehand::Freehand<i16, u8>,
 	editor: editor::Editor<'a>,
 
+/*
 	tile: usize,
 	fill: bool,
 	map: Tilemap,
+*/
 }
 
 impl<'a> App<'a> {
@@ -328,7 +330,6 @@ impl<'a> App<'a> {
 
 		render.ctx.set_draw_color(editor_bg);
 		render.ctx.clear();
-
 
 		enum Layer {
 			Sprite,
@@ -365,20 +366,11 @@ impl<'a> App<'a> {
 				canvas.set_draw_color(Color::RGBA(0x00, 0x00, 0x00, 0x00));
 				canvas.clear();
 				let image = self.editor.image.as_receiver();
-				// tool preview
-				for g in &self.freehand.pts {
-					let p = g.pt;
-					if g.active {
-						canvas.pixel(p.x, p.y, image.palette[self.freehand.color].to_be()).unwrap();
-					} else {
-						canvas.pixel(p.x, p.y, red).unwrap();
-					}
-				}
 
 				// tool preview
 				for g in &self.freehand.pts {
-					let p = g.pt;
-					if g.active {
+					let p = g.0;
+					if g.1 {
 						canvas.pixel(p.x, p.y, image.palette[self.freehand.color].to_be()).unwrap();
 					} else {
 						canvas.pixel(p.x, p.y, red).unwrap();
@@ -474,25 +466,29 @@ impl<'a> App<'a> {
 			render.btn_mini(34, r2, &"\u{2192}", cb_btn_active, || self.editor.redo());
 		}
 
-		let s = format!(" Freehand::{:?}  zoom:{}  [{:+} {:+}]  {:>3}#{:<3}",
-			self.freehand.mode, self.editor.zoom, self.editor.mouse.x, self.editor.mouse.y, self.editor.fg, self.editor.bg);
-		render.r(self.statusbar);
-		render.label_bg(1, Align::Left, statusbar_color, statusbar_bg, &s);
+		{ // statusbar
+			let s = format!(" perfect pixel: {} zoom:{}  {:>3}#{:<3}  [{:+} {:+}]",
+				self.freehand.perfect, self.editor.zoom,
+				self.editor.fg, self.editor.bg,
+				self.editor.mouse.x, self.editor.mouse.y,
+			);
+			render.r(self.statusbar);
+			render.label_bg(1, Align::Left, statusbar_color, statusbar_bg, &s);
+		}
 
 		let rr = Rect::with_size(0, self.statusbar.max.y - self.statusbar.h() - 200, width, 200);
 		render.rect(rr, timeline_bg);
 
-		{
+		{ // palette
 			let rr = Rect::with_size(width-250, 100, 250, 500);
 			render.rect(rr, bar_bg);
 			let rr = Rect::with_size(width-250, 100, 250, 20);
 			render.rect(rr, header_bg);
 			render.text(rr, Align::Right, color, &"\u{25BC} ");
-		}
+			render.text(rr, Align::Left, color, &" Palette");
 
-		{
 			for i in 0..5u8 {
-				render.r(Rect::with_size(width - 100, 20 + 20*i as i16, 20, 20));
+				render.r(Rect::with_size(width - 200, 140 + 20*i as i16, 20, 20));
 				let image = self.editor.image.as_receiver();
 				if render.btn_color(10 + i as u32, image.palette[i]) {
 					self.editor.fg = i as u8;
@@ -500,21 +496,10 @@ impl<'a> App<'a> {
 			}
 		}
 
-		let r = Rect::with_size(10, 120, 100, 20);
-		render.text(r, Align::Left, 0xFFFFFF_FF, "freehand:");
-
-		let modes = [
-			freehand::Mode::Continious,
-			freehand::Mode::PixelPerfect,
-			freehand::Mode::Line,
-			freehand::Mode::Rect,
-		];
-		for (i, m) in modes.iter().enumerate() {
-			render.r(Rect::with_size(10, 140 + 20*i as i16, 100, 20));
-			render.btn_label(20 + i as u32, &format!("{:?}", m), || {
-				self.freehand.mode = *m;
-			});
-		}
+		render.r(Rect::with_size(10, 140, 150, 20));
+		render.btn_label(20, &format!("perfect pixel: {}", self.freehand.perfect), || {
+			self.freehand.perfect = !self.freehand.perfect;
+		});
 	}
 
 	fn event(&mut self, event: sdl2::event::Event, render: &mut RenderSDL<sdl2::video::Window>) {
@@ -524,20 +509,20 @@ impl<'a> App<'a> {
 
 				let p = Point::new(x as i16, y as i16);
 				render.mouse.1 = p;
-
+				/* 
 				if self.drawing {
 					let p = Point::from_coordinates((p - Point::new(600, 0)) / 16);
 					let r = Rect::with_size(0, 0, self.map.width as i16, self.map.height as i16);
 					if r.contains(p) {
 						self.map.set(p, self.tile);
 					}
-				}
+				} */
 
 				let p = self.editor.set_mouse(p);
 				if self.drag {
 					self.editor.pos.x += xrel as i16;
 					self.editor.pos.y += yrel as i16;
-				} else if self.drawing {
+				} else {
 					self.freehand.run(Input::Move(p), &mut self.editor);
 				}
 			}
@@ -568,9 +553,9 @@ impl<'a> App<'a> {
 					Keycode::Num3 => self.editor.fg = 3,
 					Keycode::Num4 => self.editor.fg = 4,
 
-					Keycode::Num7 => self.freehand.mode = freehand::Mode::Continious,
-					Keycode::Num8 => self.freehand.mode = freehand::Mode::PixelPerfect,
-					Keycode::Num9 => self.freehand.mode = freehand::Mode::Line,
+					// Keycode::Num7 => self.freehand.mode = freehand::Mode::Continious,
+					// Keycode::Num8 => self.freehand.mode = freehand::Mode::PixelPerfect,
+					// Keycode::Num9 => self.freehand.mode = freehand::Mode::Line,
 					Keycode::LShift |
 					Keycode::RShift => 
 						self.freehand.run(Input::Special(true), &mut self.editor),
@@ -632,7 +617,6 @@ impl<'a> App<'a> {
 				let p = self.editor.set_mouse(p);
 				if p.x >= 0 && p.y >= 0 {
 					self.freehand.run(Input::Press(p), &mut self.editor);
-					self.drawing = true;
 				}
 				self.update = true;
 			}
@@ -643,7 +627,6 @@ impl<'a> App<'a> {
 				let p = self.editor.set_mouse(p);
 				if p.x >= 0 && p.y >= 0 {
 					self.freehand.run(Input::Release(p), &mut self.editor);
-					self.drawing = false;
 				}
 				self.update = true;
 			}

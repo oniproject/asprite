@@ -11,6 +11,7 @@ pub type Point<N> = Point2<N>;
 pub trait Signed:
 	num_traits::sign::Signed +
 	num_traits::NumAssign +
+	Ord +
 	PartialOrd<Self> +
 	Copy +
 	Step +

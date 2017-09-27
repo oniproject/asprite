@@ -1,5 +1,18 @@
 use super::*;
 
+pub trait Image<N: Signed, C: Copy> {
+	fn pixel(&mut self, p: Point<N>, color: C);
+	fn brush(&mut self, p: Point<N>, color: C);
+
+	fn fill_rect(&mut self, r: Rect<N>, color: C) {
+		fill_rect(r, |p| self.pixel(p, color));
+	}
+
+	fn draw_line(&mut self, start: Point<N>, end: Point<N>, color: C) {
+		draw_line(start, end, |p| self.brush(p, color));
+	}
+}
+
 pub fn fill_rect<N, F>(r: Rect<N>, mut pixel: F)
 	where
 		F: FnMut(Point<N>),

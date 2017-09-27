@@ -4,24 +4,21 @@ use common::*;
 pub mod freehand;
 
 #[derive(Clone, Debug)]
-pub enum Input {
-	Press(Point<i16>),
-	Release(Point<i16>),
-	Move(Point<i16>),
+pub enum Input<N: Signed> {
+	Press(Point<N>),
+	Release(Point<N>),
+	Move(Point<N>),
 	Special(bool),
 	Cancel, // press ESC
 }
 
-pub trait Context {
-	fn start(&mut self) -> u8;
+pub trait Context<N: Signed, C: Copy>: Image<N, C> {
+	fn start(&mut self) -> C;
 	fn commit(&mut self);
 	fn rollback(&mut self);
 	fn sync(&mut self);
-
-	fn brush(&mut self, Point<i16>, u8);
-	fn pixel(&mut self, Point<i16>, u8);
 }
 
-pub trait Tool {
-	fn run<C: Context>(&mut self, input: Input, ctx: &mut C);
+pub trait Tool<N: Signed, C: Copy> {
+	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx);
 }
