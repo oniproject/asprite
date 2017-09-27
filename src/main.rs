@@ -400,6 +400,7 @@ impl<'a> App<'a> {
 			}
 		}
 
+		/*
 		if false { // tilemap
 			let ww = 0xFFFFFF_FFu32.to_be();
 			let bb = 0x000000_FFu32.to_be();
@@ -424,6 +425,7 @@ impl<'a> App<'a> {
 				render.ctx.vline(16 * x + 600, 0, h, rr).unwrap();
 			}
 		}
+		*/
 
 		render.ctx.present();
 	}
@@ -546,7 +548,7 @@ impl<'a> App<'a> {
 				match keycode {
 					Keycode::Escape => self.quit = true,
 
-					Keycode::Space => self.fill = !self.fill,
+					// Keycode::Space => self.fill = !self.fill,
 
 					Keycode::Num1 => self.editor.fg = 1,
 					Keycode::Num2 => self.editor.fg = 2,
@@ -560,6 +562,7 @@ impl<'a> App<'a> {
 					Keycode::RShift => 
 						self.freehand.run(Input::Special(true), &mut self.editor),
 
+					/*
 					Keycode::S if ctrl => {
 						use std::fs::File;
 						use std::io::prelude::*;
@@ -569,7 +572,8 @@ impl<'a> App<'a> {
 							let b = [*v as u8];
 							file.write(&b).unwrap();
 						}
-					},
+					}
+					*/
 
 					Keycode::U => self.editor.undo(),
 					Keycode::R => self.editor.redo(),
@@ -594,6 +598,7 @@ impl<'a> App<'a> {
 				let p = Point::new(x as i16, y as i16);
 				render.mouse = (true, p);
 
+				/*
 				{
 					let p = Point::from_coordinates((p - Point::new(600, 0)) / 16);
 					let r = Rect::with_size(0, 0, self.map.width as i16, self.map.height as i16);
@@ -605,7 +610,6 @@ impl<'a> App<'a> {
 						}
 					}
 				}
-
 				{
 					let p = Point::from_coordinates((p - Point::new(600, 600)) / 16);
 					let r = Rect::with_size(0, 0, 8, 16);
@@ -613,6 +617,7 @@ impl<'a> App<'a> {
 						self.tile = (p.x + p.y * 8) as usize;
 					}
 				}
+				*/
 
 				let p = self.editor.set_mouse(p);
 				if p.x >= 0 && p.y >= 0 {
