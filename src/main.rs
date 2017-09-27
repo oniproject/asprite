@@ -22,11 +22,9 @@ mod mask;
 mod editor;
 mod cmd_page;
 mod sprite;
-mod flood_fill;
 
 //mod tilemap;
 
-use flood_fill::*;
 use common::*;
 use tool::*;
 use ui::*;
@@ -95,6 +93,7 @@ fn create_cursor() -> Cursor {
 	Cursor::new(&data[..], &mask[..], 8, 8, 4, 4).unwrap()
 }
 
+/*
 struct Tilemap {
 	data: Vec<usize>,
 	width: usize,
@@ -147,7 +146,7 @@ impl Tilemap {
 	}
 }
 
-impl flood_fill::Scanline<usize> for Tilemap {
+impl Image<usize, u8> for Tilemap {
 	fn width(&self) -> usize { self.width }
 	fn height(&self) -> usize { self.height }
 	fn at(&self, x: i16, y: i16) -> usize {
@@ -206,6 +205,7 @@ impl Tilemap {
 		}
 	}
 }
+*/
 
 fn main() {
 	let sdl_context = sdl2::init().unwrap();
@@ -214,7 +214,6 @@ fn main() {
 
 	let (w, h) = video_subsys.display_bounds(0)
 		.unwrap().size();
-
 
 	let mut window = video_subsys.window("ASprite", w, h)
 		.position_centered()
@@ -276,22 +275,19 @@ fn main() {
 		quit: false,
 		drag: false,
 
+		rectangle: Rectangle::new(),
+		bucket: Bucket::new(),
+		freehand: Freehand::new(),
+
 		/*
 		map: Tilemap::load(40, 30, 63),
 		fill: false,
 		tile: 0,
 		*/
 
-		statusbar: Rect::with_size(0, winy as i16 - 20, winx as i16, 20),
-		freehand: freehand::Freehand {
-			last: Point::new(0, 0),
-			pts: Vec::new(),
-			color: 0,
-			active: false,
+		tool: CurrentTool::Freehand,
 
-			perfect: true,
-			line: false,
-		},
+		statusbar: Rect::with_size(0, winy as i16 - 20, winx as i16, 20),
 		editor: editor::Editor::new(6, Point::new(200, 100), sprite),
 	};
 
@@ -306,19 +302,25 @@ fn main() {
 	}
 }
 
+#[derive(Clone, Copy, Debug)]
+enum CurrentTool {
+	Freehand,
+	Rectangle,
+	Bucket,
+}
+
 struct App<'a> {
 	update: bool,
 	quit: bool,
 	drag: bool,
 	statusbar: Rect<i16>,
-	freehand: freehand::Freehand<i16, u8>,
-	editor: editor::Editor<'a>,
 
-/*
-	tile: usize,
-	fill: bool,
-	map: Tilemap,
-*/
+	freehand: Freehand<i16, u8>,
+	rectangle: Rectangle<i16, u8>,
+	bucket: Bucket<i16, u8>,
+
+	tool: CurrentTool,
+	editor: editor::Editor<'a>,
 }
 
 impl<'a> App<'a> {
@@ -346,7 +348,7 @@ impl<'a> App<'a> {
 				canvas.set_draw_color(Color::RGBA(0xCA, 0xDC, 0x9F, 0xFF));
 				canvas.clear();
 
-				let image = self.editor.image.as_receiver();
+				let image = self.editor.image();
 				for (frame, layers) in image.data.iter().enumerate() {
 					for (layer, page) in layers.iter().enumerate() {
 						let page = if layer == self.editor.layer && frame == self.editor.frame {
@@ -365,7 +367,7 @@ impl<'a> App<'a> {
 			Layer::Preview => {
 				canvas.set_draw_color(Color::RGBA(0x00, 0x00, 0x00, 0x00));
 				canvas.clear();
-				let image = self.editor.image.as_receiver();
+				let image = self.editor.image();
 
 				// tool preview
 				for g in &self.freehand.pts {
@@ -378,7 +380,7 @@ impl<'a> App<'a> {
 				}
 
 				// preview brush
-				canvas.pixel(self.editor.mouse.x, self.editor.mouse.y, image.palette[self.editor.fg].to_be()).unwrap();
+				canvas.pixel(self.editor.mouse.x, self.editor.mouse.y, self.editor.fg().to_be()).unwrap();
 			}
 			}
 		}).unwrap();
@@ -471,7 +473,7 @@ impl<'a> App<'a> {
 		{ // statusbar
 			let s = format!(" perfect pixel: {} zoom:{}  {:>3}#{:<3}  [{:+} {:+}]",
 				self.freehand.perfect, self.editor.zoom,
-				self.editor.fg, self.editor.bg,
+				self.editor.fg(), self.editor.bg(),
 				self.editor.mouse.x, self.editor.mouse.y,
 			);
 			render.r(self.statusbar);
@@ -491,9 +493,9 @@ impl<'a> App<'a> {
 
 			for i in 0..5u8 {
 				render.r(Rect::with_size(width - 200, 140 + 20*i as i16, 20, 20));
-				let image = self.editor.image.as_receiver();
-				if render.btn_color(10 + i as u32, image.palette[i]) {
-					self.editor.fg = i as u8;
+				let color = self.editor.image().palette[i];
+				if render.btn_color(10 + i as u32, color) {
+					self.editor.image.push(cmd_page::ChangeColor::foreground(i as u8));
 				}
 			}
 		}
@@ -502,9 +504,33 @@ impl<'a> App<'a> {
 		render.btn_label(20, &format!("perfect pixel: {}", self.freehand.perfect), || {
 			self.freehand.perfect = !self.freehand.perfect;
 		});
+		let modes = [
+			CurrentTool::Freehand,
+			CurrentTool::Rectangle,
+			CurrentTool::Bucket,
+		];
+		for (i, m) in modes.iter().enumerate() {
+			render.r(Rect::with_size(10, 160 + 20 * i as i16, 150, 20));
+			render.btn_label(21 + i as u32, &format!("{:?}", m), || {
+				self.tool = *m;
+			});
+		}
 	}
 
 	fn event(&mut self, event: sdl2::event::Event, render: &mut RenderSDL<sdl2::video::Window>) {
+		let freehand = &mut self.freehand;
+		let rectangle = &mut self.rectangle;
+		let bucket = &mut self.bucket;
+
+		let tool = self.tool;
+		let mut input = move |ev, editor| {
+			match tool {
+				CurrentTool::Freehand => freehand.run(ev, editor),
+				CurrentTool::Rectangle => rectangle.run(ev, editor),
+				CurrentTool::Bucket => bucket.run(ev, editor),
+			};
+		};
+
 		match event {
 			Event::MouseMotion {x, y, xrel, yrel, ..} => {
 				self.update = true;
@@ -525,7 +551,7 @@ impl<'a> App<'a> {
 					self.editor.pos.x += xrel as i16;
 					self.editor.pos.y += yrel as i16;
 				} else {
-					self.freehand.run(Input::Move(p), &mut self.editor);
+					input(Input::Move(p), &mut self.editor);
 				}
 			}
 
@@ -536,7 +562,7 @@ impl<'a> App<'a> {
 				match keycode {
 					Keycode::LShift |
 					Keycode::RShift => 
-						self.freehand.run(Input::Special(false), &mut self.editor),
+						input(Input::Special(false), &mut self.editor),
 					_ => (),
 				}
 			}
@@ -544,23 +570,23 @@ impl<'a> App<'a> {
 				self.update = true;
 				let shift = keymod.intersects(sdl2::keyboard::LSHIFTMOD | sdl2::keyboard::RSHIFTMOD);
 				let _alt = keymod.intersects(sdl2::keyboard::LALTMOD | sdl2::keyboard::RALTMOD);
-				let ctrl = keymod.intersects(sdl2::keyboard::LCTRLMOD | sdl2::keyboard::RCTRLMOD);
+				let _ctrl = keymod.intersects(sdl2::keyboard::LCTRLMOD | sdl2::keyboard::RCTRLMOD);
 				match keycode {
 					Keycode::Escape => self.quit = true,
 
 					// Keycode::Space => self.fill = !self.fill,
 
-					Keycode::Num1 => self.editor.fg = 1,
-					Keycode::Num2 => self.editor.fg = 2,
-					Keycode::Num3 => self.editor.fg = 3,
-					Keycode::Num4 => self.editor.fg = 4,
+					// Keycode::Num1 => self.editor.fg = 1,
+					// Keycode::Num2 => self.editor.fg = 2,
+					// Keycode::Num3 => self.editor.fg = 3,
+					// Keycode::Num4 => self.editor.fg = 4,
 
 					// Keycode::Num7 => self.freehand.mode = freehand::Mode::Continious,
 					// Keycode::Num8 => self.freehand.mode = freehand::Mode::PixelPerfect,
 					// Keycode::Num9 => self.freehand.mode = freehand::Mode::Line,
 					Keycode::LShift |
 					Keycode::RShift => 
-						self.freehand.run(Input::Special(true), &mut self.editor),
+						input(Input::Special(true), &mut self.editor),
 
 					/*
 					Keycode::S if ctrl => {
@@ -621,7 +647,7 @@ impl<'a> App<'a> {
 
 				let p = self.editor.set_mouse(p);
 				if p.x >= 0 && p.y >= 0 {
-					self.freehand.run(Input::Press(p), &mut self.editor);
+					input(Input::Press(p), &mut self.editor);
 				}
 				self.update = true;
 			}
@@ -631,7 +657,7 @@ impl<'a> App<'a> {
 
 				let p = self.editor.set_mouse(p);
 				if p.x >= 0 && p.y >= 0 {
-					self.freehand.run(Input::Release(p), &mut self.editor);
+					input(Input::Release(p), &mut self.editor);
 				}
 				self.update = true;
 			}

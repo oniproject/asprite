@@ -18,11 +18,11 @@ pub struct Editor<'a> {
 	pub m: Point<i16>,
 	pub mouse: Point<i16>,
 	pub zoom: i16,
-	pub fg: u8,
-	pub bg: u8,
 
 	pub redraw: bool,
+	pub freehand: Freehand<i16, u8>,
 }
+
 
 impl<'a> Editor<'a> {
 	pub fn new(zoom: i16, pos: Point<i16>, image: Sprite) -> Self {
@@ -31,11 +31,19 @@ impl<'a> Editor<'a> {
 			canvas: Page::new(image.width, image.height),
 			image: Record::new(image),
 			frame: 0, layer: 0,
-			bg: 0,
-			fg: 1,
 			mouse: Point::new(-100, -100),
 			m: Point::new(-100, -100),
 			redraw: true,
+
+			freehand: Freehand {
+				last: Point::new(0, 0),
+				pts: Vec::new(),
+				color: 0,
+				active: false,
+
+				perfect: true,
+				line: false,
+			},
 		}
 	}
 
@@ -68,10 +76,32 @@ impl<'a> Editor<'a> {
 		self.image.undo();
 		self.sync();
 	}
+
+	pub fn image(&self) -> &Sprite {
+		self.image.as_receiver()
+	}
+
+	pub fn fg(&self) -> u32 {
+		let image = self.image();
+		image.palette[image.fg]
+	}
+	pub fn bg(&self) -> u32 {
+		let image = self.image();
+		image.palette[image.bg]
+	}
 }
 
 impl<'a> Image<i16, u8> for Editor<'a> {
-	fn brush(&mut self, p: Point<i16>, color: u8) {
+	fn width(&self) -> i16 { self.canvas.width as i16 }
+	fn height(&self) -> i16 { self.canvas.height as i16 }
+
+	fn at(&self, x: i16, y: i16) -> u8 {
+		let w = self.canvas.width as i16;
+		let idx = x + y * w;
+		self.canvas.page[idx as usize]
+	}
+
+	fn paint_brush(&mut self, p: Point<i16>, color: u8) {
 		let (w, h) = (self.canvas.width as i16, self.canvas.height as i16);
 		let x = p.x >= 0 && p.x < w;
 		let y = p.y >= 0 && p.y < h;
@@ -82,7 +112,7 @@ impl<'a> Image<i16, u8> for Editor<'a> {
 		}
 	}
 
-	fn pixel(&mut self, p: Point<i16>, color: u8) {
+	fn paint_pixel(&mut self, p: Point<i16>, color: u8) {
 		let (w, h) = (self.canvas.width as i16, self.canvas.height as i16);
 		let x = p.x >= 0 && p.x < w;
 		let y = p.y >= 0 && p.y < h;
@@ -102,7 +132,7 @@ impl<'a> Context<i16, u8> for Editor<'a> {
 
 	fn start(&mut self) -> u8 {
 		self.sync();
-		self.fg
+		self.image().fg
 	}
 	fn commit(&mut self) {
 		let page = self.canvas.clone();

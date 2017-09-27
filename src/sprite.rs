@@ -6,6 +6,9 @@ pub struct Sprite {
 	pub palette: Palette<u32>,
 	pub width: usize,
 	pub height: usize,
+
+	pub fg: u8,
+	pub bg: u8,
 }
 
 impl Sprite {
@@ -14,6 +17,8 @@ impl Sprite {
 			data: vec![vec![Page::new(width, height)]],
 			palette: Palette::new(0, None),
 			width, height,
+			fg: 0,
+			bg: 1,
 		}
 	}
 	pub fn page(&self, frame: usize, layer: usize) -> &Page {

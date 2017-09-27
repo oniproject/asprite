@@ -1,60 +1,6 @@
 use super::*;
-use std::cmp;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum Mode {
-	Continious,
-	PixelPerfect,
-	Line,
-	Rect,
-}
-
-
-pub struct Rectangle<N: Signed, C: Copy> {
-	pub start: Point<N>,
-	pub color: C,
-	pub active: bool,
-	pub square: bool,
-}
-
-impl Rectangle<i16, u8> {
-	pub fn new() -> Self {
-		Self {
-			start: Point::new(0, 0),
-			color: 0,
-			active: false,
-			square: false,
-		}
-	}
-}
-
-impl<N: Signed, C: Copy> Tool<N, C> for Rectangle<N, C> {
-	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
-		match input {
-			Input::Move(p) => {
-				ctx.sync();
-				let mut r = Rect::with_points(p, self.start).normalize();
-				if self.square {
-					let v = cmp::min(r.max.x, r.max.y);
-					r.max.x = v;
-					r.max.y = v;
-				}
-				ctx.fill_rect(r, self.color);
-			}
-
-			Input::Special(on) => self.square = on,
-			Input::Press(p) => {
-				assert!(!self.active);
-				self.color = ctx.start();
-				self.start = p;
-			}
-			Input::Release(_) => ctx.commit(),
-			Input::Cancel => ctx.rollback(),
-		}
-	}
-}
-
-pub struct Freehand<N: Signed, C: Copy> {
+pub struct Freehand<N: Signed, C: Copy + PartialEq> {
 	pub perfect: bool,
 	pub line: bool,
 
@@ -64,7 +10,22 @@ pub struct Freehand<N: Signed, C: Copy> {
 	pub active: bool,
 }
 
-impl<N: Signed, C: Copy> Tool<N, C> for Freehand<N, C> {
+
+impl Freehand<i16, u8> {
+	pub fn new() -> Self {
+		Self {
+			last: Point::new(0, 0),
+			pts: Vec::new(),
+			color: 0,
+			active: false,
+
+			perfect: true,
+			line: false,
+		}
+	}
+}
+
+impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Freehand<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Move(p) => {
@@ -93,7 +54,7 @@ impl<N: Signed, C: Copy> Tool<N, C> for Freehand<N, C> {
 				} else {
 					self.active = true;
 					self.color = ctx.start();
-					ctx.brush(p, self.color);
+					ctx.paint_brush(p, self.color);
 					self.pts.push((p, true));
 					self.last = p;
 				}
@@ -106,7 +67,7 @@ impl<N: Signed, C: Copy> Tool<N, C> for Freehand<N, C> {
 						self.flatten_first_point(ctx);
 					}
 				}
-				ctx.brush(p, self.color);
+				ctx.paint_brush(p, self.color);
 				ctx.commit();
 			}
 			Input::Cancel => {
@@ -118,7 +79,7 @@ impl<N: Signed, C: Copy> Tool<N, C> for Freehand<N, C> {
 	}
 }
 
-impl<N: Signed, C: Copy> Freehand<N, C> {
+impl<N: Signed, C: Copy + PartialEq> Freehand<N, C> {
 	pub fn update<Ctx: Context<N, C>>(&mut self, m: Point<N>, last: Point<N>, ctx: &mut Ctx) {
 		if self.point_exists(m.x, m.y) {
 			return;
@@ -139,7 +100,7 @@ impl<N: Signed, C: Copy> Freehand<N, C> {
 	fn flatten_first_point<Ctx: Context<N, C>>(&mut self, ctx: &mut Ctx) {
 		let p = self.pts.remove(0);
 		if p.1 {
-			ctx.brush(p.0, self.color);
+			ctx.paint_brush(p.0, self.color);
 		}
 		while !self.pts.is_empty() && !self.pts[0].1 {
 			self.pts.remove(0);
