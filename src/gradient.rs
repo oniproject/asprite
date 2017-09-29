@@ -1,6 +1,5 @@
 use rand;
 use std::num::Wrapping;
-use std::mem;
 
 pub struct Gradient {
 	// First color of the gradient.
@@ -53,12 +52,6 @@ impl Gradient {
 		(self.pixel)(x as u16, y as u16, c);
 	}
 
-/*
-	fn run(&mut self, idx: i32, x: i16, y: i16) {
-		(self.function)(idx, x, y);
-	}
-*/
-
 	fn pos_to_color(&self, mut position: i32) -> u8 {
 		if position < 0 {
 			position = 0;
@@ -91,31 +84,26 @@ impl Gradient {
 
 	pub fn dithered(&mut self, index: i32, x: i16, y: i16) {
 		let mut position = self.pos_from_idx(index);
-		let mut segment = ((position << 2) / self.total_range) & 3;
+		let mut segment = ((position * 4) / self.total_range) % 4;
 		position /= self.total_range;
 
-		match segment {
-			0 if (x + y) & 1 == 0 => position -= 1,
-			3 if (x + y) & 1 != 0 => position += 1,
-			_ => (),
-		}
-
-		self.px(x, y, position);
+		self.px(x, y, match segment {
+			0 if (x + y) & 1 == 0 => position - 1,
+			3 if (x + y) & 1 != 0 => position + 1,
+			_ => position,
+		})
 	}
 
 	pub fn extra_dithered(&mut self, index: i32, x: i16, y: i16) {
 		let mut position = self.pos_from_idx(index);
-		let segment = ((position << 3) / self.total_range) & 7;
+		let segment = ((position * 8) / self.total_range) % 8;
 		position /= self.total_range;
-
-		match segment {
-			0     if (x + y) & 1 == 0         => position -= 1,
-			1 | 2 if x & 1 == 0 && y & 1 == 0 => position -= 1,
-			5 | 6 if x & 1 == 0 && y & 1 != 0 => position += 1,
-			7     if (x + y) & 1 != 0         => position += 1,
-			_ => (),
-		}
-
-		self.px(x, y, position);
+		self.px(x, y, match segment {
+			0     if (x + y) & 1 == 0         => position - 1,
+			1 | 2 if x & 1 == 0 && y & 1 == 0 => position - 1,
+			5 | 6 if x & 1 == 0 && y & 1 != 0 => position + 1,
+			7     if (x + y) & 1 != 0         => position + 1,
+			_ => position, 
+		})
 	}
 }

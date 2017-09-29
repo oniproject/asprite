@@ -6,6 +6,24 @@ pub struct Layer {
 	pub name: String,
 }
 
+impl Layer {
+	pub fn new(name: &str) -> Self {
+		Self {
+			frames: Vec::new(),
+			name: name.to_string(),
+		}
+	}
+	pub fn push(&mut self, page: Page) {
+		self.frames.push(page)
+	}
+	pub fn insert(&mut self, pos: usize, page: Page) {
+		self.frames.insert(pos, page)
+	}
+	pub fn remove(&mut self, pos: usize) -> Page {
+		self.frames.remove(pos)
+	}
+}
+
 pub struct Sprite {
 	pub data: Vec<Layer>,
 	pub palette: Palette<u32>,
@@ -18,11 +36,10 @@ pub struct Sprite {
 
 impl Sprite {
 	pub fn new(width: usize, height: usize) -> Self {
+		let mut layer = Layer::new("Layer");
+		layer.push(Page::new(width, height));
 		Self {
-			data: vec![Layer {
-				frames: vec![Page::new(width, height)],
-				name: "Layer".to_string(),
-			}],
+			data: vec![layer],
 			palette: Palette::new(0, None),
 			width, height,
 			fg: 0,
@@ -39,10 +56,9 @@ impl Sprite {
 	pub fn add_frame(&mut self) {}
 	pub fn add_layer(&mut self, name: &str) {
 		unimplemented!();
-		self.data.push(Layer {
-			frames: vec![Page::new(self.width, self.height)],
-			name: name.to_string(),
-		});
+		let mut layer = Layer::new("Layer");
+		layer.push(Page::new(self.width, self.height));
+		self.data.push(layer);
 	}
 }
 

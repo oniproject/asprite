@@ -14,9 +14,6 @@ use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::render::{Texture, BlendMode};
 use sdl2::gfx::primitives::DrawRenderer;
 
-use std::mem;
-use std::cmp;
-
 mod common;
 mod tool;
 mod ui;
@@ -271,33 +268,19 @@ fn main() {
 		});
 		let mut GRADIENT = gradient::Gradient::new(pixel);
 
-		let mut ra = Point::new(0, 0);
-		let mut rb = Point::new(160, 120);
+		let r = Rect::with_coords(0, 0, 160, 120);
 		let va = Point::new(30i32, 10);
-		let vb = Point::new(130i32, 100);
+		let vb = Point::new(130, 100);
+		let r = r.normalize();
 
-		if rb.x < ra.x {
-			mem::swap(&mut ra.x, &mut rb.x);
-		}
-		if rb.y < ra.y {
-			mem::swap(&mut ra.y, &mut rb.y);
-		}
-/* 
-		ra.x = cmp::max(ra.x, LIMIT.left as i32);
-		ra.y = cmp::max(ra.y, LIMIT.top as i32);
-		rb.x = cmp::min(rb.x, LIMIT.right as i32);
-		rb.y = cmp::min(rb.y, LIMIT.bottom as i32);
- */
 		if vb.x == va.x {
 			if vb.y == va.y {
 				return;
 			}
 			GRADIENT.total_range = (vb.y - va.y).abs();
-			for y in ra.y..rb.y + 1 {
-				for x in ra.x..rb.x + 1 {
-					GRADIENT.extra_dithered((vb.y - y).abs(), x as i16, y as i16);
-				}
-			}
+			fill_rect(r, |p|
+				GRADIENT.extra_dithered((vb.y - p.y as i32).abs(), p.x, p.y)
+			)
 		} else {
 			let dx = (vb.x - va.x) as f32;
 			let dy = (vb.y - va.y) as f32;
@@ -305,18 +288,16 @@ fn main() {
 			let a = dy / dx;
 			let b = va.y as f32 - a * va.x as f32;
 
-			for y in ra.y..rb.y + 1 {
-				for x in ra.x..rb.x + 1 {
-					let idx = {
-						let (x, y) = (x as f32, y as f32);
-						let (vx, vy) = (va.x as f32, va.y as f32);
-						let dx = (y - vy).powf(2.0) + (x - vx).powf(2.0);
-						let dy = (-a * x + y - b).powf(2.0) / (a * a + 1.0);
-						(dx - dy).sqrt() as i32
-					};
-					GRADIENT.extra_dithered(idx, x as i16, y as i16);
-				}
-			}
+			fill_rect(r, |p| {
+				let idx = {
+					let (x, y) = (p.x as f32, p.y as f32);
+					let (vx, vy) = (va.x as f32, va.y as f32);
+					let dx = (y - vy).powf(2.0) + (x - vx).powf(2.0);
+					let dy = (-a * x + y - b).powf(2.0) / (a * a + 1.0);
+					(dx - dy).sqrt() as i32
+				};
+				GRADIENT.extra_dithered(idx, p.x, p.y);
+			});
 		}
 	}
 
@@ -421,14 +402,16 @@ impl<'a> App<'a> {
 				for (layer_id, layer) in image.data.iter().enumerate() {
 					for (frame_id, frame) in layer.frames.iter().enumerate() {
 						let page = if layer_id == self.editor.layer && frame_id == self.editor.frame {
-							&self.editor.canvas
+							Some(&self.editor.canvas)
 						} else {
-							frame
+							Some(frame)
 						};
-						for (idx, c) in page.page.iter().enumerate() {
-							let x = idx % image.width;
-							let y = idx / image.width;
-							canvas.pixel(x as i16, y as i16, image.palette[*c].to_be()).unwrap();
+						if let Some(page) = page {
+							for (idx, c) in page.page.iter().enumerate() {
+								let x = idx % image.width;
+								let y = idx / image.width;
+								canvas.pixel(x as i16, y as i16, image.palette[*c].to_be()).unwrap();
+							}
 						}
 					}
 				}
