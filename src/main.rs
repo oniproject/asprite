@@ -274,11 +274,10 @@ fn main() {
 		quit: false,
 		drag: false,
 
-		rectangle: Rectangle::new(),
+		prim: Primitive::new(),
 		bucket: Bucket::new(),
 		freehand: Freehand::new(),
 		dropper: EyeDropper::new(),
-		ellipse: Ellipse::new(),
 
 		/*
 		map: Tilemap::load(40, 30, 63),
@@ -309,10 +308,9 @@ fn main() {
 #[derive(Clone, Copy, Debug)]
 enum CurrentTool {
 	Freehand,
-	Rectangle,
 	Bucket,
 	EyeDropper,
-	Ellipse,
+	Primitive(PrimitiveMode),
 }
 
 struct App<'a> {
@@ -321,10 +319,9 @@ struct App<'a> {
 	drag: bool,
 
 	freehand: Freehand<i16, u8>,
-	rectangle: Rectangle<i16, u8>,
+	prim: Primitive<i16, u8>,
 	bucket: Bucket<i16, u8>,
 	dropper: EyeDropper<i16, u8>,
-	ellipse: Ellipse<i16, u8>,
 
 	tool: CurrentTool,
 	editor: editor::Editor<'a>,
@@ -523,10 +520,12 @@ impl<'a> App<'a> {
 		});
 		let modes = [
 			CurrentTool::Freehand,
-			CurrentTool::Rectangle,
 			CurrentTool::Bucket,
 			CurrentTool::EyeDropper,
-			CurrentTool::Ellipse,
+			CurrentTool::Primitive(PrimitiveMode::DrawEllipse),
+			CurrentTool::Primitive(PrimitiveMode::FillEllipse),
+			CurrentTool::Primitive(PrimitiveMode::DrawRect),
+			CurrentTool::Primitive(PrimitiveMode::FillRect),
 		];
 		for (i, m) in modes.iter().enumerate() {
 			render.r(Rect::with_size(10, 160 + 20 * i as i16, 150, 20));
@@ -539,10 +538,12 @@ impl<'a> App<'a> {
 	fn input(&mut self, ev: Input<i16>) {
 		match self.tool {
 			CurrentTool::Freehand => self.freehand.run(ev, &mut self.editor),
-			CurrentTool::Rectangle => self.rectangle.run(ev, &mut self.editor),
 			CurrentTool::Bucket => self.bucket.run(ev, &mut self.editor),
 			CurrentTool::EyeDropper => self.dropper.run(ev, &mut self.editor),
-			CurrentTool::Ellipse => self.ellipse.run(ev, &mut self.editor),
+			CurrentTool::Primitive(mode) => {
+				self.prim.mode = mode;
+				self.prim.run(ev, &mut self.editor)
+			}
 		}
 	}
 

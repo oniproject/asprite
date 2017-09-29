@@ -1,5 +1,37 @@
 use super::*;
 
+fn hline<N, F>(x1: N, x2: N, y: N, pixel: &mut F)
+	where
+		F: FnMut(Point<N>),
+		N: Signed
+{
+	let one = N::one();
+	for x in x1..x2+one {
+		pixel(Point::new(x, y))
+	}
+}
+
+fn vline<N, F>(x: N, y1: N, y2: N, pixel: &mut F)
+	where
+		F: FnMut(Point<N>),
+		N: Signed
+{
+	let one = N::one();
+	for y in y1..y2+one {
+		pixel(Point::new(x, y))
+	}
+}
+
+pub fn draw_rect<N, F>(r: Rect<N>, mut pixel: F)
+	where
+		F: FnMut(Point<N>),
+		N: Signed
+{
+	hline(r.min.x, r.max.x, r.min.y, &mut pixel);
+	hline(r.min.x, r.max.x, r.max.y, &mut pixel);
+	vline(r.min.x, r.min.y, r.max.y, &mut pixel);
+	vline(r.max.x, r.min.y, r.max.y, &mut pixel);
+}
 
 pub fn fill_rect<N, F>(r: Rect<N>, mut pixel: F)
 	where

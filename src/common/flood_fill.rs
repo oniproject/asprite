@@ -7,6 +7,7 @@ pub trait Image<N: Signed, C: Copy + PartialEq> {
 	fn paint_brush(&mut self, p: Point<N>, color: C);
 	fn at(&self, x: N, y: N) -> Option<C>;
 
+
 	fn width(&self) -> N;
 	fn height(&self) -> N;
 
@@ -14,11 +15,51 @@ pub trait Image<N: Signed, C: Copy + PartialEq> {
 		fill_rect(r, |p| self.paint_pixel(p, color));
 	}
 
+	fn draw_rect(&mut self, r: Rect<N>, color: C) {
+		draw_rect(r, |p| self.paint_pixel(p, color));
+	}
+
 	fn draw_line(&mut self, start: Point<N>, end: Point<N>, color: C) {
 		draw_line(start, end, |p| self.paint_brush(p, color));
 	}
 
-	fn ellipse(&mut self, r: Rect<N>, color: C) {
+	fn fill_ellipse(&mut self, r: Rect<N>, color: C) {
+		let width = r.w().to_i64().unwrap();
+		let height = r.h().to_i64().unwrap();
+		let ox = r.min.x.to_i64().unwrap() + width / 2;
+		let oy = r.min.y.to_i64().unwrap() + height / 2;
+
+		let hh = height * height;
+		let ww = width * width;
+		let hhww = hh * ww;
+		let mut x0 = width;
+		let mut dx = 0;
+
+		// do the horizontal diameter
+		for x in -width..width+1 {
+			let p = Point::new(N::from(ox + x).unwrap(), N::from(oy).unwrap());
+			self.paint_pixel(p, color);
+		}
+
+		// now do both halves at the same time, away from the diameter
+		for y in 1..height+1 {
+			let mut x1 = x0 - (dx - 1);  // try slopes of dx - 1 or more
+			while x1 > 0 && !(x1*x1*hh + y*y*ww <= hhww) {
+				x1 -= 1;
+			}
+			dx = x0 - x1;  // current approximation of the slope
+			x0 = x1;
+
+			for x in -x0..x0+1 {
+				let p = Point::new(N::from(ox + x).unwrap(), N::from(oy - y).unwrap());
+				self.paint_pixel(p, color);
+				let p = Point::new(N::from(ox + x).unwrap(), N::from(oy + y).unwrap());
+				self.paint_pixel(p, color);
+			}
+		}
+	}
+
+	fn draw_ellipse(&mut self, r: Rect<N>, color: C) {
 		let (mut x0, mut y0, mut x1, mut y1) = (
 			r.min.x.to_i64().unwrap(),
 			r.min.y.to_i64().unwrap(),
@@ -53,14 +94,14 @@ pub trait Image<N: Signed, C: Copy + PartialEq> {
 		b1 = 8*b*b;
 
 		while {
-			let p = Point::new(N::from(x1).unwrap(), N::from(y0).unwrap());
-			self.paint_pixel(p, color); //   I. Quadrant
-			let p = Point::new(N::from(x0).unwrap(), N::from(y0).unwrap());
-			self.paint_pixel(p, color); //  II. Quadrant
-			let p = Point::new(N::from(x0).unwrap(), N::from(y1).unwrap());
-			self.paint_pixel(p, color); // III. Quadrant
-			let p = Point::new(N::from(x1).unwrap(), N::from(y1).unwrap());
-			self.paint_pixel(p, color); //  IV. Quadrant
+			let q1 = Point::new(N::from(x1).unwrap(), N::from(y0).unwrap());
+			let q2 = Point::new(N::from(x0).unwrap(), N::from(y0).unwrap());
+			let q3 = Point::new(N::from(x0).unwrap(), N::from(y1).unwrap());
+			let q4 = Point::new(N::from(x1).unwrap(), N::from(y1).unwrap());
+			self.paint_pixel(q1, color); //   I. Quadrant
+			self.paint_pixel(q2, color); //  II. Quadrant
+			self.paint_pixel(q3, color); // III. Quadrant
+			self.paint_pixel(q4, color); //  IV. Quadrant
 			e2 = 2*err;
 			// y step 
 			if e2 <= dy {

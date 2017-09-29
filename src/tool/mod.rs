@@ -3,16 +3,14 @@
 use common::*;
 
 mod freehand;
-mod rectangle;
+mod primitive;
 mod bucket;
 mod eye_dropper;
-mod ellipse;
 
 pub use self::freehand::Freehand;
-pub use self::rectangle::Rectangle;
+pub use self::primitive::{Primitive, PrimitiveMode};
 pub use self::bucket::Bucket;
 pub use self::eye_dropper::EyeDropper;
-pub use self::ellipse::Ellipse;
 
 #[derive(Clone, Debug)]
 pub enum Input<N: Signed> {

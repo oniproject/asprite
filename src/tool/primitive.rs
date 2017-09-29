@@ -1,25 +1,35 @@
 use super::*;
 use std::cmp;
 
-pub struct Ellipse<N: Signed, C: Copy> {
+#[derive(Clone, Copy, Debug)]
+pub enum PrimitiveMode {
+	DrawRect,
+	FillRect,
+	DrawEllipse,
+	FillEllipse,
+}
+
+pub struct Primitive<N: Signed, C: Copy> {
 	pub start: Point<N>,
 	pub color: C,
 	pub active: bool,
 	pub square: bool,
+	pub mode: PrimitiveMode,
 }
 
-impl Ellipse<i16, u8> {
+impl Primitive<i16, u8> {
 	pub fn new() -> Self {
-		Self {
+		Primitive {
 			start: Point::new(0, 0),
 			color: 0,
 			active: false,
 			square: false,
+			mode: PrimitiveMode::FillRect,
 		}
 	}
 }
 
-impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Ellipse<N, C> {
+impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Primitive<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Move(p) => {
@@ -37,7 +47,12 @@ impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Ellipse<N, C> {
 						p
 					};
 					let r = Rect::with_points(p, self.start).normalize();
-					ctx.ellipse(r, self.color);
+					match self.mode {
+						PrimitiveMode::FillRect => ctx.fill_rect(r, self.color),
+						PrimitiveMode::DrawRect => ctx.draw_rect(r, self.color),
+						PrimitiveMode::DrawEllipse => ctx.draw_ellipse(r, self.color),
+						PrimitiveMode::FillEllipse => ctx.fill_ellipse(r, self.color),
+					}
 				}
 			}
 
