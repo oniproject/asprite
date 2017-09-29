@@ -20,7 +20,6 @@ pub struct Editor<'a> {
 	pub zoom: i16,
 
 	pub redraw: bool,
-	pub freehand: Freehand<i16, u8>,
 }
 
 
@@ -34,16 +33,6 @@ impl<'a> Editor<'a> {
 			mouse: Point::new(-100, -100),
 			m: Point::new(-100, -100),
 			redraw: true,
-
-			freehand: Freehand {
-				last: Point::new(0, 0),
-				pts: Vec::new(),
-				color: 0,
-				active: false,
-
-				perfect: true,
-				line: false,
-			},
 		}
 	}
 

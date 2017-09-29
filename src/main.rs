@@ -1,6 +1,7 @@
 #![feature(step_trait)]
 
 extern crate image;
+extern crate rand;
 extern crate undo;
 extern crate sdl2;
 extern crate num_traits;
@@ -10,10 +11,11 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::{Color, PixelFormatEnum};
-
 use sdl2::render::{Texture, BlendMode};
-
 use sdl2::gfx::primitives::DrawRenderer;
+
+use std::mem;
+use std::cmp;
 
 mod common;
 mod tool;
@@ -22,6 +24,7 @@ mod mask;
 mod editor;
 mod cmd;
 mod sprite;
+mod gradient;
 
 //mod tilemap;
 use cmd::*;
@@ -251,6 +254,71 @@ fn main() {
 
 	let mut sprite = sprite::Sprite::new(160, 120);
 	create_pal(&mut sprite.palette);
+
+	if true {
+		let page = sprite.page_mut(0, 0);
+		let ww = page.width as u16;
+		let len = page.page.len();
+		let px = page.page.as_mut_ptr();
+		let pixel = Box::new(move |x, y, c| {
+			let idx = x + y * ww;
+			if idx > len as u16 {
+				return;
+			}
+			unsafe {
+				*px.offset(idx as isize) = c;
+			}
+		});
+		let mut GRADIENT = gradient::Gradient::new(pixel);
+
+		let mut ra = Point::new(0, 0);
+		let mut rb = Point::new(160, 120);
+		let va = Point::new(30i32, 10);
+		let vb = Point::new(130i32, 100);
+
+		if rb.x < ra.x {
+			mem::swap(&mut ra.x, &mut rb.x);
+		}
+		if rb.y < ra.y {
+			mem::swap(&mut ra.y, &mut rb.y);
+		}
+/* 
+		ra.x = cmp::max(ra.x, LIMIT.left as i32);
+		ra.y = cmp::max(ra.y, LIMIT.top as i32);
+		rb.x = cmp::min(rb.x, LIMIT.right as i32);
+		rb.y = cmp::min(rb.y, LIMIT.bottom as i32);
+ */
+		if vb.x == va.x {
+			if vb.y == va.y {
+				return;
+			}
+			GRADIENT.total_range = (vb.y - va.y).abs();
+			for y in ra.y..rb.y + 1 {
+				for x in ra.x..rb.x + 1 {
+					GRADIENT.extra_dithered((vb.y - y).abs(), x as i16, y as i16);
+				}
+			}
+		} else {
+			let dx = (vb.x - va.x) as f32;
+			let dy = (vb.y - va.y) as f32;
+			GRADIENT.total_range = (dx.powf(2.0) + dy.powf(2.0)).sqrt() as i32;
+			let a = dy / dx;
+			let b = va.y as f32 - a * va.x as f32;
+
+			for y in ra.y..rb.y + 1 {
+				for x in ra.x..rb.x + 1 {
+					let idx = {
+						let (x, y) = (x as f32, y as f32);
+						let (vx, vy) = (va.x as f32, va.y as f32);
+						let dx = (y - vy).powf(2.0) + (x - vx).powf(2.0);
+						let dy = (-a * x + y - b).powf(2.0) / (a * a + 1.0);
+						(dx - dy).sqrt() as i32
+					};
+					GRADIENT.extra_dithered(idx, x as i16, y as i16);
+				}
+			}
+		}
+	}
 
 	let mut texture = creator
 		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
