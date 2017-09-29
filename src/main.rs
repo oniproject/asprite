@@ -227,7 +227,7 @@ fn main() {
 	window.show();
 
 	let mut ctx = window.into_canvas()
-		.software()
+		// XXX: glitch with .software()
 		.build().unwrap();
 
 	let creator = ctx.texture_creator();
@@ -249,7 +249,7 @@ fn main() {
 
 	// let brush = mask::Mask::new_square(64, 64);
 
-	let mut sprite = sprite::Sprite::new(120, 100);
+	let mut sprite = sprite::Sprite::new(160, 120);
 	create_pal(&mut sprite.palette);
 
 	let mut texture = creator
@@ -285,7 +285,7 @@ fn main() {
 		tile: 0,
 		*/
 
-		tool: CurrentTool::Freehand,
+		tool: CurrentTool::PixelPerfect,
 
 		editor: editor::Editor::new(6, Point::new(200, 100), sprite),
 	};
@@ -308,6 +308,7 @@ fn main() {
 #[derive(Clone, Copy, Debug)]
 enum CurrentTool {
 	Freehand,
+	PixelPerfect,
 	Bucket,
 	EyeDropper,
 	Primitive(PrimitiveMode),
@@ -348,8 +349,6 @@ impl<'a> App<'a> {
 			Layer::Sprite => if self.editor.redraw {
 				self.editor.redraw = false;
 
-				// TODO: redraw only changed area
-
 				let image = self.editor.image();
 				for (layer_id, layer) in image.data.iter().enumerate() {
 					for (frame_id, frame) in layer.frames.iter().enumerate() {
@@ -387,14 +386,58 @@ impl<'a> App<'a> {
 			}
 		}).unwrap();
 
-		let size = self.editor.size() * self.editor.zoom;
+		{ // display image and preview
 
-		let dst = Some(rect!(self.editor.pos.x, self.editor.pos.y, size.x, size.y));
-		render.ctx.set_blend_mode(BlendMode::Blend);
-		for t in &textures {
-			render.ctx.copy(t.0, None, dst).unwrap();
+			let size = self.editor.size();
+			let src = rect!(0, 0, size.x, size.y);
+			let zoom = self.editor.zoom;
+			let size = size * zoom;
+			let pos = self.editor.pos;
+			let dst = rect!(pos.x, pos.y, size.x, size.y);
+
+			render.ctx.set_blend_mode(BlendMode::Blend);
+			for t in &textures {
+				render.ctx.copy(t.0, src, dst).unwrap();
+			}
+			render.ctx.set_blend_mode(BlendMode::None);
 		}
-		render.ctx.set_blend_mode(BlendMode::None);
+
+		{ // grid
+			let rr = 0xFF0000_FFu32.to_be();
+			let gg = 0x00FF00_FFu32.to_be();
+			let (ox, oy) = (self.editor.pos.x, self.editor.pos.y);
+			let size = self.editor.size();
+			let zoom = self.editor.zoom;
+
+			let grid_w = 16;
+			let grid_h = 16;
+
+			let (x1, x2) = (ox, ox + size.x * zoom);
+			let (y1, y2) = (oy, oy + size.y * zoom);
+
+			let ex = size.x / grid_w;
+			let ey = size.y / grid_h;
+			let ix = (size.x % grid_w != 0) as i16;
+			let iy = (size.y % grid_h != 0) as i16;
+
+			if true {
+				for y in 1..ey + iy {
+					let y = oy - 1 + (y * grid_h) * zoom;
+					render.ctx.hline(x1, x2, y, rr).unwrap();
+				}
+
+				for x in 1..ex + ix {
+					let x = ox - 1 + (x * grid_w) * zoom;
+					render.ctx.vline(x, y1, y2, rr).unwrap();
+				}
+			}
+
+			// canvas border
+			render.ctx.hline(x1-1, x2, y1-1, gg).unwrap();
+			render.ctx.hline(x1-1, x2, y2+0, gg).unwrap();
+			render.ctx.vline(x1-1, y1-1, y2, gg).unwrap();
+			render.ctx.vline(x2+0, y1-1, y2, gg).unwrap();
+		}
 
 		{ // ui
 			render.prepare();
@@ -419,15 +462,6 @@ impl<'a> App<'a> {
 				render.ctx.pixel(x as i16 + 600, y as i16 + 600, c).unwrap();
 			});
 
-			// grid
-			let w = 16 * self.map.width as i16;
-			for y in 0..self.map.height as i16 + 1 {
-				render.ctx.hline(600, 600 + w, 16 * y, rr).unwrap();
-			}
-			let h = 16 * self.map.height as i16;
-			for x in 0..self.map.width as i16 + 1 {
-				render.ctx.vline(16 * x + 600, 0, h, rr).unwrap();
-			}
 		}
 		*/
 
@@ -514,12 +548,9 @@ impl<'a> App<'a> {
 			}
 		}
 
-		render.r(Rect::with_size(10, 140, 150, 20));
-		render.btn_label(20, &format!("perfect pixel: {}", self.freehand.perfect), || {
-			self.freehand.perfect = !self.freehand.perfect;
-		});
 		let modes = [
 			CurrentTool::Freehand,
+			CurrentTool::PixelPerfect,
 			CurrentTool::Bucket,
 			CurrentTool::EyeDropper,
 			CurrentTool::Primitive(PrimitiveMode::DrawEllipse),
@@ -537,7 +568,14 @@ impl<'a> App<'a> {
 
 	fn input(&mut self, ev: Input<i16>) {
 		match self.tool {
-			CurrentTool::Freehand => self.freehand.run(ev, &mut self.editor),
+			CurrentTool::Freehand => {
+				self.freehand.perfect = false;
+				self.freehand.run(ev, &mut self.editor);
+			}
+			CurrentTool::PixelPerfect => {
+				self.freehand.perfect = true;
+				self.freehand.run(ev, &mut self.editor);
+			}
 			CurrentTool::Bucket => self.bucket.run(ev, &mut self.editor),
 			CurrentTool::EyeDropper => self.dropper.run(ev, &mut self.editor),
 			CurrentTool::Primitive(mode) => {
@@ -548,25 +586,6 @@ impl<'a> App<'a> {
 	}
 
 	fn event(&mut self, event: sdl2::event::Event, render: &mut RenderSDL<sdl2::video::Window>) {
-		/*
-		let freehand = &mut self.freehand;
-		let rectangle = &mut self.rectangle;
-		let bucket = &mut self.bucket;
-		let dropper = &mut self.dropper;
-		let ellipse = &mut self.ellipse;
-
-		let tool = self.tool;
-		let mut input = move |ev, editor| {
-			match tool {
-				CurrentTool::Freehand => freehand.run(ev, editor),
-				CurrentTool::Rectangle => rectangle.run(ev, editor),
-				CurrentTool::Bucket => bucket.run(ev, editor),
-				CurrentTool::EyeDropper => dropper.run(ev, editor),
-				CurrentTool::Ellipse => ellipse.run(ev, editor),
-			};
-		};
-		*/
-
 		self.update = true;
 		match event {
 			Event::MouseMotion {x, y, xrel, yrel, ..} => {

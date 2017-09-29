@@ -42,4 +42,6 @@ impl ChangeColor {
 impl Command<Sprite> for ChangeColor {
 	fn redo(&mut self, image: &mut Sprite) -> Result<(), Box<Error>> { self.run(image) }
 	fn undo(&mut self, image: &mut Sprite) -> Result<(), Box<Error>> { self.run(image) }
+
+	fn id(&self) -> Option<u32> { Some(0) }
 }
