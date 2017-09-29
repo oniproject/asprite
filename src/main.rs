@@ -269,8 +269,6 @@ fn main() {
 		mouse: (false, Point::new(0, 0)),
 	};
 
-	let (winx, winy) = render.ctx.output_size().unwrap();
-
 	let mut app = App {
 		update: true,
 		quit: false,
@@ -290,13 +288,16 @@ fn main() {
 
 		tool: CurrentTool::Freehand,
 
-		statusbar: Rect::with_size(0, winy as i16 - 20, winx as i16, 20),
 		editor: editor::Editor::new(6, Point::new(200, 100), sprite),
 	};
 
 	while !app.quit {
 		if app.update {
 			app.paint(&mut texture, &mut texture_preview, &mut render);
+		}
+
+		if let Some(event) = events.wait_event_timeout(10) {
+			app.event(event, &mut render);
 		}
 
 		for event in events.poll_iter() {
@@ -318,7 +319,6 @@ struct App<'a> {
 	update: bool,
 	quit: bool,
 	drag: bool,
-	statusbar: Rect<i16>,
 
 	freehand: Freehand<i16, u8>,
 	rectangle: Rectangle<i16, u8>,
@@ -352,16 +352,14 @@ impl<'a> App<'a> {
 				self.editor.redraw = false;
 
 				// TODO: redraw only changed area
-				canvas.set_draw_color(Color::RGBA(0xCA, 0xDC, 0x9F, 0xFF));
-				canvas.clear();
 
 				let image = self.editor.image();
-				for (frame, layers) in image.data.iter().enumerate() {
-					for (layer, page) in layers.iter().enumerate() {
-						let page = if layer == self.editor.layer && frame == self.editor.frame {
+				for (layer_id, layer) in image.data.iter().enumerate() {
+					for (frame_id, frame) in layer.frames.iter().enumerate() {
+						let page = if layer_id == self.editor.layer && frame_id == self.editor.frame {
 							&self.editor.canvas
 						} else {
-							page
+							frame
 						};
 						for (idx, c) in page.page.iter().enumerate() {
 							let x = idx % image.width;
@@ -453,7 +451,12 @@ impl<'a> App<'a> {
 		let timeline_bg = 0x3a4351_FF;
 		let header_bg = 0x525b68_FF;
 
-		let width = self.statusbar.w();
+		let size = render.ctx.window().size();
+		let width = size.0 as i16;
+		let height = size.1 as i16;
+
+		let statusbar = Rect::with_size(0, height - 20, width, 20);
+
 		{
 			// menubar
 			let r = Rect::with_size(0, 0, width, 20);
@@ -483,23 +486,30 @@ impl<'a> App<'a> {
 				self.editor.image().fg, self.editor.image().bg,
 				self.editor.mouse.x, self.editor.mouse.y,
 			);
-			render.r(self.statusbar);
+			render.r(statusbar);
 			render.label_bg(1, Align::Left, statusbar_color, statusbar_bg, &s);
 		}
 
-		let rr = Rect::with_size(0, self.statusbar.max.y - self.statusbar.h() - 200, width, 200);
-		render.rect(rr, timeline_bg);
+		{ // timeline
+			let r = Rect::with_size(0, height - statusbar.h() - 200, width, 200);
+			render.rect(r, timeline_bg);
+
+			for (i, layer) in self.editor.image().data.iter().enumerate() {
+				let r = Rect::with_size(0, height - statusbar.h() - 200 + 20 * i as i16, width, 20);
+				render.text(r, Align::Left, color, &format!("  {}: {}", i, layer.name));
+			}
+		}
 
 		{ // palette
-			let rr = Rect::with_size(width-250, 100, 250, 500);
+			let rr = Rect::with_size(width-250, 60, 250, 500);
 			render.rect(rr, bar_bg);
-			let rr = Rect::with_size(width-250, 100, 250, 20);
+			let rr = Rect::with_size(width-250, 60, 250, 20);
 			render.rect(rr, header_bg);
 			render.text(rr, Align::Right, color, &"\u{25BC} ");
 			render.text(rr, Align::Left, color, &" Palette");
 
 			for i in 0..5u8 {
-				render.r(Rect::with_size(width - 200, 140 + 20*i as i16, 20, 20));
+				render.r(Rect::with_size(width - 200, 100 + 20*i as i16, 20, 20));
 				let color = self.editor.image().palette[i];
 				if render.btn_color(10 + i as u32, color) {
 					self.editor.change_foreground(i as u8);
@@ -594,7 +604,8 @@ impl<'a> App<'a> {
 				let _alt = keymod.intersects(sdl2::keyboard::LALTMOD | sdl2::keyboard::RALTMOD);
 				let _ctrl = keymod.intersects(sdl2::keyboard::LCTRLMOD | sdl2::keyboard::RCTRLMOD);
 				match keycode {
-					Keycode::Escape => self.quit = true,
+					Keycode::Q => self.quit = true,
+					Keycode::Escape => self.input(Input::Cancel),
 
 					// Keycode::Space => self.fill = !self.fill,
 
@@ -670,6 +681,7 @@ impl<'a> App<'a> {
 					self.input(Input::Press(p));
 				}
 			}
+
 			Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
 				let p = Point::new(x as i16, y as i16);
 				render.mouse = (false, p);
@@ -684,9 +696,9 @@ impl<'a> App<'a> {
 				self.editor.zoom(y as i16);
 			}
 
-			Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
-				self.statusbar = Rect::with_size(0, h as i16 - 20, w as i16, 20);
-			}
+			// Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
+				//self.statusbar = Rect::with_size(0, h as i16 - 20, w as i16, 20);
+			// }
 
 			_ => (),
 		}
