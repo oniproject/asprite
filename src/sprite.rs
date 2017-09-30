@@ -1,5 +1,7 @@
-use std::mem;
+#![allow(dead_code)]
 use common::*;
+
+use std::mem::swap;
 
 pub struct Layer {
 	pub frames: Vec<Page>,
@@ -13,6 +15,15 @@ impl Layer {
 			name: name.to_string(),
 		}
 	}
+
+	pub fn get(&self, mut idx: usize) -> &Page {
+		&self.frames[idx]
+	}
+
+	pub fn get_mut(&mut self, idx: usize) -> &mut Page {
+		&mut self.frames[idx]
+	}
+
 	pub fn push(&mut self, page: Page) {
 		self.frames.push(page)
 	}
@@ -47,18 +58,18 @@ impl Sprite {
 		}
 	}
 	pub fn page(&self, frame: usize, layer: usize) -> &Page {
-		&self.data[layer].frames[frame]
+		self.data[layer].get(frame)
 	}
 	pub fn page_mut(&mut self, frame: usize, layer: usize) -> &mut Page {
-		&mut self.data[layer].frames[frame]
+		self.data[layer].get_mut(frame)
 	}
 
 	pub fn add_frame(&mut self) {}
 	pub fn add_layer(&mut self, name: &str) {
-		unimplemented!();
-		let mut layer = Layer::new("Layer");
+		let mut layer = Layer::new(name);
 		layer.push(Page::new(self.width, self.height));
 		self.data.push(layer);
+		unimplemented!();
 	}
 }
 
@@ -76,15 +87,12 @@ impl Page {
 		}
 	}
 	pub fn copy_from(&mut self, other: &Page) {
-		assert_eq!(self.width, other.width);
-		assert_eq!(self.height, other.height);
+		self.width = other.width;
+		self.height = other.height;
+		self.page.resize(other.page.len(), 0);
 		self.page.copy_from_slice(&other.page);
 	}
 	pub fn swap(&mut self, other: &mut Page) {
-		assert_eq!(self.width, other.width);
-		assert_eq!(self.height, other.height);
-		for (a, b) in self.page.iter_mut().zip(other.page.iter_mut()) {
-			mem::swap(a, b);
-		}
+		swap(self, other);
 	}
 }

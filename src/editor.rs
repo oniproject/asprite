@@ -5,10 +5,11 @@ use cmd_page::*;
 use sprite::*;
 
 use undo::record::Record;
+use std::borrow::Cow;
 
 pub struct Editor<'a> {
 	pub image: Record<'a, Sprite>,
-	pub canvas: Page,
+	pub canvas: Cow<'a, Page>,
 
 	pub frame: usize,
 	pub layer: usize,
@@ -22,12 +23,11 @@ pub struct Editor<'a> {
 	pub redraw: bool,
 }
 
-
 impl<'a> Editor<'a> {
 	pub fn new(zoom: i16, pos: Point<i16>, image: Sprite) -> Self {
 		Editor {
 			zoom, pos,
-			canvas: Page::new(image.width, image.height),
+			canvas: Cow::Owned(Page::new(image.width, image.height).to_owned()),
 			image: Record::new(image),
 			frame: 0, layer: 0,
 			mouse: Point::new(-100, -100),
@@ -78,6 +78,23 @@ impl<'a> Editor<'a> {
 		let image = self.image();
 		image.palette[image.bg]
 	}
+
+	pub fn draw_pages<F: FnMut(&Vec<u8>, usize, &Palette<u32>)>(&self, mut f: F) {
+		let image = self.image();
+		for (layer_id, layer) in image.data.iter().enumerate() {
+			for (frame_id, _) in layer.frames.iter().enumerate() {
+				let is_canvas = layer_id == self.layer && frame_id == self.frame;
+				let page = if is_canvas {
+					Some(self.canvas.as_ref())
+				} else {
+					Some(image.page(layer_id, frame_id))
+				};
+				if let Some(page) = page {
+					f(&page.page, page.width, &image.palette)
+				}
+			}
+		}
+	}
 }
 
 impl<'a> Image<i16, u8> for Editor<'a> {
@@ -103,7 +120,7 @@ impl<'a> Image<i16, u8> for Editor<'a> {
 		if x && y {
 			self.redraw = true;
 			let idx = p.x + p.y * w;
-			self.canvas.page[idx as usize] = color;
+			self.canvas.to_mut().page[idx as usize] = color;
 		}
 	}
 
@@ -114,14 +131,14 @@ impl<'a> Image<i16, u8> for Editor<'a> {
 		if x && y {
 			self.redraw = true;
 			let idx = p.x + p.y * w;
-			self.canvas.page[idx as usize] = color;
+			self.canvas.to_mut().page[idx as usize] = color;
 		}
 	}
 }
 
 impl<'a> Context<i16, u8> for Editor<'a> {
 	fn sync(&mut self) {
-		self.canvas.copy_from(&self.image.as_receiver().page(0, 0));
+		self.canvas.to_mut().copy_from(&self.image.as_receiver().page(0, 0));
 		self.redraw = true;
 	}
 
@@ -131,7 +148,7 @@ impl<'a> Context<i16, u8> for Editor<'a> {
 	}
 	fn commit(&mut self) {
 		let page = self.canvas.clone();
-		let _ = self.image.push(PageCmd::new(0, 0, page));
+		let _ = self.image.push(PageCmd::new(0, 0, page.into_owned()));
 		self.sync();
 	}
 	fn rollback(&mut self) {

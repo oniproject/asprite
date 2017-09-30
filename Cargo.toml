@@ -9,6 +9,7 @@ num-traits = "0.1"
 undo = "0.14"
 redo = "0.14"
 image = "0.15"
+gif = "0.9"
 rand = "0.3"
 
 [dependencies.sdl2]

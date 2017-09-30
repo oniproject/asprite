@@ -4,9 +4,10 @@ use std::iter::Step;
 use std::fmt::Debug;
 use std::mem::swap;
 
-use na::Point2;
+use na::{Point2, Vector2};
 
 pub type Point<N> = Point2<N>;
+pub type Vector<N> = Vector2<N>;
 
 pub trait Signed:
 	num_traits::sign::Signed +
@@ -59,6 +60,16 @@ impl<T: Signed> Rect<T> {
 	}
 	pub fn set_h(&mut self, h: T) {
 		self.max.y = self.min.y + h;
+	}
+
+	pub fn min_translate(&self, p: Point<T>) -> Point<T> {
+		Point::from_coordinates(self.min.coords + p.coords)
+	}
+
+	pub fn min_translate_rect(&self, r: Self) -> Self {
+		let min = Point::from_coordinates(self.min.coords + r.min.coords);
+		let max = Point::from_coordinates(self.min.coords + r.max.coords);
+		Self { min, max }
 	}
 
 	pub fn normalize(self) -> Self {
