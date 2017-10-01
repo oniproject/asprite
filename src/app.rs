@@ -5,7 +5,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::render::{Texture, BlendMode};
-use sdl2::gfx::primitives::DrawRenderer;
+use sdl2::gfx::primitives::{DrawRenderer, ToColor};
 
 use common::*;
 use tool::*;
@@ -19,19 +19,6 @@ macro_rules! rect(
 		sdl2::rect::Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
 	)
 );
-
-const STATUSBAR_BG: u32 = 0x3F4350_FFu32;
-const STATUSBAR_COLOR: u32 = 0xA7A8AE_FFu32;
-const MENUBAR_BG: u32 = 0x222833_FFu32;
-const LABEL_COLOR: u32 = 0xFFFFFF_FF;
-const BAR_BG: u32 = 0x3f4957_FF;
-
-const BTN_BORDER: u32 = 0x4E5763_FF;
-const BTN_BG: u32 = 0x3E4855_FF;
-const BTN_ACTIVE: u32 = 0x0076FF_FF;
-
-const TIMELINE_BG: u32 = 0x3a4351_FF;
-const HEADER_BG: u32 = 0x525b68_FF;
 
 #[derive(Clone, Copy, Debug)]
 enum CurrentTool {
@@ -107,10 +94,14 @@ impl<'a> App<'a> {
 		}
 	}
 	pub fn paint<'t>(&mut self, sprite: &mut Texture<'t>,  preview: &mut Texture<'t>, render: &mut ui::RenderSDL<sdl2::video::Window>) {
-		let editor_bg = Color::RGB(0x20, 0x24, 0x2F);
+		self.update = false;
+
 		let red =  0xFF4136_FFu32;
 
-		self.update = false;
+		let editor_bg = {
+			let (r, g, b, a) = WINDOW_BG.to_be().as_rgba();
+			Color::RGBA(r, g, b, a)
+		};
 
 		render.ctx.set_draw_color(editor_bg);
 		render.ctx.clear();
@@ -140,17 +131,18 @@ impl<'a> App<'a> {
 
 				// tool preview
 				let freehand = &self.tools.freehand; 
-				for g in &freehand.pts {
-					let p = g.0;
-					if g.1 {
-						canvas.pixel(p.x, p.y, image.palette[freehand.color].to_be()).unwrap();
+				for &(p, active) in &freehand.pts {
+					let c = if active {
+						image.palette[freehand.color].to_be()
 					} else {
-						canvas.pixel(p.x, p.y, red).unwrap();
-					}
+						red
+					};
+					canvas.pixel(p.x, p.y, c).unwrap();
 				}
 
 				// preview brush
-				canvas.pixel(self.tools.editor.mouse.x, self.tools.editor.mouse.y, self.tools.editor.fg().to_be()).unwrap();
+				let editor = &self.tools.editor;
+				canvas.pixel(editor.mouse.x, editor.mouse.y, editor.fg().to_be()).unwrap();
 			}
 			}
 		}).unwrap();
@@ -237,107 +229,103 @@ impl<'a> App<'a> {
 		render.ctx.present();
 	}
 
-	pub fn ui(&mut self, render: &mut ui::RenderSDL<sdl2::video::Window>) {
-		let size = render.ctx.window().size();
-		let width = size.0 as i16;
-		let height = size.1 as i16;
+	pub fn ui<R: Immediate>(&mut self, render: &mut R) {
+		let r = render.bounds();
+		let width = r.w();
+		let height = r.h();
 
-		render.panel(Rect::with_size(0, 0, width, height)).run(|mut render| {
-			let width = render.width();
-			let height = render.height();
+		let menubar = Rect::with_size(0, 0, width, 20);
+		let contextbar = Rect::with_size(0, 20, width, 40);
+		let statusbar = Rect::with_size(0, height - 20, width, 20);
+		let timeline = Rect::with_size(0, height - 20 - 200, width, 200);
+		let palette = Rect::with_size(width-250, 60, 250, 500);
+		let tools = Rect::with_size(10, 140, 200, 300);
 
-			let menubar = Rect::with_size(0, 0, width, 20);
-			render.panel(menubar).run(|mut render| {
-				render.clear(MENUBAR_BG);
-				render.label_left(LABEL_COLOR, " File  Edit  Select  View  Image  Layer  Tools  Help");
-			});
+		render.panel(menubar).run(|mut render| {
+			render.clear(MENUBAR_BG);
+			render.label_left(LABEL_COLOR, " File  Edit  Select  View  Image  Layer  Tools  Help");
+		});
 
-			let contextbar = Rect::with_size(0, 20, width, 40);
-			render.panel(contextbar).run(|mut render| {
-				render.clear(BAR_BG);
+		render.panel(contextbar).run(|mut render| {
+			render.clear(BAR_BG);
 
-				// undo/redo
-				let r1 = Rect::with_size(40, 10, 20, 20);
-				let r2 = Rect::with_size(60, 10, 20, 20);
+			// undo/redo
+			let r1 = Rect::with_size(40, 10, 20, 20);
+			let r2 = Rect::with_size(60, 10, 20, 20);
 
-				render.lay(r1);
-				render.frame(BTN_BG, BTN_BORDER);
-				render.lay(r2);
-				render.frame(BTN_BG, BTN_BORDER);
+			render.lay(r1);
+			render.frame(BTN_BG, BTN_BORDER);
+			render.lay(r2);
+			render.frame(BTN_BG, BTN_BORDER);
 
-				render.lay(r1);
-				render.btn_mini(33, &"\u{2190}", BTN_ACTIVE, || self.tools.editor.undo());
-				render.lay(r2);
-				render.btn_mini(34, &"\u{2192}", BTN_ACTIVE, || self.tools.editor.redo());
-			});
+			render.lay(r1);
+			render.btn_mini(33, &"\u{2190}", BTN_ACTIVE, || self.tools.editor.undo());
+			render.lay(r2);
+			render.btn_mini(34, &"\u{2192}", BTN_ACTIVE, || self.tools.editor.redo());
+		});
 
-			let statusbar = Rect::with_size(0, height - 20, width, 20);
-			render.panel(statusbar).run(|mut render| {
-				render.clear(STATUSBAR_BG);
-				let freehand = &self.tools.freehand;
-				render.label_left(STATUSBAR_COLOR, &format!(" perfect pixel: {} zoom:{}  {:>3}#{:<3}  [{:+} {:+}]",
-					freehand.perfect, self.tools.editor.zoom,
-					self.tools.editor.image().fg, self.tools.editor.image().bg,
-					self.tools.editor.mouse.x, self.tools.editor.mouse.y,
-				));
-			});
+		render.panel(statusbar).run(|mut render| {
+			render.clear(STATUSBAR_BG);
+			let freehand = &self.tools.freehand;
+			render.label_left(STATUSBAR_COLOR, &format!(" perfect pixel: {} zoom:{}  {:>3}#{:<3}  [{:+} {:+}]",
+				freehand.perfect, self.tools.editor.zoom,
+				self.tools.editor.image().fg, self.tools.editor.image().bg,
+				self.tools.editor.mouse.x, self.tools.editor.mouse.y,
+			));
+		});
 
-			let timeline = Rect::with_size(0, height - statusbar.h() - 200, width, 200);
-			render.panel(timeline).run(|mut render| {
-				render.clear(TIMELINE_BG);
-				let w = render.width();
-				for (i, layer) in self.tools.editor.image().data.iter().enumerate() {
-					render.lay(Rect::with_size(0, 20 * i as i16, w, 20));
-					render.label_left(LABEL_COLOR, &format!("  {}: {}", i, layer.name));
+		render.panel(timeline).run(|mut render| {
+			render.clear(TIMELINE_BG);
+			let w = render.width();
+			for (i, layer) in self.tools.editor.image().data.iter().enumerate() {
+				render.lay(Rect::with_size(0, 20 * i as i16, w, 20));
+				render.label_left(LABEL_COLOR, &format!("  {}: {}", i, layer.name));
+			}
+		});
+
+		render.panel(palette).run(|mut render| {
+			render.clear(BAR_BG);
+
+			let w = render.width();
+			render.lay(Rect::with_size(0, 0, w, 20));
+			render.frame(HEADER_BG, None);
+			render.label_right(LABEL_COLOR, &"\u{25BC} ");
+			render.label_left(LABEL_COLOR, &" Palette");
+
+			for i in 0..5u8 {
+				render.lay(Rect::with_size(50, 40 + 20*i as i16, 20, 20));
+				let color = self.tools.editor.image().palette[i];
+				if render.btn_color(10 + i as u32, color) {
+					self.tools.editor.change_foreground(i as u8);
 				}
-			});
+			}
+		});
 
-			let palette = Rect::with_size(width-250, 60, 250, 500);
-			render.panel(palette).run(|mut render| {
-				render.clear(BAR_BG);
+		render.panel(tools).run(|mut render| {
+			render.clear(BAR_BG);
 
-				let w = render.width();
-				render.lay(Rect::with_size(0, 0, w, 20));
-				render.frame(HEADER_BG, None);
-				render.label_right(LABEL_COLOR, &"\u{25BC} ");
-				render.label_left(LABEL_COLOR, &" Palette");
+			let w = render.width();
+			render.lay(Rect::with_size(0, 0, w, 20));
+			render.frame(HEADER_BG, None);
+			render.label_right(LABEL_COLOR, &"\u{25BC} ");
+			render.label_left(LABEL_COLOR, &" Tools");
 
-				for i in 0..5u8 {
-					render.lay(Rect::with_size(50, 40 + 20*i as i16, 20, 20));
-					let color = self.tools.editor.image().palette[i];
-					if render.btn_color(10 + i as u32, color) {
-						self.tools.editor.change_foreground(i as u8);
-					}
-				}
-			});
-
-			let tools = Rect::with_size(10, 140, 200, 300);
-			render.panel(tools).run(|mut render| {
-				render.clear(BAR_BG);
-
-				let w = render.width();
-				render.lay(Rect::with_size(0, 0, w, 20));
-				render.frame(HEADER_BG, None);
-				render.label_right(LABEL_COLOR, &"\u{25BC} ");
-				render.label_left(LABEL_COLOR, &" Tools");
-
-				let modes = [
-					CurrentTool::Freehand,
-					CurrentTool::PixelPerfect,
-					CurrentTool::Bucket,
-					CurrentTool::EyeDropper,
-					CurrentTool::Primitive(PrimitiveMode::DrawEllipse),
-					CurrentTool::Primitive(PrimitiveMode::FillEllipse),
-					CurrentTool::Primitive(PrimitiveMode::DrawRect),
-					CurrentTool::Primitive(PrimitiveMode::FillRect),
-				];
-				for (i, m) in modes.iter().enumerate() {
-					render.lay(Rect::with_size(10, 40 + 20 * i as i16, w - 20, 20));
-					render.btn_label(21 + i as u32, &format!("{:?}", m), || {
-						self.tools.current = *m;
-					});
-				}
-			});
+			let modes = [
+				CurrentTool::Freehand,
+				CurrentTool::PixelPerfect,
+				CurrentTool::Bucket,
+				CurrentTool::EyeDropper,
+				CurrentTool::Primitive(PrimitiveMode::DrawEllipse),
+				CurrentTool::Primitive(PrimitiveMode::FillEllipse),
+				CurrentTool::Primitive(PrimitiveMode::DrawRect),
+				CurrentTool::Primitive(PrimitiveMode::FillRect),
+			];
+			for (i, m) in modes.iter().enumerate() {
+				render.lay(Rect::with_size(10, 40 + 20 * i as i16, w - 20, 20));
+				render.btn_label(21 + i as u32, &format!("{:?}", m), || {
+					self.tools.current = *m;
+				});
+			}
 		});
 	}
 

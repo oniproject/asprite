@@ -1,17 +1,12 @@
-use sdl2;
 use sdl2::video::Window;
-use sdl2::render::{RenderTarget, Canvas};
+use sdl2::render::{RenderTarget, Canvas, TextureQuery};
 use sdl2::ttf::Font;
 use sdl2::gfx::primitives::{DrawRenderer, ToColor};
 use sdl2::pixels::Color;
+use sdl2::rect::Rect as SdlRect;
 
 use common::*;
-
-pub enum Align {
-	Left,
-	Right,
-	Center,
-}
+use super::im::*;
 
 pub enum Event {
 	Press,
@@ -21,19 +16,19 @@ pub enum Event {
 	MouseLeave,
 }
 
-pub enum RenderCommand<N: Signed, C: Copy> {
+pub enum Command<'a, N: Signed, C: Copy> {
 	Line(Point<N>, Point<N>, C),
 	Border(Rect<N>, C),
 	Fill(Rect<N>, C),
 	Clip(Option<Rect<N>>),
-	Text(String, Point<N>, C),
+	Text(&'a str, Point<N>, C),
 	Image(usize, Rect<N>),
 }
 
-pub trait Render<N: Signed, C: Copy> {
+pub trait Graphics<N: Signed, C: Copy> {
 	// TODO: images
 
-	fn command(&mut self, cmd: RenderCommand<N, C>);
+	fn command<'a>(&mut self, cmd: Command<'a, N, C>);
 	fn text_size(&mut self, s: &str) -> (u32, u32);
 
 	fn text_center_left(&mut self, r: Rect<N>, color: C, s: &str) {
@@ -64,193 +59,30 @@ pub trait Render<N: Signed, C: Copy> {
 	}
 
 	fn line(&mut self, a: Point<N>, b: Point<N>, color: C) {
-		self.command(RenderCommand::Line(a, b, color));
+		self.command(Command::Line(a, b, color));
 	}
 	fn border(&mut self, r: Rect<N>, color: C) {
-		self.command(RenderCommand::Border(r, color));
+		self.command(Command::Border(r, color));
 	}
 	fn fill(&mut self, r: Rect<N>, color: C) {
-		self.command(RenderCommand::Fill(r, color));
+		self.command(Command::Fill(r, color));
 	}
 	fn clip(&mut self, r: Option<Rect<N>>) {
-		self.command(RenderCommand::Clip(r));
+		self.command(Command::Clip(r));
 	}
 	fn image(&mut self, m: usize, r: Rect<N>) {
-		self.command(RenderCommand::Image(m, r));
+		self.command(Command::Image(m, r));
 	}
 	fn text(&mut self, p: Point<N>, color: C, s: &str) {
-		self.command(RenderCommand::Text(s.to_string(), p, color));
+		self.command(Command::Text(s, p, color));
 	}
 }
 
-pub trait WidgetRender: Render<i16, u32> {
-	fn widget(&mut self, id: u32) -> Rect<i16>;
-	fn widget_rect(&self) -> Rect<i16>;
-
-	// fn bounds(&self) -> Rect<i16>;
-
-	fn is_hot(&self) -> bool;
-	fn is_active(&self) -> bool;
-	fn is_click(&self) -> bool;
-
-	fn lay(&mut self, r: Rect<i16>);
-}
 
 #[derive(PartialEq)]
 pub enum Key {
 	NextWidget,
 	PrevWidget,
-}
-
-pub struct Panel<'a, R: WidgetRender + 'a> {
-	pub render: &'a mut R,
-	pub r: Rect<i16>,
-}
-
-impl<'a, R: WidgetRender + 'a> Panel<'a, R> {
-	pub fn run<F: FnOnce(Self)>(self, f: F) { f(self) }
-
-	pub fn panel(&mut self, r: Rect<i16>) -> Panel<Self> {
-		Panel {
-			render: self,
-			r,
-		}
-	}
-
-	pub fn width(&self) -> i16 {
-		self.r.w()
-	}
-	pub fn height(&self) -> i16 {
-		self.r.h()
-	}
-
-	pub fn clear(&mut self, color: u32) {
-		let r = self.r;
-		self.lay(Rect::with_size(0, 0, r.w(), r.h()));
-		self.render.fill(r, color);
-	}
-
-	pub fn frame<A, B>(&mut self, bg: A, border: B)
-		where
-			A: Into<Option<u32>>,
-			B: Into<Option<u32>>,
-	{
-		let r = self.widget_rect();
-		if let Some(bg) = bg.into() {
-			self.fill(r, bg);
-		}
-		if let Some(border) = border.into() {
-			self.border(r, border);
-		}
-	}
-
-	pub fn label_right(&mut self, color: u32, text: &str) {
-		self.label(Align::Right, color, text)
-	}
-	pub fn label_center(&mut self, color: u32, text: &str) {
-		self.label(Align::Center, color, text)
-	}
-	pub fn label_left(&mut self, color: u32, text: &str) {
-		self.label(Align::Left, color, text)
-	}
-
-	fn label(&mut self, align: Align, color: u32, text: &str) {
-		let r = self.widget_rect();
-		match align {
-			Align::Left => self.text_center_left(r, color, text),
-			Align::Right => self.text_center_right(r, color, text),
-			Align::Center => self.text_center(r, color, text),
-		}
-	}
-	fn label_bg(&mut self, align: Align, color: u32, bg: u32, text: &str) {
-		let r = self.widget_rect();
-		self.fill(r, bg);
-		match align {
-			Align::Left => self.text_center_left(r, color, text),
-			Align::Right => self.text_center_right(r, color, text),
-			Align::Center => self.text_center(r, color, text),
-		}
-	}
-
-	pub fn btn_color(&mut self, id: u32, color: u32) -> bool {
-		let r = self.widget(id);
-		self.fill(r, color);
-		self.is_click()
-	}
-
-	pub fn btn_mini<F: FnMut()>(&mut self, id: u32, label: &str, active: u32, mut cb: F) {
-		let r = self.widget(id);
-
-		if self.is_hot() && self.is_active() {
-			self.fill(r, active);
-		};
-
-		let label_color = 0xFFFFFF_FF;
-
-		// FIXME: fucking hack
-		{
-			let mut r = r.clone();
-			let w = r.w() + 2;
-			let h = r.h() + 2;
-			r.set_w(w);
-			r.set_h(h);
-			self.text_center(r, label_color, label);
-		}
-
-		if self.is_click() {
-			cb();
-			println!("click: {}", label);
-		}
-	}
-
-	pub fn btn_label<F: FnMut()>(&mut self, id: u32, label: &str, mut cb: F) {
-		let r = self.widget(id);
-
-		let bg = 0x353D4B_FF;
-		let active_color = 0x0076FF_FF;
-
-		if self.is_hot() {
-			let bg = if self.is_active() { active_color } else { bg };
-			self.fill(r, bg);
-		};
-		self.border(r, bg);
-
-		let label_color = 0xECECEC_FF;
-
-		// FIXME: fucking hack
-		{
-			let mut r = r.clone();
-			let w = r.w() + 2;
-			let h = r.h() + 2;
-			r.set_w(w);
-			r.set_h(h);
-			self.text_center(r, label_color, label);
-		}
-
-		if self.is_click() {
-			cb();
-			println!("click: {}", label);
-		}
-	}
-}
-
-impl<'a, R: WidgetRender + 'a> Render<i16, u32> for Panel<'a, R> {
-	fn command(&mut self, cmd: RenderCommand<i16, u32>) { self.render.command(cmd) }
-	fn text_size(&mut self, s: &str) -> (u32, u32) { self.render.text_size(s) }
-}
-
-impl<'a, R: WidgetRender + 'a> WidgetRender for Panel<'a, R> {
-	fn widget(&mut self, id: u32) -> Rect<i16> { self.render.widget(id) }
-
-	fn widget_rect(&self) -> Rect<i16> { self.render.widget_rect() }
-
-	fn is_hot(&self) -> bool { self.render.is_hot() }
-	fn is_active(&self) -> bool { self.render.is_active() }
-	fn is_click(&self) -> bool { self.render.is_click() }
-	fn lay(&mut self, r: Rect<i16>) {
-		let r = self.r.min_translate_rect(r);
-		self.render.lay(r);
-	}
 }
 
 pub struct RenderSDL<'ttf_module, 'rwops, T: RenderTarget> {
@@ -279,12 +111,6 @@ impl<'ttf, 'rwops> RenderSDL<'ttf, 'rwops, Window> {
 		}
 	}
 
-	pub fn panel(&mut self, r: Rect<i16>) -> Panel<Self> {
-		Panel {
-			render: self,
-			r,
-		}
-	}
 
 	pub fn prepare(&mut self) {
 		self.hot = 0;
@@ -313,21 +139,21 @@ impl<'ttf, 'rwops> RenderSDL<'ttf, 'rwops, Window> {
 
 }
 
-impl<'ttf, 'rwops> Render<i16, u32> for RenderSDL<'ttf, 'rwops, Window> {
-	fn command(&mut self, cmd: RenderCommand<i16, u32>) {
+impl<'ttf, 'rwops> Graphics<i16, u32> for RenderSDL<'ttf, 'rwops, Window> {
+	fn command(&mut self, cmd: Command<i16, u32>) {
 		match cmd {
-			RenderCommand::Line(start, end, color) =>
+			Command::Line(start, end, color) =>
 				self.ctx.line(
 					start.x, start.y,
 					end.x, end.y,
 					color.to_be()).unwrap(),
 
-			RenderCommand::Fill(r, color) =>
+			Command::Fill(r, color) =>
 				self.ctx.box_(
 					r.min.x, r.min.y,
 					r.max.x, r.max.y-1,
 					color.to_be()).unwrap(),
-			RenderCommand::Border(r, color) => {
+			Command::Border(r, color) => {
 				let color = color.to_be();
 				let (x1, x2) = (r.min.x, r.max.x);
 				self.ctx.hline(x1, x2, r.min.y, color).unwrap();
@@ -337,30 +163,23 @@ impl<'ttf, 'rwops> Render<i16, u32> for RenderSDL<'ttf, 'rwops, Window> {
 				self.ctx.vline(r.max.x, y1, y2, color).unwrap();
 			}
 
-			RenderCommand::Image(_id, _r) => unimplemented!(),
-			RenderCommand::Clip(_r) => unimplemented!(),
-			RenderCommand::Text(s, p, color) => {
+			Command::Image(_id, _r) => unimplemented!(),
+			Command::Clip(_r) => unimplemented!(),
+			Command::Text(s, p, color) => {
 				let color = {
 					let (r, g, b, a) = color.to_be().as_rgba();
 					Color::RGBA(r, g, b, a)
 				};
 
 				// render a surface, and convert it to a texture bound to the canvas
-				let surface = self.font
-					.render(&s)
-					.blended(color)
-					.unwrap();
-
+				let surface = self.font.render(s).blended(color).unwrap();
 				let creator = self.ctx.texture_creator();
-
 				let texture = creator
 					.create_texture_from_surface(&surface)
 					.unwrap();
 
-				let sdl2::render::TextureQuery { width, height, .. } = texture.query();
-
-
-				let r = sdl2::rect::Rect::new(p.x as i32, p.y as i32, width, height);
+				let TextureQuery { width, height, .. } = texture.query();
+				let r = SdlRect::new(p.x as i32, p.y as i32, width, height);
 
 				self.ctx
 					.copy(&texture, None, Some(r))
@@ -373,7 +192,12 @@ impl<'ttf, 'rwops> Render<i16, u32> for RenderSDL<'ttf, 'rwops, Window> {
 	}
 }
 
-impl<'ttf, 'rwops> WidgetRender for RenderSDL<'ttf, 'rwops, Window> {
+impl<'ttf, 'rwops> Immediate for RenderSDL<'ttf, 'rwops, Window> {
+	fn bounds(&self) -> Rect<i16> {
+		let size = self.ctx.window().size();
+		Rect::with_size(0, 0, size.0 as i16, size.1 as i16)
+	}
+
 	fn widget_rect(&self) -> Rect<i16> {
 		self.next_rect
 	}

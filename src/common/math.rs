@@ -32,6 +32,29 @@ pub struct Rect<T: Signed> {
 }
 
 impl<T: Signed> Rect<T> {
+	pub fn new() -> Self {
+		Self {
+			min: Point::new(T::zero(), T::zero()),
+			max: Point::new(T::zero(), T::zero()),
+		}
+	}
+
+	pub fn pos(self, x: T, y: T) -> Self {
+		let p = Vector::new(x, y);
+		Self {
+			min: Point::from_coordinates(self.min.coords + p),
+			max: Point::from_coordinates(self.max.coords + p),
+		}
+	}
+
+	pub fn size(self, w: T, h: T) -> Self {
+		let p = Vector::new(w, h);
+		Self {
+			min: self.min,
+			max: Point::from_coordinates(self.min.coords + p),
+		}
+	}
+
 	pub fn with_points(min: Point<T>, max: Point<T>) -> Self {
 		Self { min, max }
 	}
@@ -47,9 +70,14 @@ impl<T: Signed> Rect<T> {
 			max: Point::new(x + w, y + h),
 		}
 	}
+
 	pub fn contains(&self, p: Point<T>) -> bool {
 		self.min.x <= p.x && p.x <= self.max.x &&
 		self.min.y <= p.y && p.y <= self.max.y
+	}
+
+	pub fn contains_rect(&self, r: Self) -> bool {
+		self.contains(r.min) && self.contains(r.max)
 	}
 
 	pub fn w(&self) -> T { self.max.x - self.min.x }
