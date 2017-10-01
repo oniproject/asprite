@@ -7,6 +7,40 @@ use sprite::*;
 use undo::record::Record;
 use std::borrow::Cow;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CurrentTool {
+	Freehand,
+	Bucket,
+	EyeDropper,
+	Primitive(PrimitiveMode),
+}
+
+pub struct Tools<'a> {
+	pub current: CurrentTool,
+	pub editor: Editor<'a>,
+
+	pub freehand: Freehand<i16, u8>,
+	pub prim: Primitive<i16, u8>,
+	pub bucket: Bucket<i16, u8>,
+	pub dropper: EyeDropper<i16, u8>,
+}
+
+impl<'a> Tools<'a> {
+	pub fn input(&mut self, ev: Input<i16>) {
+		match self.current {
+			CurrentTool::Freehand => {
+				self.freehand.run(ev, &mut self.editor);
+			}
+			CurrentTool::Bucket => self.bucket.run(ev, &mut self.editor),
+			CurrentTool::EyeDropper => self.dropper.run(ev, &mut self.editor),
+			CurrentTool::Primitive(mode) => {
+				self.prim.mode = mode;
+				self.prim.run(ev, &mut self.editor)
+			}
+		}
+	}
+}
+
 pub struct Editor<'a> {
 	pub image: Record<'a, Sprite>,
 	pub canvas: Cow<'a, Page>,
@@ -36,15 +70,31 @@ impl<'a> Editor<'a> {
 		}
 	}
 
-	pub fn zoom(&mut self, y: i16) {
+	pub fn zoom_from_center(&mut self, y: i16) {
 		let last = self.zoom;
 		self.zoom += y;
 		if self.zoom < 1 { self.zoom = 1 }
 		if self.zoom > 16 { self.zoom = 16 }
 		let diff = last - self.zoom;
 
-		self.pos.x += self.size().x * diff / 2;
-		self.pos.y += self.size().y * diff / 2;
+		let size = self.size() * diff / 2;
+
+		self.pos.x += size.x;
+		self.pos.y += size.y;
+	}
+
+	pub fn zoom_from_mouse(&mut self, y: i16) {
+		let last = self.zoom;
+		self.zoom += y;
+		if self.zoom < 1 { self.zoom = 1 }
+		if self.zoom > 16 { self.zoom = 16 }
+		let diff = last - self.zoom;
+
+		//let size = self.size() * diff / 2;
+		let size = self.mouse * diff;
+
+		self.pos.x += size.x;
+		self.pos.y += size.y;
 	}
 
 	pub fn size(&self) -> Point<i16> {
@@ -99,9 +149,7 @@ impl<'a> Image<i16, u8> for Editor<'a> {
 
 	fn at(&self, x: i16, y: i16) -> Option<u8> {
 		let (w, h) = (self.canvas.width as i16, self.canvas.height as i16);
-		let ix = x >= 0 && x < w;
-		let iy = y >= 0 && y < h;
-		if ix && iy {
+		if x >= 0 && x < w && y >= 0 && y < h {
 			let idx = x + y * w;
 			Some(self.canvas.page[idx as usize])
 		} else {

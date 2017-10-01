@@ -3,37 +3,6 @@ use common::*;
 
 use std::mem::swap;
 
-pub struct Layer {
-	pub frames: Vec<Page>,
-	pub name: String,
-}
-
-impl Layer {
-	pub fn new(name: &str) -> Self {
-		Self {
-			frames: Vec::new(),
-			name: name.to_string(),
-		}
-	}
-
-	pub fn get(&self, idx: usize) -> &Page {
-		&self.frames[idx]
-	}
-
-	pub fn get_mut(&mut self, idx: usize) -> &mut Page {
-		&mut self.frames[idx]
-	}
-
-	pub fn push(&mut self, page: Page) {
-		self.frames.push(page)
-	}
-	pub fn insert(&mut self, pos: usize, page: Page) {
-		self.frames.insert(pos, page)
-	}
-	pub fn remove(&mut self, pos: usize) -> Page {
-		self.frames.remove(pos)
-	}
-}
 
 pub struct Sprite {
 	pub data: Vec<Layer>,
@@ -70,6 +39,38 @@ impl Sprite {
 		layer.push(Page::new(self.width, self.height));
 		self.data.push(layer);
 		unimplemented!();
+	}
+}
+
+pub struct Layer {
+	pub frames: Vec<Page>,
+	pub name: String,
+}
+
+impl Layer {
+	pub fn new(name: &str) -> Self {
+		Self {
+			frames: Vec::new(),
+			name: name.to_string(),
+		}
+	}
+
+	pub fn get(&self, idx: usize) -> &Page {
+		&self.frames[idx]
+	}
+
+	pub fn get_mut(&mut self, idx: usize) -> &mut Page {
+		&mut self.frames[idx]
+	}
+
+	pub fn push(&mut self, page: Page) {
+		self.frames.push(page)
+	}
+	pub fn insert(&mut self, pos: usize, page: Page) {
+		self.frames.insert(pos, page)
+	}
+	pub fn remove(&mut self, pos: usize) -> Page {
+		self.frames.remove(pos)
 	}
 }
 

@@ -150,12 +150,8 @@ pub trait Image<N: Signed, C: Copy + PartialEq> {
 		let width = self.width();
 		let height = self.height();
 
-		if x < zero || x >= width - one || y < zero || y >= height {
-			return;
-		}
-
 		let test = self.at(x, y);
-		if test.is_none() {
+		if test.is_none() || test == Some(color) {
 			return;
 		}
 

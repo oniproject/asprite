@@ -1,7 +1,7 @@
 use rand;
 use std::num::Wrapping;
 
-use common::*;
+use super::*;
 
 fn pos_from_idx(index: i32, total: i32, bounds: i32, factor: i32) -> i32 {
 	let rnd = rand::random::<i32>();

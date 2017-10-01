@@ -4,7 +4,7 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
-use sdl2::render::{Texture, BlendMode};
+use sdl2::render::Texture;
 use sdl2::gfx::primitives::{DrawRenderer, ToColor};
 
 use sdl2::mouse::{Cursor, SystemCursor};
@@ -14,7 +14,7 @@ use common::*;
 use tool::*;
 use ui;
 use ui::*;
-use editor::Editor;
+use editor::*;
 use sprite::Sprite;
 
 macro_rules! rect(
@@ -23,38 +23,9 @@ macro_rules! rect(
 	)
 );
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CurrentTool {
-	Freehand,
-	Bucket,
-	EyeDropper,
-	Primitive(PrimitiveMode),
-}
-
-struct Tools<'a> {
-	current: CurrentTool,
-	editor: Editor<'a>,
-
-	freehand: Freehand<i16, u8>,
-	prim: Primitive<i16, u8>,
-	bucket: Bucket<i16, u8>,
-	dropper: EyeDropper<i16, u8>,
-}
-
-impl<'a> Tools<'a> {
-	pub fn input(&mut self, ev: Input<i16>) {
-		match self.current {
-			CurrentTool::Freehand => {
-				self.freehand.run(ev, &mut self.editor);
-			}
-			CurrentTool::Bucket => self.bucket.run(ev, &mut self.editor),
-			CurrentTool::EyeDropper => self.dropper.run(ev, &mut self.editor),
-			CurrentTool::Primitive(mode) => {
-				self.prim.mode = mode;
-				self.prim.run(ev, &mut self.editor)
-			}
-		}
-	}
+pub enum Layer {
+	Sprite,
+	Preview,
 }
 
 pub struct App<'a> {
@@ -83,7 +54,6 @@ impl<'a> App<'a> {
 			SystemCursor::Hand,
 		];
 
-
 		let cursors: HashMap<_, _> = cursors.iter().map(|&c| (c, Cursor::from_system(c).unwrap())).collect();
 		cursors[&SystemCursor::Crosshair].set();
 
@@ -107,11 +77,9 @@ impl<'a> App<'a> {
 			fill: false,
 			tile: 0,
 			*/
-
-
 		}
 	}
-	pub fn paint<'t>(&mut self, sprite: &mut Texture<'t>,  preview: &mut Texture<'t>, render: &mut ui::RenderSDL<sdl2::video::Window>) {
+	pub fn paint<'t>(&mut self, textures: &[(&mut Texture<'t>, Layer)], render: &mut ui::Render<sdl2::video::Window>) {
 		self.update = false;
 
 		let red =  0xFF4136_FFu32;
@@ -124,12 +92,6 @@ impl<'a> App<'a> {
 		render.ctx.set_clip_rect(None);
 		render.ctx.set_draw_color(editor_bg);
 		render.ctx.clear();
-
-		enum Layer {
-			Sprite,
-			Preview,
-		}
-		let textures = [(sprite, Layer::Sprite), (preview, Layer::Preview)];
 
 		render.ctx.with_multiple_texture_canvas(textures.iter(), |canvas, layer| {
 			match *layer {
@@ -167,19 +129,14 @@ impl<'a> App<'a> {
 		}).unwrap();
 
 		{ // display image and preview
-
 			let size = self.tools.editor.size();
-			let src = rect!(0, 0, size.x, size.y);
 			let zoom = self.tools.editor.zoom;
 			let size = size * zoom;
 			let pos = self.tools.editor.pos;
 			let dst = rect!(pos.x, pos.y, size.x, size.y);
-
-			render.ctx.set_blend_mode(BlendMode::Blend);
-			for t in &textures {
-				render.ctx.copy(t.0, src, dst).unwrap();
+			for t in textures {
+				render.ctx.copy(t.0, None, dst).unwrap();
 			}
-			render.ctx.set_blend_mode(BlendMode::None);
 		}
 
 		{ // grid
@@ -263,14 +220,13 @@ impl<'a> App<'a> {
 		let statusbar = Rect::with_size(0, height - 20, width, 20);
 		let timeline = Rect::with_size(0, height - 20 - 200, width, 200);
 		let palette = Rect::with_size(width-250, 60, 250, 500);
-		let tools = Rect::with_size(10, 140, 200, 300);
 
-		ui.panel(menubar).run(|mut ui| {
+		ui.panel(menubar, |mut ui| {
 			ui.clear(MENUBAR_BG);
 			ui.label_left(LABEL_COLOR, " File  Edit  Select  View  Image  Layer  Tools  Help");
 		});
 
-		ui.panel(contextbar).run(|mut ui| {
+		ui.panel(contextbar, |mut ui| {
 			ui.clear(BAR_BG);
 
 			ui.lay(Rect::with_size(10, 10, 20, 20));
@@ -278,14 +234,56 @@ impl<'a> App<'a> {
 				println!("xx");
 			}
 
-			if self.tools.current == CurrentTool::Freehand {
-				ui.lay(Rect::with_size(180, 12, 300, 14));
-				ui.checkbox_label(999, " perfect pixel", &mut self.tools.freehand.perfect);
+			let modes = [
+				CurrentTool::Freehand,
+				CurrentTool::Bucket,
+				CurrentTool::Primitive(PrimitiveMode::Ellipse),
+				CurrentTool::Primitive(PrimitiveMode::Rect),
+				CurrentTool::EyeDropper,
+			];
+
+			for (i, &mode) in modes.iter().enumerate() {
+				ui.lay(Rect::with_size(40 + 32 * i as i16, 4, 32, 32));
+				let active = self.tools.current == mode;
+				if ui.btn_icon(770 + i as u32, i as usize, active) {
+					self.tools.current = mode;
+				}
 			}
 
-			let undoredo = Rect::with_size(ui.width() - 60, 10, 40, 20);
+			match self.tools.current {
+				CurrentTool::Freehand => {
+					ui.lay(Rect::with_size(220, 12, 300, 14));
+					ui.checkbox_label(999, " perfect pixel", &mut self.tools.freehand.perfect);
+				}
+				CurrentTool::Primitive(_) => {
+					ui.lay(Rect::with_size(220, 12, 300, 14));
+					ui.checkbox_label(999, " fill", &mut self.tools.prim.fill);
+				}
+				_ => (),
+			}
 
-			ui.panel(undoredo).run(|mut ui| {
+			let zoom = Rect::with_size(ui.width() - 160, 10, 90, 20);
+			ui.panel(zoom, |mut ui| {
+				let label = Rect::with_size(0, 0, 50, 20);
+
+				let r1 = Rect::with_size(51, 0, 20, 20);
+				let r2 = Rect::with_size(70, 0, 20, 20);
+
+				ui.lay(r1);
+				ui.frame(BTN_BG, BTN_BORDER);
+				ui.lay(r2);
+				ui.frame(BTN_BG, BTN_BORDER);
+
+				ui.lay(label);
+				ui.label_left(LABEL_COLOR, &format!(" ZOOM {}", self.tools.editor.zoom));
+				ui.lay(r1);
+				ui.btn_mini(30, "+", || self.tools.editor.zoom_from_center(1));
+				ui.lay(r2);
+				ui.btn_mini(31, "-", || self.tools.editor.zoom_from_center(-1));
+			});
+
+			let undoredo = Rect::with_size(ui.width() - 60, 10, 40, 20);
+			ui.panel(undoredo, |mut ui| {
 				// undo/redo
 				let r1 = Rect::with_size(0, 0, 20, 20);
 				let r2 = Rect::with_size(19, 0, 20, 20);
@@ -296,14 +294,14 @@ impl<'a> App<'a> {
 				ui.frame(BTN_BG, BTN_BORDER);
 
 				ui.lay(r1);
-				ui.btn_mini(33, "\u{2190}", BTN_ACTIVE, || self.tools.editor.undo());
+				ui.btn_mini(33, "\u{2190}", || self.tools.editor.undo());
 				ui.lay(r2);
-				ui.btn_mini(34, "\u{2192}", BTN_ACTIVE, || self.tools.editor.redo());
+				ui.btn_mini(34, "\u{2192}", || self.tools.editor.redo());
 			});
 
 		});
 
-		ui.panel(statusbar).run(|mut ui| {
+		ui.panel(statusbar, |mut ui| {
 			ui.clear(STATUSBAR_BG);
 			let freehand = &self.tools.freehand;
 			let editor = &self.tools.editor;
@@ -314,7 +312,7 @@ impl<'a> App<'a> {
 			));
 		});
 
-		ui.panel(timeline).run(|mut ui| {
+		ui.panel(timeline, |mut ui| {
 			ui.clear(TIMELINE_BG);
 			static mut SHOW: [bool; 5] = [true, false, true, false, false];
 			static mut LOCK: [bool; 5] = [false, false, false, false, false];
@@ -323,12 +321,12 @@ impl<'a> App<'a> {
 				let lock = unsafe { &mut LOCK[j] };
 				for (i, layer) in self.tools.editor.image().data.iter().enumerate() {
 					let i = i + j;
-					ui.lay(Rect::with_size(0, 20 * i as i16, 20, 20));
+					ui.lay(Rect::with_size(0, 19 + 19 * i as i16, 20, 20));
 					ui.checkbox(70 + i as u32, show);
-					ui.lay(Rect::with_size(20, 20 * i as i16, 20, 20));
+					ui.lay(Rect::with_size(19, 19 + 19 * i as i16, 20, 20));
 					ui.checkbox(90 + i as u32, lock);
 
-					ui.lay(Rect::with_size(40, 20 * i as i16, 160, 20));
+					ui.lay(Rect::with_size(38, 19 + 19 * i as i16, 160, 20));
 					let r = ui.widget_rect();
 					ui.border(r, BTN_BORDER);
 					ui.label_left(LABEL_COLOR, &format!("  {}: {}", i, layer.name));
@@ -336,52 +334,21 @@ impl<'a> App<'a> {
 			}
 		});
 
-		ui.panel(palette).run(|mut ui| {
+		ui.panel(palette, |mut ui| {
 			ui.clear(BAR_BG);
-
-			let w = ui.width();
-			ui.lay(Rect::with_size(0, 0, w, 20));
-			ui.frame(HEADER_BG, None);
-			ui.label_right(LABEL_COLOR, "\u{25BC} ");
-			ui.label_left(LABEL_COLOR, " Palette");
+			ui.header(" Palette");
 
 			for i in 0..5u8 {
 				ui.lay(Rect::with_size(50, 40 + 20*i as i16, 20, 20));
 				let color = self.tools.editor.image().palette[i];
-				if ui.btn_color(10 + i as u32, color) {
+				if ui.btn_color(100 + i as u32, color) {
 					self.tools.editor.change_foreground(i as u8);
 				}
 			}
 		});
-
-		ui.panel(tools).run(|mut ui| {
-			ui.clear(BAR_BG);
-
-			let w = ui.width();
-			ui.lay(Rect::with_size(0, 0, w, 20));
-			ui.frame(HEADER_BG, None);
-			ui.label_right(LABEL_COLOR, "\u{25BC} ");
-			ui.label_left(LABEL_COLOR, " Tools");
-
-			let modes = [
-				CurrentTool::Freehand,
-				CurrentTool::Bucket,
-				CurrentTool::EyeDropper,
-				CurrentTool::Primitive(PrimitiveMode::DrawEllipse),
-				CurrentTool::Primitive(PrimitiveMode::FillEllipse),
-				CurrentTool::Primitive(PrimitiveMode::DrawRect),
-				CurrentTool::Primitive(PrimitiveMode::FillRect),
-			];
-			for (i, m) in modes.iter().enumerate() {
-				ui.lay(Rect::with_size(10, 40 + 19 * i as i16, w - 20, 20));
-				ui.btn_label(21 + i as u32, &format!("{:?}", m), || {
-					self.tools.current = *m;
-				});
-			}
-		});
 	}
 
-	pub fn event(&mut self, event: sdl2::event::Event, render: &mut ui::RenderSDL<sdl2::video::Window>) {
+	pub fn event(&mut self, event: sdl2::event::Event, render: &mut ui::Render<sdl2::video::Window>) {
 		self.update = true;
 		match event {
 			Event::MouseMotion {x, y, xrel, yrel, ..} => {
@@ -436,6 +403,10 @@ impl<'a> App<'a> {
 					// Keycode::Num7 => self.freehand.mode = freehand::Mode::Continious,
 					// Keycode::Num8 => self.freehand.mode = freehand::Mode::PixelPerfect,
 					// Keycode::Num9 => self.freehand.mode = freehand::Mode::Line,
+
+					Keycode::Plus  | Keycode::KpPlus  => self.tools.editor.zoom_from_center(1),
+					Keycode::Minus | Keycode::KpMinus => self.tools.editor.zoom_from_center(-1),
+
 					Keycode::LShift |
 					Keycode::RShift =>
 						self.tools.input(Input::Special(true)),
@@ -515,7 +486,7 @@ impl<'a> App<'a> {
 				}
 			}
 
-			Event::MouseWheel { y, ..} => { self.tools.editor.zoom(y as i16); }
+			Event::MouseWheel { y, ..} => { self.tools.editor.zoom_from_mouse(y as i16); }
 
 			// Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
 				//self.statusbar = Rect::with_size(0, h as i16 - 20, w as i16, 20);

@@ -10,6 +10,7 @@ extern crate nalgebra as na;
 
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::BlendMode;
+use sdl2::mouse::Cursor;
 
 use std::process;
 
@@ -20,7 +21,6 @@ mod mask;
 mod editor;
 mod cmd;
 mod sprite;
-mod gradient;
 
 mod app;
 use app::*;
@@ -60,8 +60,6 @@ fn create_pal(pal: &mut Palette<u32>) {
 
 const FONT_PATH: &str = "f/TerminusTTF-4.46.0.ttf";
 
-
-use sdl2::mouse::{Cursor, SystemCursor};
 
 fn _create_cursor() -> Cursor {
 	let data: [u8; 8] = [
@@ -226,13 +224,6 @@ fn main() {
 		// XXX: glitch with .software()
 		.build().unwrap();
 
-	let creator = ctx.texture_creator();
-
-/*
-	let cur = create_cursor();
-	cur.set();
-*/
-
 
 	// Load a font
 	let font = ttf_context.load_font(FONT_PATH, FONT_HEIGHT).unwrap();
@@ -259,17 +250,28 @@ fn main() {
 		});
 	}
 
-	let mut texture = creator
+	let creator = ctx.texture_creator();
+
+	let mut t1 = creator
+		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
+		.unwrap();
+	let mut t2 = creator
 		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
 		.unwrap();
 
-	let mut texture_preview = creator
-		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
-		.unwrap();
+	t1.set_blend_mode(BlendMode::Blend);
+	t2.set_blend_mode(BlendMode::Blend);
 
-	texture_preview.set_blend_mode(BlendMode::Blend);
 
-	let mut render = RenderSDL::new(ctx, font);
+	let textures = [(&mut t1, Layer::Sprite), (&mut t2, Layer::Preview)];
+
+	let mut render = Render::new(ctx, font);
+
+	let _icon_tool_freehand = render.load_texture(&creator, "./res/tool_freehand.png");
+	let _icon_tool_fill = render.load_texture(&creator, "./res/tool_fill.png");
+	let _icon_tool_circ = render.load_texture(&creator, "./res/tool_circ.png");
+	let _icon_tool_rect = render.load_texture(&creator, "./res/tool_rect.png");
+	let _icon_tool_pip = render.load_texture(&creator, "./res/tool_pip.png");
 
 	let mut app = App::new(sprite);
 
@@ -278,7 +280,7 @@ fn main() {
 			process::exit(1);
 		}
 		if app.update {
-			app.paint(&mut texture, &mut texture_preview, &mut render);
+			app.paint(&textures, &mut render);
 		}
 		if let Some(event) = events.wait_event_timeout(10) {
 			app.event(event, &mut render);

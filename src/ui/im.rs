@@ -2,8 +2,8 @@ use common::*;
 use super::*;
 
 pub struct Panel<'a, R: Immediate + 'a> {
-	pub render: &'a mut R,
-	pub r: Rect<i16>,
+	render: &'a mut R,
+	r: Rect<i16>,
 }
 
 impl<'a, R: Immediate + 'a> Graphics<i16, u32> for Panel<'a, R> {
@@ -41,25 +41,26 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 
 	fn lay(&mut self, r: Rect<i16>);
 
-	fn run<F: FnOnce(Self)>(mut self, f: F) {
-		let r = self.bounds();
-		self.lay(Rect::with_size(0, 0, r.w(), r.h()));
-		let r = self.widget_rect();
-		self.clip(Some(r));
-		f(self)
-	}
-
 	fn clear(&mut self, color: u32) {
 		let r = self.bounds();
 		self.lay(Rect::with_size(0, 0, r.w(), r.h()));
 		self.fill(r, color);
 	}
+	fn header(&mut self, title: &str) {
+		let w = self.width();
+		self.lay(Rect::with_size(0, 0, w, 20));
+		self.frame(HEADER_BG, None);
+		self.label_right(LABEL_COLOR, "\u{25BC} ");
+		self.label_left(LABEL_COLOR, title);
+	}
 
-	fn panel(&mut self, r: Rect<i16>) -> Panel<Self> {
-		Panel {
+	fn panel<F: FnOnce(Panel<Self>)>(&mut self, r: Rect<i16>, f: F) {
+		let mut panel = Panel {
 			render: self,
 			r,
-		}
+		};
+		panel.lay(Rect::with_size(0, 0, r.w(), r.h()));
+		f(panel);
 	}
 
 	fn frame<A, B>(&mut self, bg: A, border: B)
@@ -95,10 +96,19 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		self.is_click()
 	}
 
-	fn btn_mini<F: FnMut()>(&mut self, id: u32, label: &str, active: u32, mut cb: F) {
+	fn btn_icon(&mut self, id: u32, icon: usize, active: bool) -> bool {
+		let r = self.widget(id);
+		if active {
+			self.fill(r, BTN_ACTIVE);
+		}
+		self.image(icon, r);
+		self.is_click()
+	}
+
+	fn btn_mini<F: FnMut()>(&mut self, id: u32, label: &str, mut cb: F) {
 		let r = self.widget(id);
 		if self.is_hot() && self.is_active() {
-			self.fill(r, active);
+			self.fill(r, BTN_ACTIVE);
 		};
 		self.text_center(r, LABEL_COLOR, label);
 		if self.is_click() {
