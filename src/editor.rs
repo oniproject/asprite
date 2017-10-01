@@ -74,10 +74,6 @@ impl<'a> Editor<'a> {
 		let image = self.image();
 		image.palette[image.fg]
 	}
-	pub fn bg(&self) -> u32 {
-		let image = self.image();
-		image.palette[image.bg]
-	}
 
 	pub fn draw_pages<F: FnMut(&Vec<u8>, usize, &Palette<u32>)>(&self, mut f: F) {
 		let image = self.image();

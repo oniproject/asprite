@@ -16,7 +16,7 @@ impl Layer {
 		}
 	}
 
-	pub fn get(&self, mut idx: usize) -> &Page {
+	pub fn get(&self, idx: usize) -> &Page {
 		&self.frames[idx]
 	}
 

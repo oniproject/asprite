@@ -1,19 +1,15 @@
 #![feature(step_trait)]
 #![feature(const_fn)]
 
-extern crate image;
+//extern crate image;
 extern crate rand;
 extern crate undo;
 extern crate sdl2;
 extern crate num_traits;
 extern crate nalgebra as na;
 
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
-use sdl2::mouse::MouseButton;
-use sdl2::pixels::{Color, PixelFormatEnum};
-use sdl2::render::{Texture, BlendMode};
-use sdl2::gfx::primitives::DrawRenderer;
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::render::BlendMode;
 
 use std::process;
 
@@ -33,7 +29,6 @@ use app::*;
 use cmd::*;
 
 use common::*;
-use tool::*;
 use ui::*;
 
 /*
@@ -68,7 +63,7 @@ const FONT_PATH: &str = "f/TerminusTTF-4.46.0.ttf";
 
 use sdl2::mouse::{Cursor, SystemCursor};
 
-fn create_cursor() -> Cursor {
+fn _create_cursor() -> Cursor {
 	let data: [u8; 8] = [
 		0b_00010000_u8,
 		0b_00010000_u8,
@@ -233,13 +228,14 @@ fn main() {
 
 	let creator = ctx.texture_creator();
 
+/*
 	let cur = create_cursor();
 	cur.set();
-	let cur = Cursor::from_system(SystemCursor::Crosshair).unwrap();
-	cur.set();
+*/
+
 
 	// Load a font
-	let font = ttf_context.load_font(FONT_PATH, 12).unwrap();
+	let font = ttf_context.load_font(FONT_PATH, FONT_HEIGHT).unwrap();
 	//font.set_style(sdl2::ttf::STYLE_BOLD);
 
 	let mut events = sdl_context.event_pump().unwrap();
@@ -256,37 +252,11 @@ fn main() {
 		let va = Point::new(20i32, 10);
 		let vb = Point::new(130i32, 100);
 
-		if vb.x == va.x {
-			if vb.y == va.y {
-				return;
-			}
-			let total = (vb.y - va.y).abs();
-			fill_rect(r, |p| {
-				let idx = (vb.y - p.y as i32).abs();
-				let pos = gradient::extra_dithered(idx, p.x as i16, p.y as i16, total, 5, 1);
-				let ii = p.x + p.y * page.width as i32;
-				page.page[ii as usize] = pos as u8;
-			});
-		} else {
-			let dx = (vb.x - va.x) as f64;
-			let dy = (vb.y - va.y) as f64;
-			let total = (dx.powf(2.0) + dy.powf(2.0)).sqrt() as i32;
-			let a = dy / dx;
-			let b = va.y as f64 - a * va.x as f64;
-
-			fill_rect(r, |p| {
-				let idx = {
-					let (x, y) = (p.x as f64, p.y as f64);
-					let (vx, vy) = (va.x as f64, va.y as f64);
-					let dx = (y - vy).powf(2.0) + (x - vx).powf(2.0);
-					let dy = (-a * x + y - b).powf(2.0) / (a * a + 1.0);
-					(dx - dy).sqrt() as i32
-				};
-				let pos = gradient::extra_dithered(idx, p.x as i16, p.y as i16, total, 5, 1);
-				let ii = p.x + p.y * page.width as i32;
-				page.page[ii as usize] = pos as u8;
-			});
-		}
+		gradient::draw_gradient(r, va, vb, |p, idx, total| {
+			let pos = gradient::extra_dithered(idx, p.x as i16, p.y as i16, total, 5, 1);
+			let ii = p.x + p.y * page.width as i32;
+			page.page[ii as usize] = pos as u8;
+		});
 	}
 
 	let mut texture = creator

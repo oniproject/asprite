@@ -1,12 +1,9 @@
-use super::*;
 use common::*;
+use super::*;
 
 pub struct Panel<'a, R: Immediate + 'a> {
 	pub render: &'a mut R,
 	pub r: Rect<i16>,
-}
-
-impl<'a, R: Immediate + 'a> Panel<'a, R> {
 }
 
 impl<'a, R: Immediate + 'a> Graphics<i16, u32> for Panel<'a, R> {
@@ -38,15 +35,19 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 	fn width(&self) -> i16 { self.bounds().w() }
 	fn height(&self) -> i16 { self.bounds().h() }
 
-	// fn bounds(&self) -> Rect<i16>;
-
 	fn is_hot(&self) -> bool;
 	fn is_active(&self) -> bool;
 	fn is_click(&self) -> bool;
 
 	fn lay(&mut self, r: Rect<i16>);
 
-	fn run<F: FnOnce(Self)>(self, f: F) { f(self) }
+	fn run<F: FnOnce(Self)>(mut self, f: F) {
+		let r = self.bounds();
+		self.lay(Rect::with_size(0, 0, r.w(), r.h()));
+		let r = self.widget_rect();
+		self.clip(Some(r));
+		f(self)
+	}
 
 	fn clear(&mut self, color: u32) {
 		let r = self.bounds();
@@ -96,26 +97,12 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 
 	fn btn_mini<F: FnMut()>(&mut self, id: u32, label: &str, active: u32, mut cb: F) {
 		let r = self.widget(id);
-
 		if self.is_hot() && self.is_active() {
 			self.fill(r, active);
 		};
-
-		let label_color = 0xFFFFFF_FF;
-
-		// FIXME: fucking hack
-		{
-			let mut r = r.clone();
-			let w = r.w() + 2;
-			let h = r.h() + 2;
-			r.set_w(w);
-			r.set_h(h);
-			self.text_center(r, label_color, label);
-		}
-
+		self.text_center(r, LABEL_COLOR, label);
 		if self.is_click() {
 			cb();
-			println!("click: {}", label);
 		}
 	}
 
@@ -130,21 +117,39 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 			self.fill(r, bg);
 		};
 		self.border(r, bg);
-
-		let label_color = 0xECECEC_FF;
-
-		// FIXME: fucking hack
-		{
-			let mut r = r.clone();
-			let w = r.w() + 2;
-			let h = r.h() + 2;
-			r.set_w(w);
-			r.set_h(h);
-			self.text_center(r, label_color, label);
-		}
-
+		self.text_center(r, LABEL_COLOR, label);
 		if self.is_click() {
 			cb();
+		}
+	}
+
+
+	fn checkbox(&mut self, id: u32, value: &mut bool) {
+		let r = self.widget(id);
+		if self.is_click() {
+			*value = !*value;
+		}
+		self.draw_checkbox(r, *value);
+	}
+
+	fn checkbox_label(&mut self, id: u32, label: &str, value: &mut bool) {
+		let r = self.widget(id);
+		let check = r.clone().set_w(r.h());
+		let lab = r.clone().pos(r.h(), 0);
+		if self.is_click() {
+			*value = !*value;
+		}
+		self.draw_checkbox(check, *value);
+		self.text_center_left(lab, LABEL_COLOR, label)
+	}
+
+	fn draw_checkbox(&mut self, r: Rect<i16>, value: bool) {
+		if value {
+			self.fill(r, BTN_ACTIVE);
+			self.text_center(r, LABEL_COLOR, "\u{2714}");
+		} else {
+			self.fill(r, BTN_BG);
+			self.border(r, BTN_BORDER);
 		}
 	}
 }

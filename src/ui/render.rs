@@ -151,9 +151,11 @@ impl<'ttf, 'rwops> Graphics<i16, u32> for RenderSDL<'ttf, 'rwops, Window> {
 			Command::Fill(r, color) =>
 				self.ctx.box_(
 					r.min.x, r.min.y,
-					r.max.x, r.max.y-1,
+					r.max.x-1, r.max.y-1,
 					color.to_be()).unwrap(),
-			Command::Border(r, color) => {
+			Command::Border(mut r, color) => {
+				r.max.x -= 1;
+				r.max.y -= 1;
 				let color = color.to_be();
 				let (x1, x2) = (r.min.x, r.max.x);
 				self.ctx.hline(x1, x2, r.min.y, color).unwrap();
@@ -164,7 +166,12 @@ impl<'ttf, 'rwops> Graphics<i16, u32> for RenderSDL<'ttf, 'rwops, Window> {
 			}
 
 			Command::Image(_id, _r) => unimplemented!(),
-			Command::Clip(_r) => unimplemented!(),
+
+			Command::Clip(r) => {
+				self.ctx.set_clip_rect(r.map(|r|
+					SdlRect::new(r.min.x as i32, r.min.y as i32, r.w() as u32, r.h() as u32)
+				));
+			}
 			Command::Text(s, p, color) => {
 				let color = {
 					let (r, g, b, a) = color.to_be().as_rgba();
@@ -188,7 +195,8 @@ impl<'ttf, 'rwops> Graphics<i16, u32> for RenderSDL<'ttf, 'rwops, Window> {
 		}
 	}
 	fn text_size(&mut self, s: &str) -> (u32, u32) {
-		self.font.size_of(s).unwrap()
+		let (w, h) = self.font.size_of(s).unwrap();
+		(w - 1, h - 1)
 	}
 }
 

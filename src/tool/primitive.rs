@@ -1,7 +1,7 @@
 use super::*;
 use std::cmp;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrimitiveMode {
 	DrawRect,
 	FillRect,

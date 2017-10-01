@@ -1,6 +1,8 @@
 use rand;
 use std::num::Wrapping;
 
+use common::*;
+
 fn pos_from_idx(index: i32, total: i32, bounds: i32, factor: i32) -> i32 {
 	let rnd = rand::random::<i32>();
 	let pos = Wrapping(index) * Wrapping(bounds)
@@ -23,13 +25,15 @@ fn pos_to_color(bounds: i32, pos: i32) -> i32 {
 	}
 }
 
-pub fn basic(index: i32, x: i16, y: i16, total: i32, bounds: i32, factor: i32) -> i32 {
+pub type GradFn = fn(index: i32, x: i16, y: i16, total: i32, bounds: i32, factor: i32) -> i32;
+
+pub fn _basic(index: i32, _x: i16, _y: i16, total: i32, bounds: i32, factor: i32) -> i32 {
 	let mut position = pos_from_idx(index, total, bounds, factor);
 	position /= total;
 	pos_to_color(bounds, position)
 }
 
-pub fn dithered(index: i32, x: i16, y: i16, total: i32, bounds: i32, factor: i32) -> i32 {
+pub fn _dithered(index: i32, x: i16, y: i16, total: i32, bounds: i32, factor: i32) -> i32 {
 	let mut pos = pos_from_idx(index, total, bounds, factor);
 	let segment = ((pos << 2) / total) & 3;
 	pos /= total;
@@ -51,4 +55,33 @@ pub fn extra_dithered(index: i32, x: i16, y: i16, total: i32, bounds: i32, facto
 		7     if (x + y) & 1 != 0         => pos + 1,
 		_ => pos, 
 	})
+}
+
+pub fn draw_gradient<F: FnMut(Point<i32>, i32, i32)>(r: Rect<i32>, va: Point<i32>, vb: Point<i32>, mut f: F) {
+	if vb.x == va.x {
+		if vb.y == va.y {
+			return;
+		}
+		let total = (vb.y - va.y).abs();
+		fill_rect(r, |p| {
+			let idx = (vb.y - p.y as i32).abs();
+			f(p, idx, total);
+		});
+	} else {
+		let dx = (vb.x - va.x) as f64;
+		let dy = (vb.y - va.y) as f64;
+		let total = (dx.powf(2.0) + dy.powf(2.0)).sqrt() as i32;
+		let a = dy / dx;
+		let b = va.y as f64 - a * va.x as f64;
+		fill_rect(r, |p| {
+			let idx = {
+				let (x, y) = (p.x as f64, p.y as f64);
+				let (vx, vy) = (va.x as f64, va.y as f64);
+				let dx = (y - vy).powf(2.0) + (x - vx).powf(2.0);
+				let dy = (-a * x + y - b).powf(2.0) / (a * a + 1.0);
+				(dx - dy).sqrt() as i32
+			};
+			f(p, idx, total);
+		});
+	}
 }

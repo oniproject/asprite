@@ -55,6 +55,13 @@ impl<T: Signed> Rect<T> {
 		}
 	}
 
+	pub fn set_w(self, w: T) -> Self {
+		self.size(w, self.h())
+	}
+	pub fn set_h(self, h: T) -> Self {
+		self.size(self.w(), h)
+	}
+
 	pub fn with_points(min: Point<T>, max: Point<T>) -> Self {
 		Self { min, max }
 	}
@@ -83,12 +90,6 @@ impl<T: Signed> Rect<T> {
 	pub fn w(&self) -> T { self.max.x - self.min.x }
 	pub fn h(&self) -> T { self.max.y - self.min.y }
 
-	pub fn set_w(&mut self, w: T) {
-		self.max.x = self.min.x + w;
-	}
-	pub fn set_h(&mut self, h: T) {
-		self.max.y = self.min.y + h;
-	}
 
 	pub fn min_translate(&self, p: Point<T>) -> Point<T> {
 		Point::from_coordinates(self.min.coords + p.coords)

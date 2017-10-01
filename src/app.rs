@@ -7,6 +7,9 @@ use sdl2::pixels::Color;
 use sdl2::render::{Texture, BlendMode};
 use sdl2::gfx::primitives::{DrawRenderer, ToColor};
 
+use sdl2::mouse::{Cursor, SystemCursor};
+use std::collections::HashMap;
+
 use common::*;
 use tool::*;
 use ui;
@@ -20,10 +23,9 @@ macro_rules! rect(
 	)
 );
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CurrentTool {
 	Freehand,
-	PixelPerfect,
 	Bucket,
 	EyeDropper,
 	Primitive(PrimitiveMode),
@@ -43,11 +45,6 @@ impl<'a> Tools<'a> {
 	pub fn input(&mut self, ev: Input<i16>) {
 		match self.current {
 			CurrentTool::Freehand => {
-				self.freehand.perfect = false;
-				self.freehand.run(ev, &mut self.editor);
-			}
-			CurrentTool::PixelPerfect => {
-				self.freehand.perfect = true;
 				self.freehand.run(ev, &mut self.editor);
 			}
 			CurrentTool::Bucket => self.bucket.run(ev, &mut self.editor),
@@ -66,17 +63,38 @@ pub struct App<'a> {
 	drag: bool,
 
 	tools: Tools<'a>,
+	cursors: HashMap<SystemCursor, Cursor>,
 }
 
 impl<'a> App<'a> {
 	pub fn new(sprite: Sprite) -> Self {
+		let cursors = [
+			SystemCursor::Arrow,
+			SystemCursor::IBeam,
+			SystemCursor::Wait,
+			SystemCursor::Crosshair,
+			SystemCursor::WaitArrow,
+			SystemCursor::SizeNWSE,
+			SystemCursor::SizeNESW,
+			SystemCursor::SizeWE,
+			SystemCursor::SizeNS,
+			SystemCursor::SizeAll,
+			SystemCursor::No,
+			SystemCursor::Hand,
+		];
+
+
+		let cursors: HashMap<_, _> = cursors.iter().map(|&c| (c, Cursor::from_system(c).unwrap())).collect();
+		cursors[&SystemCursor::Crosshair].set();
+
 		Self {
 			update: true,
 			quit: false,
 			drag: false,
 
+			cursors,
 			tools: Tools {
-				current: CurrentTool::PixelPerfect,
+				current: CurrentTool::Freehand,
 				prim: Primitive::new(),
 				bucket: Bucket::new(),
 				freehand: Freehand::new(),
@@ -103,6 +121,7 @@ impl<'a> App<'a> {
 			Color::RGBA(r, g, b, a)
 		};
 
+		render.ctx.set_clip_rect(None);
 		render.ctx.set_draw_color(editor_bg);
 		render.ctx.clear();
 
@@ -206,6 +225,11 @@ impl<'a> App<'a> {
 			if render.finish() {
 				self.update = true;
 			}
+			if render.hot != 0 {
+				self.cursors[&SystemCursor::Hand].set();
+			} else {
+				self.cursors[&SystemCursor::Crosshair].set();
+			}
 		}
 
 		/*
@@ -229,8 +253,8 @@ impl<'a> App<'a> {
 		render.ctx.present();
 	}
 
-	pub fn ui<R: Immediate>(&mut self, render: &mut R) {
-		let r = render.bounds();
+	pub fn ui<R: Immediate>(&mut self, ui: &mut R) {
+		let r = ui.bounds();
 		let width = r.w();
 		let height = r.h();
 
@@ -241,78 +265,106 @@ impl<'a> App<'a> {
 		let palette = Rect::with_size(width-250, 60, 250, 500);
 		let tools = Rect::with_size(10, 140, 200, 300);
 
-		render.panel(menubar).run(|mut render| {
-			render.clear(MENUBAR_BG);
-			render.label_left(LABEL_COLOR, " File  Edit  Select  View  Image  Layer  Tools  Help");
+		ui.panel(menubar).run(|mut ui| {
+			ui.clear(MENUBAR_BG);
+			ui.label_left(LABEL_COLOR, " File  Edit  Select  View  Image  Layer  Tools  Help");
 		});
 
-		render.panel(contextbar).run(|mut render| {
-			render.clear(BAR_BG);
+		ui.panel(contextbar).run(|mut ui| {
+			ui.clear(BAR_BG);
 
-			// undo/redo
-			let r1 = Rect::with_size(40, 10, 20, 20);
-			let r2 = Rect::with_size(60, 10, 20, 20);
+			ui.lay(Rect::with_size(10, 10, 20, 20));
+			if ui.btn_color(32, self.tools.editor.fg()) {
+				println!("xx");
+			}
 
-			render.lay(r1);
-			render.frame(BTN_BG, BTN_BORDER);
-			render.lay(r2);
-			render.frame(BTN_BG, BTN_BORDER);
+			if self.tools.current == CurrentTool::Freehand {
+				ui.lay(Rect::with_size(180, 12, 300, 14));
+				ui.checkbox_label(999, " perfect pixel", &mut self.tools.freehand.perfect);
+			}
 
-			render.lay(r1);
-			render.btn_mini(33, &"\u{2190}", BTN_ACTIVE, || self.tools.editor.undo());
-			render.lay(r2);
-			render.btn_mini(34, &"\u{2192}", BTN_ACTIVE, || self.tools.editor.redo());
+			let undoredo = Rect::with_size(ui.width() - 60, 10, 40, 20);
+
+			ui.panel(undoredo).run(|mut ui| {
+				// undo/redo
+				let r1 = Rect::with_size(0, 0, 20, 20);
+				let r2 = Rect::with_size(19, 0, 20, 20);
+
+				ui.lay(r1);
+				ui.frame(BTN_BG, BTN_BORDER);
+				ui.lay(r2);
+				ui.frame(BTN_BG, BTN_BORDER);
+
+				ui.lay(r1);
+				ui.btn_mini(33, "\u{2190}", BTN_ACTIVE, || self.tools.editor.undo());
+				ui.lay(r2);
+				ui.btn_mini(34, "\u{2192}", BTN_ACTIVE, || self.tools.editor.redo());
+			});
+
 		});
 
-		render.panel(statusbar).run(|mut render| {
-			render.clear(STATUSBAR_BG);
+		ui.panel(statusbar).run(|mut ui| {
+			ui.clear(STATUSBAR_BG);
 			let freehand = &self.tools.freehand;
-			render.label_left(STATUSBAR_COLOR, &format!(" perfect pixel: {} zoom:{}  {:>3}#{:<3}  [{:+} {:+}]",
-				freehand.perfect, self.tools.editor.zoom,
-				self.tools.editor.image().fg, self.tools.editor.image().bg,
-				self.tools.editor.mouse.x, self.tools.editor.mouse.y,
+			let editor = &self.tools.editor;
+			ui.label_left(STATUSBAR_COLOR, &format!(" perfect pixel: {} zoom:{}  {:>3}#{:<3}  [{:+} {:+}]",
+				freehand.perfect, editor.zoom,
+				editor.image().fg, editor.image().bg,
+				editor.mouse.x, editor.mouse.y,
 			));
 		});
 
-		render.panel(timeline).run(|mut render| {
-			render.clear(TIMELINE_BG);
-			let w = render.width();
-			for (i, layer) in self.tools.editor.image().data.iter().enumerate() {
-				render.lay(Rect::with_size(0, 20 * i as i16, w, 20));
-				render.label_left(LABEL_COLOR, &format!("  {}: {}", i, layer.name));
+		ui.panel(timeline).run(|mut ui| {
+			ui.clear(TIMELINE_BG);
+			static mut SHOW: [bool; 5] = [true, false, true, false, false];
+			static mut LOCK: [bool; 5] = [false, false, false, false, false];
+			for j in 0..5 {
+				let show = unsafe { &mut SHOW[j] };
+				let lock = unsafe { &mut LOCK[j] };
+				for (i, layer) in self.tools.editor.image().data.iter().enumerate() {
+					let i = i + j;
+					ui.lay(Rect::with_size(0, 20 * i as i16, 20, 20));
+					ui.checkbox(70 + i as u32, show);
+					ui.lay(Rect::with_size(20, 20 * i as i16, 20, 20));
+					ui.checkbox(90 + i as u32, lock);
+
+					ui.lay(Rect::with_size(40, 20 * i as i16, 160, 20));
+					let r = ui.widget_rect();
+					ui.border(r, BTN_BORDER);
+					ui.label_left(LABEL_COLOR, &format!("  {}: {}", i, layer.name));
+				}
 			}
 		});
 
-		render.panel(palette).run(|mut render| {
-			render.clear(BAR_BG);
+		ui.panel(palette).run(|mut ui| {
+			ui.clear(BAR_BG);
 
-			let w = render.width();
-			render.lay(Rect::with_size(0, 0, w, 20));
-			render.frame(HEADER_BG, None);
-			render.label_right(LABEL_COLOR, &"\u{25BC} ");
-			render.label_left(LABEL_COLOR, &" Palette");
+			let w = ui.width();
+			ui.lay(Rect::with_size(0, 0, w, 20));
+			ui.frame(HEADER_BG, None);
+			ui.label_right(LABEL_COLOR, "\u{25BC} ");
+			ui.label_left(LABEL_COLOR, " Palette");
 
 			for i in 0..5u8 {
-				render.lay(Rect::with_size(50, 40 + 20*i as i16, 20, 20));
+				ui.lay(Rect::with_size(50, 40 + 20*i as i16, 20, 20));
 				let color = self.tools.editor.image().palette[i];
-				if render.btn_color(10 + i as u32, color) {
+				if ui.btn_color(10 + i as u32, color) {
 					self.tools.editor.change_foreground(i as u8);
 				}
 			}
 		});
 
-		render.panel(tools).run(|mut render| {
-			render.clear(BAR_BG);
+		ui.panel(tools).run(|mut ui| {
+			ui.clear(BAR_BG);
 
-			let w = render.width();
-			render.lay(Rect::with_size(0, 0, w, 20));
-			render.frame(HEADER_BG, None);
-			render.label_right(LABEL_COLOR, &"\u{25BC} ");
-			render.label_left(LABEL_COLOR, &" Tools");
+			let w = ui.width();
+			ui.lay(Rect::with_size(0, 0, w, 20));
+			ui.frame(HEADER_BG, None);
+			ui.label_right(LABEL_COLOR, "\u{25BC} ");
+			ui.label_left(LABEL_COLOR, " Tools");
 
 			let modes = [
 				CurrentTool::Freehand,
-				CurrentTool::PixelPerfect,
 				CurrentTool::Bucket,
 				CurrentTool::EyeDropper,
 				CurrentTool::Primitive(PrimitiveMode::DrawEllipse),
@@ -321,8 +373,8 @@ impl<'a> App<'a> {
 				CurrentTool::Primitive(PrimitiveMode::FillRect),
 			];
 			for (i, m) in modes.iter().enumerate() {
-				render.lay(Rect::with_size(10, 40 + 20 * i as i16, w - 20, 20));
-				render.btn_label(21 + i as u32, &format!("{:?}", m), || {
+				ui.lay(Rect::with_size(10, 40 + 19 * i as i16, w - 20, 20));
+				ui.btn_label(21 + i as u32, &format!("{:?}", m), || {
 					self.tools.current = *m;
 				});
 			}
@@ -358,17 +410,20 @@ impl<'a> App<'a> {
 			Event::KeyUp { keycode: Some(keycode), ..} => {
 				match keycode {
 					Keycode::LShift |
-					Keycode::RShift => 
+					Keycode::RShift =>
 						self.tools.input(Input::Special(false)),
+					Keycode::LCtrl |
+					Keycode::RCtrl =>
+						self.drag = false,
 					_ => (),
 				}
 			}
 			Event::KeyDown { keycode: Some(keycode), keymod, ..} => {
 				let shift = keymod.intersects(sdl2::keyboard::LSHIFTMOD | sdl2::keyboard::RSHIFTMOD);
 				let _alt = keymod.intersects(sdl2::keyboard::LALTMOD | sdl2::keyboard::RALTMOD);
-				let _ctrl = keymod.intersects(sdl2::keyboard::LCTRLMOD | sdl2::keyboard::RCTRLMOD);
+				let ctrl = keymod.intersects(sdl2::keyboard::LCTRLMOD | sdl2::keyboard::RCTRLMOD);
 				match keycode {
-					Keycode::Q => self.quit = true,
+					Keycode::Q if ctrl => self.quit = true,
 					Keycode::Escape => self.tools.input(Input::Cancel),
 
 					// Keycode::Space => self.fill = !self.fill,
@@ -382,8 +437,12 @@ impl<'a> App<'a> {
 					// Keycode::Num8 => self.freehand.mode = freehand::Mode::PixelPerfect,
 					// Keycode::Num9 => self.freehand.mode = freehand::Mode::Line,
 					Keycode::LShift |
-					Keycode::RShift => 
+					Keycode::RShift =>
 						self.tools.input(Input::Special(true)),
+
+					Keycode::LCtrl |
+					Keycode::RCtrl =>
+						self.drag = true,
 
 					/*
 					Keycode::S if ctrl => {
