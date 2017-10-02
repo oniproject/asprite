@@ -167,17 +167,15 @@ impl<'a> App<'a> {
 				ui.lay(r2);
 				ui.btn_mini(34, "\u{2192}", || self.tools.redo());
 			});
-
 		});
 
 		ui.panel(statusbar, |mut ui| {
 			ui.clear(STATUSBAR_BG);
-			let freehand = &self.tools.freehand;
-			let editor = &self.tools;
-			ui.label_left(STATUSBAR_COLOR, &format!(" perfect pixel: {} zoom:{}  #{:<3}  [{:+} {:+}]",
-				freehand.perfect, editor.zoom,
-				editor.editor.image().color,
-				editor.mouse.x, editor.mouse.y,
+			let tools = &self.tools;
+			ui.label_left(STATUSBAR_COLOR, &format!(" zoom:{}  #{:<3}  [{:+} {:+}]",
+				tools.zoom,
+				tools.editor.image().color,
+				tools.mouse.x, tools.mouse.y,
 			));
 		});
 
@@ -207,11 +205,12 @@ impl<'a> App<'a> {
 			ui.clear(BAR_BG);
 			ui.header(" Palette");
 
+			let editor = &mut self.tools.editor;
 			for i in 0..5u8 {
 				ui.lay(Rect::with_size(50, 40 + 20*i as i16, 20, 20));
-				let color = self.tools.editor.image().palette[i];
+				let color = editor.image().palette[i];
 				if ui.btn_color(100 + i as u32, color) {
-					self.tools.editor.change_color(i as u8);
+					editor.change_color(i as u8);
 				}
 			}
 		});
@@ -222,8 +221,9 @@ impl<'a> App<'a> {
 		match event {
 			Event::MouseMotion {x, y, xrel, yrel, ..} => {
 				let p = Point::new(x as i16, y as i16);
+				let v = Vector::new(xrel as i16, yrel as i16);
 				render.mouse.1 = p;
-				self.tools.mouse_move(p, xrel as i16, yrel as i16);
+				self.tools.mouse_move(p, v);
 			}
 
 			Event::Quit {..} => self.quit = true,
@@ -280,7 +280,6 @@ impl<'a> App<'a> {
 				render.mouse = (true, p);
 				self.tools.mouse_press(p);
 			}
-
 			Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
 				let p = Point::new(x as i16, y as i16);
 				render.mouse = (false, p);

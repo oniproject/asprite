@@ -84,11 +84,10 @@ impl<'a> Tools<'a> {
 		}
 	}
 
-	pub fn mouse_move(&mut self, p: Point<i16>, rx: i16, ry: i16) {
+	pub fn mouse_move(&mut self, p: Point<i16>, v: Vector<i16>) {
 		let p = self.set_mouse(p);
 		if self.drag {
-			self.pos.x += rx;
-			self.pos.y += ry;
+			self.pos += v;
 		} else {
 			self.input(Input::Move(p));
 		}
