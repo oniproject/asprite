@@ -43,23 +43,8 @@ mod sprite;
 
 mod app;
 
-//mod tilemap;
-
 use common::*;
 use ui::*;
-
-/*
- * FFDE12
- * FF2F7C
- * BEF600
- * 00ADBC
- * 9639AD
- *
- * 262626
- * 191919
- * 4F4F4F
- */
-
 
 fn create_pal(pal: &mut Palette<u32>) {
 	const GB0: u32 = 0xCADC9F_FF;
@@ -103,121 +88,6 @@ fn _create_cursor() -> Cursor {
 
 	Cursor::new(&data[..], &mask[..], 8, 8, 4, 4).unwrap()
 }
-
-/*
-const MAP_FILE: &str = "MAP.BIN";
-struct Tilemap {
-	data: Vec<usize>,
-	width: usize,
-	height: usize,
-	tiles: Vec<mask::Mask>,
-}
-
-impl Tilemap {
-	fn draw<F: Fn(usize, usize, bool)>(&self, f: F) {
-		for y in 0..self.height {
-			for x in 0..self.width {
-				let idx = x + y * self.width;
-				let tile = self.data[idx];
-				self.tiles[tile].draw(|mx, my, is| {
-					let x = mx as usize + x * 16;
-					let y = my as usize + y * 16;
-					f(x, y, is)
-				})
-			}
-		}
-	}
-
-	fn draw_tilemap<F: Fn(usize, usize, bool, usize)>(&self, f: F) {
-		for (idx, tile) in self.tiles.iter().enumerate() {
-			let x = idx % 8;
-			let y = idx / 8;
-			tile.draw(|mx, my, is| {
-				let x = mx as usize + x * 16;
-				let y = my as usize + y * 16;
-				f(x, y, is, idx)
-			})
-		}
-	}
-
-	fn get(&self, p: Point<i16>) -> Option<usize> {
-		let x = p.x as usize;
-		let y = p.y as usize;
-		let idx = x + y * self.width;
-		self.data.get(idx).map(|&t| t)
-	}
-
-	fn set(&mut self, p: Point<i16>, tile: usize) {
-		let x = p.x as usize;
-		let y = p.y as usize;
-		if x >= self.width || y >= self.height {
-			return;
-		}
-		let idx = x + y * self.width;
-		self.data[idx] = tile;
-	}
-}
-
-impl Image<usize, u8> for Tilemap {
-	fn width(&self) -> usize { self.width }
-	fn height(&self) -> usize { self.height }
-	fn at(&self, x: i16, y: i16) -> usize {
-		self.get(Point::new(x, y)).unwrap()
-	}
-	fn paint(&mut self, x: i16, y: i16, color: usize) {
-		self.set(Point::new(x, y), color)
-	}
-}
-
-impl Tilemap {
-	fn load(width: usize, height: usize, fill: usize) -> Self {
-		use std::path::Path;
-		use image::GenericImage;
-
-		use std::fs::File;
-		use std::io::prelude::*;
-
-		const ONE: &str = "tileset_1bit.png";
-		const TWO: &str = "extra-1bits.png";
-
-		let mut data = vec![fill; width*height];
-		if let Ok(file) = File::open(MAP_FILE) {
-			data.clear();
-			for v in file.bytes().map(|v| v.unwrap()) {
-				data.push(v as usize);
-			}
-		}
-
-		let mut one = image::open(&Path::new(ONE)).unwrap();
-		let mut two = image::open(&Path::new(TWO)).unwrap();
-
-		let mut tiles = Vec::new();
-		fn _tiles(tiles: &mut Vec<mask::Mask>, m: &mut image::DynamicImage) {
-			for y in 0..8 {
-				for x in 0..8 {
-					let sub = m.sub_image(x*16, y*16, 16, 16);
-					let mut mask = mask::Mask::new_square(16, 16);
-					for y in 0..16 {
-						for x in 0..16 {
-							let r = sub.get_pixel(x, y).data[0];
-							let idx = x + y * 16;
-							mask.pix[idx as usize] = r > 0;
-						}
-					}
-					tiles.push(mask);
-				}
-			}
-		}
-
-		_tiles(&mut tiles, &mut one);
-		_tiles(&mut tiles, &mut two);
-
-		Self {
-			width, height, data, tiles,
-		}
-	}
-}
-*/
 
 fn open_file() -> Option<String> {
 	let result = nfd::open_file_dialog(None, None).unwrap();

@@ -13,46 +13,44 @@ use ui::*;
 use editor::*;
 use sprite::Sprite;
 
+type Cursors = HashMap<SystemCursor, Cursor>;
+
+fn create_cursors() -> Cursors {
+	let cursors = [
+		SystemCursor::Arrow,
+		SystemCursor::IBeam,
+		SystemCursor::Wait,
+		SystemCursor::Crosshair,
+		SystemCursor::WaitArrow,
+		SystemCursor::SizeNWSE,
+		SystemCursor::SizeNESW,
+		SystemCursor::SizeWE,
+		SystemCursor::SizeNS,
+		SystemCursor::SizeAll,
+		SystemCursor::No,
+		SystemCursor::Hand,
+	];
+
+	let cursors: HashMap<_, _> = cursors.iter().map(|&c| (c, Cursor::from_system(c).unwrap())).collect();
+	cursors[&SystemCursor::Crosshair].set();
+	cursors
+}
+
 pub struct App<'a> {
 	pub update: bool,
 	pub quit: bool,
 
 	tools: Tools<'a>,
-	cursors: HashMap<SystemCursor, Cursor>,
+	cursors: Cursors,
 }
 
 impl<'a> App<'a> {
 	pub fn new(sprite: Sprite) -> Self {
-		let cursors = [
-			SystemCursor::Arrow,
-			SystemCursor::IBeam,
-			SystemCursor::Wait,
-			SystemCursor::Crosshair,
-			SystemCursor::WaitArrow,
-			SystemCursor::SizeNWSE,
-			SystemCursor::SizeNESW,
-			SystemCursor::SizeWE,
-			SystemCursor::SizeNS,
-			SystemCursor::SizeAll,
-			SystemCursor::No,
-			SystemCursor::Hand,
-		];
-
-		let cursors: HashMap<_, _> = cursors.iter().map(|&c| (c, Cursor::from_system(c).unwrap())).collect();
-		cursors[&SystemCursor::Crosshair].set();
-
 		Self {
 			update: true,
 			quit: false,
-
-			cursors,
+			cursors: create_cursors(),
 			tools: Tools::new(6, Point::new(200, 100), sprite),
-
-			/*
-			map: Tilemap::load(40, 30, 63),
-			fill: false,
-			tile: 0,
-			*/
 		}
 	}
 	pub fn paint(&mut self, render: &mut ui::Render) {
@@ -78,25 +76,6 @@ impl<'a> App<'a> {
 				self.cursors[&SystemCursor::Crosshair].set();
 			}
 		}
-
-		/*
-		if false { // tilemap
-			let ww = 0xFFFFFF_FFu32.to_be();
-			let bb = 0x000000_FFu32.to_be();
-			let rr = 0xFF0000_FFu32.to_be();
-
-			self.map.draw(|x, y, is| {
-				let c = if is { ww } else { bb };
-				render.ctx.pixel(x as i16 + 600, y as i16, c).unwrap();
-			});
-			self.map.draw_tilemap(|x, y, is, tile| {
-				let c = if is { ww } else if tile == self.tile { rr } else { bb };
-				render.ctx.pixel(x as i16 + 600, y as i16 + 600, c).unwrap();
-			});
-
-		}
-		*/
-
 		render.ctx.present();
 	}
 
@@ -244,14 +223,6 @@ impl<'a> App<'a> {
 			Event::MouseMotion {x, y, xrel, yrel, ..} => {
 				let p = Point::new(x as i16, y as i16);
 				render.mouse.1 = p;
-				/* 
-				if self.drawing {
-					let p = Point::from_coordinates((p - Point::new(600, 0)) / 16);
-					let r = Rect::with_size(0, 0, self.map.width as i16, self.map.height as i16);
-					if r.contains(p) {
-						self.map.set(p, self.tile);
-					}
-				} */
 				self.tools.mouse_move(p, xrel as i16, yrel as i16);
 			}
 
@@ -276,17 +247,6 @@ impl<'a> App<'a> {
 					Keycode::Q if ctrl => self.quit = true,
 					Keycode::Escape => self.tools.input(Input::Cancel),
 
-					// Keycode::Space => self.fill = !self.fill,
-
-					// Keycode::Num1 => self.editor.fg = 1,
-					// Keycode::Num2 => self.editor.fg = 2,
-					// Keycode::Num3 => self.editor.fg = 3,
-					// Keycode::Num4 => self.editor.fg = 4,
-
-					// Keycode::Num7 => self.freehand.mode = freehand::Mode::Continious,
-					// Keycode::Num8 => self.freehand.mode = freehand::Mode::PixelPerfect,
-					// Keycode::Num9 => self.freehand.mode = freehand::Mode::Line,
-
 					Keycode::Plus  | Keycode::KpPlus  => self.tools.zoom_from_center(1),
 					Keycode::Minus | Keycode::KpMinus => self.tools.zoom_from_center(-1),
 
@@ -297,19 +257,6 @@ impl<'a> App<'a> {
 					Keycode::LCtrl |
 					Keycode::RCtrl =>
 						self.tools.drag = true,
-
-					/*
-					Keycode::S if ctrl => {
-						use std::fs::File;
-						use std::io::prelude::*;
-						println!("save map to {}", MAP_FILE);
-						let mut file = File::create(MAP_FILE).expect("fail create file");
-						for v in &self.map.data {
-							let b = [*v as u8];
-							file.write(&b).unwrap();
-						}
-					}
-					*/
 
 					Keycode::U => self.tools.undo(),
 					Keycode::R => self.tools.redo(),
@@ -332,27 +279,6 @@ impl<'a> App<'a> {
 				let p = Point::new(x as i16, y as i16);
 				render.mouse = (true, p);
 				self.tools.mouse_press(p);
-
-				/*
-				{
-					let p = Point::from_coordinates((p - Point::new(600, 0)) / 16);
-					let r = Rect::with_size(0, 0, self.map.width as i16, self.map.height as i16);
-					if r.contains(p) {
-						if self.fill {
-							self.map.fill(p, self.tile);
-						} else {
-							self.map.set(p, self.tile);
-						}
-					}
-				}
-				{
-					let p = Point::from_coordinates((p - Point::new(600, 600)) / 16);
-					let r = Rect::with_size(0, 0, 8, 16);
-					if r.contains(p) {
-						self.tile = (p.x + p.y * 8) as usize;
-					}
-				}
-				*/
 			}
 
 			Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
