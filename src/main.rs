@@ -22,6 +22,17 @@ macro_rules! rect(
 	)
 );
 
+#[macro_export] 
+macro_rules! color(
+	($c:expr) => (
+		{
+			use $crate::sdl2::gfx::primitives::ToColor;
+			let (r, g, b, a) = $c.to_be().as_rgba();
+			$crate::sdl2::pixels::Color::RGBA(r, g, b, a)
+		}
+	)
+);
+
 mod common;
 mod tool;
 mod ui;
@@ -31,7 +42,6 @@ mod cmd;
 mod sprite;
 
 mod app;
-use app::*;
 
 //mod tilemap;
 
@@ -65,7 +75,7 @@ fn create_pal(pal: &mut Palette<u32>) {
 	pal[4] = GB4;
 }
 
-const FONT_PATH: &str = "f/TerminusTTF-4.46.0.ttf";
+const FONT_PATH: &str = "./res/TerminusTTF-4.46.0.ttf";
 
 
 fn _create_cursor() -> Cursor {
@@ -212,15 +222,21 @@ impl Tilemap {
 fn open_file() -> Option<String> {
 	let result = nfd::open_file_dialog(None, None).unwrap();
 
-	match result {
+	let result = match result {
 		Response::Okay(file) => Some(file),
 		Response::OkayMultiple(files) => Some(files[0].clone()),
 		Response::Cancel => None,
-	}
+	};
+	result
 }
 
 fn main() {
-	println!("open file: {:?}", open_file());
+	{
+		use std::thread;
+		thread::spawn(move || {
+			println!("open file: {:?}", open_file());
+		});
+	}
 
 	let sdl_context = sdl2::init().unwrap();
 	let video_subsys = sdl_context.video().unwrap();
@@ -236,6 +252,7 @@ fn main() {
 		.build()
 		.unwrap();
 
+	// XXX: resize hack
 	window.hide();
 	window.show();
 
@@ -243,13 +260,7 @@ fn main() {
 		// XXX: glitch with .software()
 		.build().unwrap();
 
-	// Load a font
-	let font = ttf_context.load_font(FONT_PATH, FONT_HEIGHT).unwrap();
-	//font.set_style(sdl2::ttf::STYLE_BOLD);
-
 	let mut events = sdl_context.event_pump().unwrap();
-
-	// let brush = mask::Mask::new_square(64, 64);
 
 	let mut sprite = sprite::Sprite::new(160, 120);
 	create_pal(&mut sprite.palette);
@@ -268,34 +279,21 @@ fn main() {
 		});
 	}
 
+	let font = ttf_context.load_font(FONT_PATH, FONT_HEIGHT).unwrap();
+
 	let creator = ctx.texture_creator();
+	let mut render = Render::new(ctx, &creator, font);
 
-/*
-	let mut t1 = creator
-		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
-		.unwrap();
-	let mut t2 = creator
-		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
-		.unwrap();
+	render.create_texture(EDITOR_SPRITE_ID, sprite.width as u32, sprite.height as u32);
+	render.create_texture(EDITOR_PREVIEW_ID, sprite.width as u32, sprite.height as u32);
 
-	t1.set_blend_mode(BlendMode::Blend);
-	t2.set_blend_mode(BlendMode::Blend);
+	render.load_texture(ICON_TOOL_FREEHAND, "./res/tool_freehand.png");
+	render.load_texture(ICON_TOOL_FILL, "./res/tool_fill.png");
+	render.load_texture(ICON_TOOL_CIRC, "./res/tool_circ.png");
+	render.load_texture(ICON_TOOL_RECT, "./res/tool_rect.png");
+	render.load_texture(ICON_TOOL_PIP, "./res/tool_pip.png");
 
-	let textures = [(&mut t1, Layer::Sprite), (&mut t2, Layer::Preview)];
-*/
-
-	let mut render = Render::new(ctx, font);
-
-	render.create_texture(&creator, EDITOR_SPRITE_ID, sprite.width as u32, sprite.height as u32);
-	render.create_texture(&creator, EDITOR_PREVIEW_ID, sprite.width as u32, sprite.height as u32);
-
-	render.load_texture(&creator, ICON_TOOL_FREEHAND, "./res/tool_freehand.png");
-	render.load_texture(&creator, ICON_TOOL_FILL, "./res/tool_fill.png");
-	render.load_texture(&creator, ICON_TOOL_CIRC, "./res/tool_circ.png");
-	render.load_texture(&creator, ICON_TOOL_RECT, "./res/tool_rect.png");
-	render.load_texture(&creator, ICON_TOOL_PIP, "./res/tool_pip.png");
-
-	let mut app = App::new(sprite);
+	let mut app = app::App::new(sprite);
 
 	let mut main_loop = || {
 		if app.quit {

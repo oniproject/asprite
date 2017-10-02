@@ -59,3 +59,5 @@ pub const EDITOR_PREVIEW_ID: usize = 888;
 
 pub const GRID_COLOR: u32 = 0xFF0000_FF;
 pub const CORNER_COLOR: u32 = 0x00FF00_FF;
+
+pub const TRANSPARENT: u32 = 0x000000_00;

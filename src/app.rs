@@ -3,8 +3,6 @@ use sdl2;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
-use sdl2::pixels::Color;
-use sdl2::gfx::primitives::ToColor;
 use sdl2::mouse::{Cursor, SystemCursor};
 use std::collections::HashMap;
 
@@ -18,7 +16,6 @@ use sprite::Sprite;
 pub struct App<'a> {
 	pub update: bool,
 	pub quit: bool,
-	drag: bool,
 
 	tools: Tools<'a>,
 	cursors: HashMap<SystemCursor, Cursor>,
@@ -47,7 +44,6 @@ impl<'a> App<'a> {
 		Self {
 			update: true,
 			quit: false,
-			drag: false,
 
 			cursors,
 			tools: Tools::new(6, Point::new(200, 100), sprite),
@@ -59,14 +55,10 @@ impl<'a> App<'a> {
 			*/
 		}
 	}
-	pub fn paint(&mut self, render: &mut ui::Render<sdl2::video::Window>) {
+	pub fn paint(&mut self, render: &mut ui::Render) {
 		self.update = false;
 
-
-		let editor_bg = {
-			let (r, g, b, a) = WINDOW_BG.to_be().as_rgba();
-			Color::RGBA(r, g, b, a)
-		};
+		let editor_bg = color!(WINDOW_BG);
 
 		render.ctx.set_clip_rect(None);
 		render.ctx.set_draw_color(editor_bg);
@@ -246,7 +238,7 @@ impl<'a> App<'a> {
 		});
 	}
 
-	pub fn event(&mut self, event: sdl2::event::Event, render: &mut ui::Render<sdl2::video::Window>) {
+	pub fn event(&mut self, event: sdl2::event::Event, render: &mut ui::Render) {
 		self.update = true;
 		match event {
 			Event::MouseMotion {x, y, xrel, yrel, ..} => {
@@ -260,14 +252,7 @@ impl<'a> App<'a> {
 						self.map.set(p, self.tile);
 					}
 				} */
-
-				let p = self.tools.set_mouse(p);
-				if self.drag {
-					self.tools.pos.x += xrel as i16;
-					self.tools.pos.y += yrel as i16;
-				} else {
-					self.tools.input(Input::Move(p));
-				}
+				self.tools.mouse_move(p, xrel as i16, yrel as i16);
 			}
 
 			Event::Quit {..} => self.quit = true,
@@ -279,7 +264,7 @@ impl<'a> App<'a> {
 						self.tools.input(Input::Special(false)),
 					Keycode::LCtrl |
 					Keycode::RCtrl =>
-						self.drag = false,
+						self.tools.drag = false,
 					_ => (),
 				}
 			}
@@ -311,7 +296,7 @@ impl<'a> App<'a> {
 
 					Keycode::LCtrl |
 					Keycode::RCtrl =>
-						self.drag = true,
+						self.tools.drag = true,
 
 					/*
 					Keycode::S if ctrl => {
@@ -337,15 +322,16 @@ impl<'a> App<'a> {
 			}
 
 			Event::MouseButtonDown { mouse_btn: MouseButton::Middle, .. } => {
-				self.drag = true;
+				self.tools.drag = true;
 			}
 			Event::MouseButtonUp { mouse_btn: MouseButton::Middle, .. } => {
-				self.drag = false;
+				self.tools.drag = false;
 			}
 
 			Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
 				let p = Point::new(x as i16, y as i16);
 				render.mouse = (true, p);
+				self.tools.mouse_press(p);
 
 				/*
 				{
@@ -367,21 +353,12 @@ impl<'a> App<'a> {
 					}
 				}
 				*/
-
-				let p = self.tools.set_mouse(p);
-				if p.x >= 0 && p.y >= 0 {
-					self.tools.input(Input::Press(p));
-				}
 			}
 
 			Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
 				let p = Point::new(x as i16, y as i16);
 				render.mouse = (false, p);
-
-				let p = self.tools.set_mouse(p);
-				if p.x >= 0 && p.y >= 0 {
-					self.tools.input(Input::Release(p));
-				}
+				self.tools.mouse_release(p);
 			}
 
 			Event::MouseWheel { y, ..} => { self.tools.zoom_from_mouse(y as i16); }

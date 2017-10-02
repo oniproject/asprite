@@ -6,11 +6,6 @@ use sprite::*;
 use ui;
 use ui::*;
 
-use sdl2;
-use sdl2::pixels::Color;
-use sdl2::gfx::primitives::DrawRenderer;
-
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CurrentTool {
 	Freehand,
@@ -37,6 +32,8 @@ pub struct Tools<'a> {
 	pub pos: Point<i16>,
 	pub grid: Option<Point<i16>>,
 
+	pub drag: bool,
+
 	pub m: Point<i16>,
 	pub mouse: Point<i16>,
 	pub zoom: i16,
@@ -48,6 +45,7 @@ impl<'a> Tools<'a> {
 			zoom, pos,
 			mouse: Point::new(-100, -100),
 			m: Point::new(-100, -100),
+			drag: false,
 
 			grid: Some(Point::new(16, 16)),
 
@@ -59,11 +57,10 @@ impl<'a> Tools<'a> {
 			editor: Editor::new(sprite),
 		}
 	}
+
 	pub fn input(&mut self, ev: Input<i16>) {
 		match self.current {
-			CurrentTool::Freehand => {
-				self.freehand.run(ev, &mut self.editor);
-			}
+			CurrentTool::Freehand => self.freehand.run(ev, &mut self.editor),
 			CurrentTool::Bucket => self.bucket.run(ev, &mut self.editor),
 			CurrentTool::EyeDropper => self.dropper.run(ev, &mut self.editor),
 			CurrentTool::Primitive(mode) => {
@@ -73,31 +70,51 @@ impl<'a> Tools<'a> {
 		}
 	}
 
+	pub fn mouse_press(&mut self, p: Point<i16>) {
+		let p = self.set_mouse(p);
+		if p.x >= 0 && p.y >= 0 {
+			self.input(Input::Press(p));
+		}
+	}
+
+	pub fn mouse_release(&mut self, p: Point<i16>) {
+		let p = self.set_mouse(p);
+		if p.x >= 0 && p.y >= 0 {
+			self.input(Input::Release(p));
+		}
+	}
+
+	pub fn mouse_move(&mut self, p: Point<i16>, rx: i16, ry: i16) {
+		let p = self.set_mouse(p);
+		if self.drag {
+			self.pos.x += rx;
+			self.pos.y += ry;
+		} else {
+			self.input(Input::Move(p));
+		}
+	}
+
 	pub fn zoom_from_center(&mut self, y: i16) {
-		let last = self.zoom;
-		self.zoom += y;
-		if self.zoom < 1 { self.zoom = 1 }
-		if self.zoom > 16 { self.zoom = 16 }
-		let diff = last - self.zoom;
-
-		let size = self.size() * diff / 2;
-
-		self.pos.x += size.x;
-		self.pos.y += size.y;
+		let p = self.size();
+		self.zoom(y, |diff| p * diff / 2);
 	}
 
 	pub fn zoom_from_mouse(&mut self, y: i16) {
+		let p = self.mouse;
+		self.zoom(y, |diff| p * diff);
+	}
+
+	fn zoom<F: FnOnce(i16) -> Point<i16>>(&mut self, y: i16, f: F) {
 		let last = self.zoom;
 		self.zoom += y;
 		if self.zoom < 1 { self.zoom = 1 }
 		if self.zoom > 16 { self.zoom = 16 }
 		let diff = last - self.zoom;
 
-		//let size = self.size() * diff / 2;
-		let size = self.mouse * diff;
+		let p = f(diff);
 
-		self.pos.x += size.x;
-		self.pos.y += size.y;
+		self.pos.x += p.x;
+		self.pos.y += p.y;
 	}
 
 	pub fn set_mouse(&mut self, p: Point<i16>) -> Point<i16> {
@@ -124,7 +141,7 @@ impl<'a> Tools<'a> {
 		image.palette[image.color]
 	}
 
-	pub fn draw(&mut self, render: &mut ui::Render<sdl2::video::Window>) {
+	pub fn draw(&mut self, render: &mut ui::Render) {
 		let red = 0xFF4136_FFu32;
 
 		let textures = {
@@ -158,7 +175,7 @@ impl<'a> Tools<'a> {
 				});
 			}
 			Layer::Preview => {
-				canvas.set_draw_color(Color::RGBA(0x00, 0x00, 0x00, 0x00));
+				canvas.set_draw_color(color!(TRANSPARENT));
 				canvas.clear();
 				let image = self.editor.image();
 

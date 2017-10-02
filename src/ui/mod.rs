@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 mod im;
 mod theme;
 mod graphics;
@@ -9,10 +7,10 @@ pub use self::theme::*;
 pub use self::graphics::*;
 
 use sdl2::video::{Window, WindowContext};
-use sdl2::render::{RenderTarget, Canvas, TextureQuery, Texture, TextureCreator, BlendMode};
+use sdl2::render::{Canvas, TextureQuery, Texture, TextureCreator, BlendMode};
 use sdl2::ttf::Font;
-use sdl2::gfx::primitives::{DrawRenderer, ToColor};
-use sdl2::pixels::{Color, PixelFormatEnum};
+use sdl2::pixels::PixelFormatEnum;
+pub use sdl2::gfx::primitives::DrawRenderer;
 
 use sdl2::image::LoadTexture;
 
@@ -21,23 +19,17 @@ use std::collections::HashMap;
 
 use common::*;
 
-pub enum Event {
-	Press,
-	Release,
-
-	MouseEnter,
-	MouseLeave,
-}
-
 #[derive(PartialEq)]
 pub enum Key {
 	NextWidget,
 	PrevWidget,
 }
 
-pub struct Render<'t, 'ttf_module, 'rwops, T: RenderTarget> {
-	pub ctx: Canvas<T>,
+pub struct Render<'t, 'ttf_module, 'rwops> {
+	pub ctx: Canvas<Window>,
 	pub font: Font<'ttf_module, 'rwops>,
+
+	pub creator: &'t TextureCreator<WindowContext>,
 
 	pub textures: HashMap<usize, (Texture<'t>, u32, u32)>,
 	pub last_texture_id: usize,
@@ -53,10 +45,10 @@ pub struct Render<'t, 'ttf_module, 'rwops, T: RenderTarget> {
 	pub mouse: (bool, Point<i16>),
 }
 
-impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops, Window> {
-	pub fn new(ctx: Canvas<Window>, font: Font<'ttf, 'rwops>) -> Self {
+impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
+	pub fn new(ctx: Canvas<Window>, creator: &'t TextureCreator<WindowContext>, font: Font<'ttf, 'rwops>) -> Self {
 		Render {
-			ctx, font,
+			ctx, font, creator,
 			last: 0, hot: 0, active: 0, // kbd: 0,
 			key: None,
 			next_rect: Rect::with_coords(0, 0, 0, 0),
@@ -66,22 +58,28 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops, Window> {
 		}
 	}
 
-	pub fn load_texture<T: Into<Option<usize>>, P: AsRef<Path>>(&mut self, creator: &'t TextureCreator<WindowContext>, id: T, filename: P) -> usize {
-		let texture = creator.load_texture(filename).unwrap();
-		self.add_texture(texture, id.into())
-	}
-
-	pub fn create_texture<T: Into<Option<usize>>>(&mut self, creator: &'t TextureCreator<WindowContext>, id: T, w: u32, h: u32) -> usize {
-		let texture = creator.create_texture_target(PixelFormatEnum::RGBA8888, w, h).unwrap();
-		self.add_texture(texture, id.into())
-	}
-
-	fn add_texture(&mut self, mut texture: Texture<'t>, id: Option<usize>) -> usize {
-		let id = id.unwrap_or_else(|| {
+	pub fn load_texture<T: Into<Option<usize>>, P: AsRef<Path>>(&mut self, id: T, filename: P) -> usize {
+		let id = id.into().unwrap_or_else(|| {
 			let id = self.last_texture_id;
 			self.last_texture_id += 1;
 			id
 		});
+
+		let mut texture = self.creator.load_texture(filename).unwrap();
+		texture.set_blend_mode(BlendMode::Blend);
+		let TextureQuery { width, height, .. } = texture.query();
+		self.textures.insert(id, (texture, width, height));
+		id
+	}
+
+	pub fn create_texture<T: Into<Option<usize>>>(&mut self, id: T, w: u32, h: u32) -> usize {
+		let id = id.into().unwrap_or_else(|| {
+			let id = self.last_texture_id;
+			self.last_texture_id += 1;
+			id
+		});
+
+		let mut texture = self.creator.create_texture_target(PixelFormatEnum::RGBA8888, w, h).unwrap();
 		texture.set_blend_mode(BlendMode::Blend);
 		let TextureQuery { width, height, .. } = texture.query();
 		self.textures.insert(id, (texture, width, height));
@@ -115,7 +113,7 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops, Window> {
 
 }
 
-impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops, Window> {
+impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
 	fn command(&mut self, cmd: Command<i16, u32>) {
 		match cmd {
 			Command::Line(start, end, color) =>
@@ -156,10 +154,7 @@ impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops, Window> {
 				));
 			}
 			Command::Text(s, p, color) => {
-				let color = {
-					let (r, g, b, a) = color.to_be().as_rgba();
-					Color::RGBA(r, g, b, a)
-				};
+				let color = color!(color);
 
 				// render a surface, and convert it to a texture bound to the canvas
 				let surface = self.font.render(s).blended(color).unwrap();
@@ -183,7 +178,7 @@ impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops, Window> {
 	}
 }
 
-impl<'t, 'ttf, 'rwops> Immediate for Render<'t, 'ttf, 'rwops, Window> {
+impl<'t, 'ttf, 'rwops> Immediate for Render<'t, 'ttf, 'rwops> {
 	fn bounds(&self) -> Rect<i16> {
 		let size = self.ctx.window().size();
 		Rect::with_size(0, 0, size.0 as i16, size.1 as i16)
