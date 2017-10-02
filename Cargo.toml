@@ -11,6 +11,8 @@ redo = "0.14"
 image = "0.15"
 gif = "0.9"
 rand = "0.3"
+nfd = "0.0.4"
+
 
 [dependencies.sdl2]
 version = "0.30"

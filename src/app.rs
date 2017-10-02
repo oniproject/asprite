@@ -4,9 +4,7 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
-use sdl2::render::Texture;
-use sdl2::gfx::primitives::{DrawRenderer, ToColor};
-
+use sdl2::gfx::primitives::ToColor;
 use sdl2::mouse::{Cursor, SystemCursor};
 use std::collections::HashMap;
 
@@ -16,17 +14,6 @@ use ui;
 use ui::*;
 use editor::*;
 use sprite::Sprite;
-
-macro_rules! rect(
-	($x:expr, $y:expr, $w:expr, $h:expr) => (
-		sdl2::rect::Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
-	)
-);
-
-pub enum Layer {
-	Sprite,
-	Preview,
-}
 
 pub struct App<'a> {
 	pub update: bool,
@@ -63,14 +50,7 @@ impl<'a> App<'a> {
 			drag: false,
 
 			cursors,
-			tools: Tools {
-				current: CurrentTool::Freehand,
-				prim: Primitive::new(),
-				bucket: Bucket::new(),
-				freehand: Freehand::new(),
-				dropper: EyeDropper::new(),
-				editor: Editor::new(6, Point::new(200, 100), sprite),
-			},
+			tools: Tools::new(6, Point::new(200, 100), sprite),
 
 			/*
 			map: Tilemap::load(40, 30, 63),
@@ -79,10 +59,9 @@ impl<'a> App<'a> {
 			*/
 		}
 	}
-	pub fn paint<'t>(&mut self, textures: &[(&mut Texture<'t>, Layer)], render: &mut ui::Render<sdl2::video::Window>) {
+	pub fn paint(&mut self, render: &mut ui::Render<sdl2::video::Window>) {
 		self.update = false;
 
-		let red =  0xFF4136_FFu32;
 
 		let editor_bg = {
 			let (r, g, b, a) = WINDOW_BG.to_be().as_rgba();
@@ -93,88 +72,7 @@ impl<'a> App<'a> {
 		render.ctx.set_draw_color(editor_bg);
 		render.ctx.clear();
 
-		render.ctx.with_multiple_texture_canvas(textures.iter(), |canvas, layer| {
-			match *layer {
-			Layer::Sprite => if self.tools.editor.redraw {
-				self.tools.editor.redraw = false;
-				self.tools.editor.draw_pages(|page, stride, palette| {
-					for (idx, c) in page.iter().enumerate() {
-						let x = idx % stride;
-						let y = idx / stride;
-						canvas.pixel(x as i16, y as i16, palette[*c].to_be()).unwrap();
-					}
-				});
-			}
-			Layer::Preview => {
-				canvas.set_draw_color(Color::RGBA(0x00, 0x00, 0x00, 0x00));
-				canvas.clear();
-				let image = self.tools.editor.image();
-
-				// tool preview
-				let freehand = &self.tools.freehand; 
-				for &(p, active) in &freehand.pts {
-					let c = if active {
-						image.palette[freehand.color].to_be()
-					} else {
-						red
-					};
-					canvas.pixel(p.x, p.y, c).unwrap();
-				}
-
-				// preview brush
-				let editor = &self.tools.editor;
-				canvas.pixel(editor.mouse.x, editor.mouse.y, editor.fg().to_be()).unwrap();
-			}
-			}
-		}).unwrap();
-
-		{ // display image and preview
-			let size = self.tools.editor.size();
-			let zoom = self.tools.editor.zoom;
-			let size = size * zoom;
-			let pos = self.tools.editor.pos;
-			let dst = rect!(pos.x, pos.y, size.x, size.y);
-			for t in textures {
-				render.ctx.copy(t.0, None, dst).unwrap();
-			}
-		}
-
-		{ // grid
-			let rr = 0xFF0000_FFu32.to_be();
-			let gg = 0x00FF00_FFu32.to_be();
-			let (ox, oy) = (self.tools.editor.pos.x, self.tools.editor.pos.y);
-			let size = self.tools.editor.size();
-			let zoom = self.tools.editor.zoom;
-
-			let grid_w = 16;
-			let grid_h = 16;
-
-			let (x1, x2) = (ox, ox + size.x * zoom);
-			let (y1, y2) = (oy, oy + size.y * zoom);
-
-			let ex = size.x / grid_w;
-			let ey = size.y / grid_h;
-			let ix = (size.x % grid_w != 0) as i16;
-			let iy = (size.y % grid_h != 0) as i16;
-
-			if true {
-				for y in 1..ey + iy {
-					let y = oy - 1 + (y * grid_h) * zoom;
-					render.ctx.hline(x1, x2, y, rr).unwrap();
-				}
-
-				for x in 1..ex + ix {
-					let x = ox - 1 + (x * grid_w) * zoom;
-					render.ctx.vline(x, y1, y2, rr).unwrap();
-				}
-			}
-
-			// canvas border
-			render.ctx.hline(x1-1, x2, y1-1, gg).unwrap();
-			render.ctx.hline(x1-1, x2, y2+0, gg).unwrap();
-			render.ctx.vline(x1-1, y1-1, y2, gg).unwrap();
-			render.ctx.vline(x2+0, y1-1, y2, gg).unwrap();
-		}
+		self.tools.draw(render);
 
 		{ // ui
 			render.prepare();
@@ -230,22 +128,22 @@ impl<'a> App<'a> {
 			ui.clear(BAR_BG);
 
 			ui.lay(Rect::with_size(10, 10, 20, 20));
-			if ui.btn_color(32, self.tools.editor.fg()) {
+			if ui.btn_color(32, self.tools.color()) {
 				println!("xx");
 			}
 
 			let modes = [
-				CurrentTool::Freehand,
-				CurrentTool::Bucket,
-				CurrentTool::Primitive(PrimitiveMode::Ellipse),
-				CurrentTool::Primitive(PrimitiveMode::Rect),
-				CurrentTool::EyeDropper,
+				(ICON_TOOL_FREEHAND, CurrentTool::Freehand),
+				(ICON_TOOL_FILL, CurrentTool::Bucket),
+				(ICON_TOOL_CIRC, CurrentTool::Primitive(PrimitiveMode::Ellipse)),
+				(ICON_TOOL_RECT, CurrentTool::Primitive(PrimitiveMode::Rect)),
+				(ICON_TOOL_PIP, CurrentTool::EyeDropper),
 			];
 
-			for (i, &mode) in modes.iter().enumerate() {
+			for (i, &(icon, mode)) in modes.iter().enumerate() {
 				ui.lay(Rect::with_size(40 + 32 * i as i16, 4, 32, 32));
 				let active = self.tools.current == mode;
-				if ui.btn_icon(770 + i as u32, i as usize, active) {
+				if ui.btn_icon(770 + i as u32, icon, active) {
 					self.tools.current = mode;
 				}
 			}
@@ -275,11 +173,11 @@ impl<'a> App<'a> {
 				ui.frame(BTN_BG, BTN_BORDER);
 
 				ui.lay(label);
-				ui.label_left(LABEL_COLOR, &format!(" ZOOM {}", self.tools.editor.zoom));
+				ui.label_left(LABEL_COLOR, &format!(" ZOOM {}", self.tools.zoom));
 				ui.lay(r1);
-				ui.btn_mini(30, "+", || self.tools.editor.zoom_from_center(1));
+				ui.btn_mini(30, "+", || self.tools.zoom_from_center(1));
 				ui.lay(r2);
-				ui.btn_mini(31, "-", || self.tools.editor.zoom_from_center(-1));
+				ui.btn_mini(31, "-", || self.tools.zoom_from_center(-1));
 			});
 
 			let undoredo = Rect::with_size(ui.width() - 60, 10, 40, 20);
@@ -294,9 +192,9 @@ impl<'a> App<'a> {
 				ui.frame(BTN_BG, BTN_BORDER);
 
 				ui.lay(r1);
-				ui.btn_mini(33, "\u{2190}", || self.tools.editor.undo());
+				ui.btn_mini(33, "\u{2190}", || self.tools.undo());
 				ui.lay(r2);
-				ui.btn_mini(34, "\u{2192}", || self.tools.editor.redo());
+				ui.btn_mini(34, "\u{2192}", || self.tools.redo());
 			});
 
 		});
@@ -304,10 +202,10 @@ impl<'a> App<'a> {
 		ui.panel(statusbar, |mut ui| {
 			ui.clear(STATUSBAR_BG);
 			let freehand = &self.tools.freehand;
-			let editor = &self.tools.editor;
-			ui.label_left(STATUSBAR_COLOR, &format!(" perfect pixel: {} zoom:{}  {:>3}#{:<3}  [{:+} {:+}]",
+			let editor = &self.tools;
+			ui.label_left(STATUSBAR_COLOR, &format!(" perfect pixel: {} zoom:{}  #{:<3}  [{:+} {:+}]",
 				freehand.perfect, editor.zoom,
-				editor.image().fg, editor.image().bg,
+				editor.editor.image().color,
 				editor.mouse.x, editor.mouse.y,
 			));
 		});
@@ -342,7 +240,7 @@ impl<'a> App<'a> {
 				ui.lay(Rect::with_size(50, 40 + 20*i as i16, 20, 20));
 				let color = self.tools.editor.image().palette[i];
 				if ui.btn_color(100 + i as u32, color) {
-					self.tools.editor.change_foreground(i as u8);
+					self.tools.editor.change_color(i as u8);
 				}
 			}
 		});
@@ -363,10 +261,10 @@ impl<'a> App<'a> {
 					}
 				} */
 
-				let p = self.tools.editor.set_mouse(p);
+				let p = self.tools.set_mouse(p);
 				if self.drag {
-					self.tools.editor.pos.x += xrel as i16;
-					self.tools.editor.pos.y += yrel as i16;
+					self.tools.pos.x += xrel as i16;
+					self.tools.pos.y += yrel as i16;
 				} else {
 					self.tools.input(Input::Move(p));
 				}
@@ -404,8 +302,8 @@ impl<'a> App<'a> {
 					// Keycode::Num8 => self.freehand.mode = freehand::Mode::PixelPerfect,
 					// Keycode::Num9 => self.freehand.mode = freehand::Mode::Line,
 
-					Keycode::Plus  | Keycode::KpPlus  => self.tools.editor.zoom_from_center(1),
-					Keycode::Minus | Keycode::KpMinus => self.tools.editor.zoom_from_center(-1),
+					Keycode::Plus  | Keycode::KpPlus  => self.tools.zoom_from_center(1),
+					Keycode::Minus | Keycode::KpMinus => self.tools.zoom_from_center(-1),
 
 					Keycode::LShift |
 					Keycode::RShift =>
@@ -428,8 +326,8 @@ impl<'a> App<'a> {
 					}
 					*/
 
-					Keycode::U => self.tools.editor.undo(),
-					Keycode::R => self.tools.editor.redo(),
+					Keycode::U => self.tools.undo(),
+					Keycode::R => self.tools.redo(),
 
 					Keycode::Tab if shift => render.key = Some(ui::Key::PrevWidget),
 					Keycode::Tab if !shift => render.key = Some(ui::Key::NextWidget),
@@ -470,7 +368,7 @@ impl<'a> App<'a> {
 				}
 				*/
 
-				let p = self.tools.editor.set_mouse(p);
+				let p = self.tools.set_mouse(p);
 				if p.x >= 0 && p.y >= 0 {
 					self.tools.input(Input::Press(p));
 				}
@@ -480,13 +378,13 @@ impl<'a> App<'a> {
 				let p = Point::new(x as i16, y as i16);
 				render.mouse = (false, p);
 
-				let p = self.tools.editor.set_mouse(p);
+				let p = self.tools.set_mouse(p);
 				if p.x >= 0 && p.y >= 0 {
 					self.tools.input(Input::Release(p));
 				}
 			}
 
-			Event::MouseWheel { y, ..} => { self.tools.editor.zoom_from_mouse(y as i16); }
+			Event::MouseWheel { y, ..} => { self.tools.zoom_from_mouse(y as i16); }
 
 			// Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
 				//self.statusbar = Rect::with_size(0, h as i16 - 20, w as i16, 20);

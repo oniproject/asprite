@@ -7,12 +7,20 @@ extern crate undo;
 extern crate sdl2;
 extern crate num_traits;
 extern crate nalgebra as na;
+extern crate nfd;
 
-use sdl2::pixels::PixelFormatEnum;
-use sdl2::render::BlendMode;
+use nfd::Response;
+
 use sdl2::mouse::Cursor;
 
 use std::process;
+
+#[macro_export] 
+macro_rules! rect(
+	($x:expr, $y:expr, $w:expr, $h:expr) => (
+		$crate::sdl2::rect::Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
+	)
+);
 
 mod common;
 mod tool;
@@ -26,7 +34,6 @@ mod app;
 use app::*;
 
 //mod tilemap;
-use cmd::*;
 
 use common::*;
 use ui::*;
@@ -202,7 +209,19 @@ impl Tilemap {
 }
 */
 
+fn open_file() -> Option<String> {
+	let result = nfd::open_file_dialog(None, None).unwrap();
+
+	match result {
+		Response::Okay(file) => Some(file),
+		Response::OkayMultiple(files) => Some(files[0].clone()),
+		Response::Cancel => None,
+	}
+}
+
 fn main() {
+	println!("open file: {:?}", open_file());
+
 	let sdl_context = sdl2::init().unwrap();
 	let video_subsys = sdl_context.video().unwrap();
 	let ttf_context = sdl2::ttf::init().unwrap();
@@ -223,7 +242,6 @@ fn main() {
 	let ctx = window.into_canvas()
 		// XXX: glitch with .software()
 		.build().unwrap();
-
 
 	// Load a font
 	let font = ttf_context.load_font(FONT_PATH, FONT_HEIGHT).unwrap();
@@ -252,6 +270,7 @@ fn main() {
 
 	let creator = ctx.texture_creator();
 
+/*
 	let mut t1 = creator
 		.create_texture_target(PixelFormatEnum::RGBA8888, sprite.width as u32, sprite.height as u32)
 		.unwrap();
@@ -262,16 +281,19 @@ fn main() {
 	t1.set_blend_mode(BlendMode::Blend);
 	t2.set_blend_mode(BlendMode::Blend);
 
-
 	let textures = [(&mut t1, Layer::Sprite), (&mut t2, Layer::Preview)];
+*/
 
 	let mut render = Render::new(ctx, font);
 
-	let _icon_tool_freehand = render.load_texture(&creator, "./res/tool_freehand.png");
-	let _icon_tool_fill = render.load_texture(&creator, "./res/tool_fill.png");
-	let _icon_tool_circ = render.load_texture(&creator, "./res/tool_circ.png");
-	let _icon_tool_rect = render.load_texture(&creator, "./res/tool_rect.png");
-	let _icon_tool_pip = render.load_texture(&creator, "./res/tool_pip.png");
+	render.create_texture(&creator, EDITOR_SPRITE_ID, sprite.width as u32, sprite.height as u32);
+	render.create_texture(&creator, EDITOR_PREVIEW_ID, sprite.width as u32, sprite.height as u32);
+
+	render.load_texture(&creator, ICON_TOOL_FREEHAND, "./res/tool_freehand.png");
+	render.load_texture(&creator, ICON_TOOL_FILL, "./res/tool_fill.png");
+	render.load_texture(&creator, ICON_TOOL_CIRC, "./res/tool_circ.png");
+	render.load_texture(&creator, ICON_TOOL_RECT, "./res/tool_rect.png");
+	render.load_texture(&creator, ICON_TOOL_PIP, "./res/tool_pip.png");
 
 	let mut app = App::new(sprite);
 
@@ -280,7 +302,7 @@ fn main() {
 			process::exit(1);
 		}
 		if app.update {
-			app.paint(&textures, &mut render);
+			app.paint(&mut render);
 		}
 		if let Some(event) = events.wait_event_timeout(10) {
 			app.event(event, &mut render);

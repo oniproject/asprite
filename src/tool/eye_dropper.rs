@@ -19,7 +19,7 @@ impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for EyeDropper<N, C> {
 		match input {
 			Input::Press(p) => {
 				if let Some(color) = ctx.at(p.x, p.y) {
-					ctx.change_foreground(color);
+					ctx.change_color(color);
 				}
 			}
 			_ => (),

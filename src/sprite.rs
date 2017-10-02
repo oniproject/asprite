@@ -3,15 +3,16 @@ use common::*;
 
 use std::mem::swap;
 
-
 pub struct Sprite {
 	pub data: Vec<Layer>,
 	pub palette: Palette<u32>,
 	pub width: usize,
 	pub height: usize,
 
-	pub fg: u8,
-	pub bg: u8,
+	pub frame: usize,
+	pub layer: usize,
+
+	pub color: u8,
 }
 
 impl Sprite {
@@ -22,8 +23,9 @@ impl Sprite {
 			data: vec![layer],
 			palette: Palette::new(0, None),
 			width, height,
-			fg: 0,
-			bg: 1,
+			frame: 0,
+			layer: 0,
+			color: 0,
 		}
 	}
 	pub fn page(&self, frame: usize, layer: usize) -> &Page {

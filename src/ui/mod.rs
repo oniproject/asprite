@@ -13,11 +13,11 @@ use sdl2::render::{RenderTarget, Canvas, TextureQuery, Texture, TextureCreator, 
 use sdl2::ttf::Font;
 use sdl2::gfx::primitives::{DrawRenderer, ToColor};
 use sdl2::pixels::{Color, PixelFormatEnum};
-use sdl2::rect::Rect as SdlRect;
 
 use sdl2::image::LoadTexture;
 
 use std::path::Path;
+use std::collections::HashMap;
 
 use common::*;
 
@@ -39,7 +39,8 @@ pub struct Render<'t, 'ttf_module, 'rwops, T: RenderTarget> {
 	pub ctx: Canvas<T>,
 	pub font: Font<'ttf_module, 'rwops>,
 
-	pub textures: Vec<Texture<'t>>,
+	pub textures: HashMap<usize, (Texture<'t>, u32, u32)>,
+	pub last_texture_id: usize,
 
 	pub hot: u32,
 	pub active: u32,
@@ -60,23 +61,30 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops, Window> {
 			key: None,
 			next_rect: Rect::with_coords(0, 0, 0, 0),
 			mouse: (false, Point::new(0, 0)),
-			textures: Vec::new(),
+			textures: HashMap::new(),
+			last_texture_id: 0,
 		}
 	}
 
-	pub fn load_texture<P: AsRef<Path>>(&mut self, creator: &'t TextureCreator<WindowContext>, filename: P) -> usize {
-		let mut texture = creator.load_texture(filename).unwrap();
-		texture.set_blend_mode(BlendMode::Blend);
-		let id = self.textures.len();
-		self.textures.push(texture);
-		id
+	pub fn load_texture<T: Into<Option<usize>>, P: AsRef<Path>>(&mut self, creator: &'t TextureCreator<WindowContext>, id: T, filename: P) -> usize {
+		let texture = creator.load_texture(filename).unwrap();
+		self.add_texture(texture, id.into())
 	}
 
-	pub fn push_texture(&mut self, creator: &'t TextureCreator<WindowContext>, w: u32, h: u32) -> usize {
-		let mut texture = creator.create_texture_target(PixelFormatEnum::RGBA8888, w, h).unwrap();
+	pub fn create_texture<T: Into<Option<usize>>>(&mut self, creator: &'t TextureCreator<WindowContext>, id: T, w: u32, h: u32) -> usize {
+		let texture = creator.create_texture_target(PixelFormatEnum::RGBA8888, w, h).unwrap();
+		self.add_texture(texture, id.into())
+	}
+
+	fn add_texture(&mut self, mut texture: Texture<'t>, id: Option<usize>) -> usize {
+		let id = id.unwrap_or_else(|| {
+			let id = self.last_texture_id;
+			self.last_texture_id += 1;
+			id
+		});
 		texture.set_blend_mode(BlendMode::Blend);
-		let id = self.textures.len();
-		self.textures.push(texture);
+		let TextureQuery { width, height, .. } = texture.query();
+		self.textures.insert(id, (texture, width, height));
 		id
 	}
 
@@ -134,14 +142,17 @@ impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops, Window> {
 			}
 
 			Command::Image(id, r) => {
-				let dst = SdlRect::new(r.min.x as i32, r.min.y as i32, r.w() as u32, r.h() as u32);
-				let texture = &self.textures[id];
+				let &(ref texture, w, h) = &self.textures[&id];
+				let dx = (r.w() as i32 - w as i32) / 2;
+				let dy = (r.h() as i32 - h as i32) / 2;
+				let (x, y) = (r.min.x as i32 + dx, r.min.y as i32 + dy);
+				let dst = rect!(x, y, w, h);
 				self.ctx.copy(texture, None, dst).unwrap();
 			}
 
 			Command::Clip(r) => {
 				self.ctx.set_clip_rect(r.map(|r|
-					SdlRect::new(r.min.x as i32, r.min.y as i32, r.w() as u32, r.h() as u32)
+					rect!(r.min.x, r.min.y, r.w(), r.h())
 				));
 			}
 			Command::Text(s, p, color) => {
@@ -158,7 +169,7 @@ impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops, Window> {
 					.unwrap();
 
 				let TextureQuery { width, height, .. } = texture.query();
-				let r = SdlRect::new(p.x as i32, p.y as i32, width, height);
+				let r = rect!(p.x, p.y, width, height);
 
 				self.ctx
 					.copy(&texture, None, Some(r))

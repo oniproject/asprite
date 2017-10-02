@@ -47,3 +47,15 @@ pub const HEADER_BG: u32 = 0x525b68_FF;
 
 pub const LABEL_COLOR: u32 = 0xFFFFFF_FF;
 pub const FONT_HEIGHT: u16 = 12;
+
+pub const ICON_TOOL_FREEHAND: usize = 1000_0;
+pub const ICON_TOOL_FILL: usize = 1000_1;
+pub const ICON_TOOL_CIRC: usize = 1000_2;
+pub const ICON_TOOL_RECT: usize = 1000_3;
+pub const ICON_TOOL_PIP: usize = 1000_4;
+
+pub const EDITOR_SPRITE_ID: usize = 777;
+pub const EDITOR_PREVIEW_ID: usize = 888;
+
+pub const GRID_COLOR: u32 = 0xFF0000_FF;
+pub const CORNER_COLOR: u32 = 0x00FF00_FF;
