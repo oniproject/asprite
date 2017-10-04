@@ -24,8 +24,8 @@ pub trait Image<N: Signed, C: Copy + PartialEq> {
 	}
 
 	fn fill_ellipse(&mut self, r: Rect<N>, color: C) {
-		let width = r.w().to_i64().unwrap();
-		let height = r.h().to_i64().unwrap();
+		let width = r.dx().to_i64().unwrap();
+		let height = r.dy().to_i64().unwrap();
 		let ox = r.min.x.to_i64().unwrap() + width / 2;
 		let oy = r.min.y.to_i64().unwrap() + height / 2;
 

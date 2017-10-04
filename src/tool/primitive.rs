@@ -46,7 +46,7 @@ impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Primitive<N, C> {
 					} else {
 						p
 					};
-					let r = Rect::with_points(p, self.start).normalize();
+					let r = Rect { min: p, max: self.start }.normalize();
 					match (self.fill, self.mode) {
 						(true, PrimitiveMode::Rect) => ctx.fill_rect(r, self.color),
 						(false, PrimitiveMode::Rect) => ctx.draw_rect(r, self.color),

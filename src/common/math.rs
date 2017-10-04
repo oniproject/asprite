@@ -39,7 +39,7 @@ impl<T: Signed> Rect<T> {
 		}
 	}
 
-	pub fn pos(self, x: T, y: T) -> Self {
+	pub fn xy(self, x: T, y: T) -> Self {
 		let p = Vector::new(x, y);
 		Self {
 			min: Point::from_coordinates(self.min.coords + p),
@@ -47,7 +47,39 @@ impl<T: Signed> Rect<T> {
 		}
 	}
 
-	pub fn size(self, w: T, h: T) -> Self {
+	pub fn x(self, x: T) -> Self {
+		let p = Vector::new(x, T::zero());
+		Self {
+			min: Point::from_coordinates(self.min.coords + p),
+			max: Point::from_coordinates(self.max.coords + p),
+		}
+	}
+
+	pub fn y(self, y: T) -> Self {
+		let p = Vector::new(T::zero(), y);
+		Self {
+			min: Point::from_coordinates(self.min.coords + p),
+			max: Point::from_coordinates(self.max.coords + p),
+		}
+	}
+
+	pub fn w(self, w: T) -> Self {
+		let p = Vector::new(w, self.dy());
+		Self {
+			min: self.min,
+			max: Point::from_coordinates(self.min.coords + p),
+		}
+	}
+
+	pub fn h(self, h: T) -> Self {
+		let p = Vector::new(self.dx(), h);
+		Self {
+			min: self.min,
+			max: Point::from_coordinates(self.min.coords + p),
+		}
+	}
+
+	pub fn wh(self, w: T, h: T) -> Self {
 		let p = Vector::new(w, h);
 		Self {
 			min: self.min,
@@ -56,15 +88,12 @@ impl<T: Signed> Rect<T> {
 	}
 
 	pub fn set_w(self, w: T) -> Self {
-		self.size(w, self.h())
+		self.wh(w, self.dy())
 	}
 	pub fn set_h(self, h: T) -> Self {
-		self.size(self.w(), h)
+		self.wh(self.dx(), h)
 	}
 
-	pub fn with_points(min: Point<T>, max: Point<T>) -> Self {
-		Self { min, max }
-	}
 	pub fn with_coords(x1: T, y1: T, x2: T, y2: T) -> Self {
 		Self {
 			min: Point::new(x1, y1),
@@ -87,9 +116,64 @@ impl<T: Signed> Rect<T> {
 		self.contains(r.min) && self.contains(r.max)
 	}
 
-	pub fn w(&self) -> T { self.max.x - self.min.x }
-	pub fn h(&self) -> T { self.max.y - self.min.y }
+	pub fn dx(&self) -> T { self.max.x - self.min.x }
+	pub fn dy(&self) -> T { self.max.y - self.min.y }
 
+	pub fn inset(self, n: T) -> Self {
+		let Self { mut min, mut max } = self;
+		let two = T::one() + T::one();
+		let dx = max.x - min.x;
+		let dy = max.y - min.y;
+		if dx < two*n {
+			min.x = (min.x + max.x) / two;
+			max.x = min.x;
+		} else {
+			min.x += n;
+			max.x -= n;
+		}
+		if dy < two*n {
+			min.y = (min.y + max.y) / two;
+			max.y = min.y;
+		} else {
+			min.y += n;
+			max.y -= n;
+		}
+		Self {
+			min, max
+		}
+	}
+
+	pub fn inset_x(self, n: T) -> Self {
+		let Self { mut min, mut max } = self;
+		let two = T::one() + T::one();
+		let dx = max.x - min.x;
+		if dx < two*n {
+			min.x = (min.x + max.x) / two;
+			max.x = min.x;
+		} else {
+			min.x += n;
+			max.x -= n;
+		}
+		Self {
+			min, max
+		}
+	}
+
+	pub fn inset_y(self, n: T) -> Self {
+		let Self { mut min, mut max } = self;
+		let two = T::one() + T::one();
+		let dy = max.y - min.y;
+		if dy < two*n {
+			min.y = (min.y + max.y) / two;
+			max.y = min.y;
+		} else {
+			min.y += n;
+			max.y -= n;
+		}
+		Self {
+			min, max
+		}
+	}
 
 	pub fn min_translate(&self, p: Point<T>) -> Point<T> {
 		Point::from_coordinates(self.min.coords + p.coords)

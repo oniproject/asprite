@@ -33,8 +33,8 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 	fn widget_rect(&self) -> Rect<i16>;
 
 	fn bounds(&self) -> Rect<i16>;
-	fn width(&self) -> i16 { self.bounds().w() }
-	fn height(&self) -> i16 { self.bounds().h() }
+	fn width(&self) -> i16 { self.bounds().dx() }
+	fn height(&self) -> i16 { self.bounds().dy() }
 
 	fn is_hot(&self) -> bool;
 	fn is_active(&self) -> bool;
@@ -44,15 +44,17 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 
 	fn clear(&mut self, color: u32) {
 		let r = self.bounds();
-		self.lay(Rect::with_size(0, 0, r.w(), r.h()));
+		self.lay(Rect::with_size(0, 0, r.dx(), r.dy()));
 		self.fill(r, color);
 	}
 	fn header(&mut self, title: &str) {
 		let w = self.width();
-		self.lay(Rect::with_size(0, 0, w, 20));
+		let r = Rect::new().wh(w, 20);
+		self.lay(r);
 		self.frame(HEADER_BG, None);
-		self.label_right(LABEL_COLOR, "\u{25BC} ");
-		self.label_left(LABEL_COLOR, title);
+		self.label_right("\u{25BC} ");
+		self.lay(r.x(FONT_HEIGHT as i16));
+		self.label_left(title);
 	}
 
 	fn panel<F: FnOnce(Panel<Self>)>(&mut self, r: Rect<i16>, f: F) {
@@ -60,7 +62,7 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 			render: self,
 			r,
 		};
-		panel.lay(Rect::with_size(0, 0, r.w(), r.h()));
+		panel.lay(Rect::new().wh(r.dx(), r.dy()));
 		f(panel);
 	}
 
@@ -78,17 +80,17 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		}
 	}
 
-	fn label_right(&mut self, color: u32, text: &str) {
+	fn label_right(&mut self, text: &str) {
 		let r = self.widget_rect();
-		self.text_center_right(r, color, text)
+		self.text_center_right(r, LABEL_COLOR, text)
 	}
-	fn label_center(&mut self, color: u32, text: &str) {
+	fn label_center(&mut self, text: &str) {
 		let r = self.widget_rect();
-		self.text_center(r, color, text)
+		self.text_center(r, LABEL_COLOR, text)
 	}
-	fn label_left(&mut self, color: u32, text: &str) {
+	fn label_left(&mut self, text: &str) {
 		let r = self.widget_rect();
-		self.text_center_left(r, color, text)
+		self.text_center_left(r, LABEL_COLOR, text)
 	}
 
 	fn btn_color(&mut self, id: u32, color: u32) -> bool {
@@ -167,8 +169,8 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 
 	fn checkbox_label(&mut self, id: u32, label: &str, value: &mut bool) {
 		let r = self.widget(id);
-		let check = r.clone().set_w(r.h());
-		let lab = r.clone().pos(r.h(), 0);
+		let check = r.w(r.dy());
+		let lab = r.x(r.dy() + FONT_HEIGHT as i16);
 		if self.is_click() {
 			*value = !*value;
 		}

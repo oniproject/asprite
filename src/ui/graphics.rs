@@ -30,7 +30,7 @@ pub trait Graphics<N: Signed, C: Copy> {
 	fn text_align(&mut self, r: Rect<N>, x: f32, y: f32, color: C, s: &str) {
 		let (tw, th) = self.text_size(s);
 		let (tw, th) = (N::from(tw).unwrap(), N::from(th).unwrap());
-		let (rw, rh) = (r.w(), r.h());
+		let (rw, rh) = (r.dx(), r.dy());
 
 		let dw = (rw - tw).to_f32().unwrap();
 		let dh = (rh - th).to_f32().unwrap();

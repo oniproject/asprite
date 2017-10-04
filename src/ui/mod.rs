@@ -10,14 +10,37 @@ use sdl2::video::{Window, WindowContext};
 use sdl2::render::{Canvas, TextureQuery, Texture, TextureCreator, BlendMode};
 use sdl2::ttf::Font;
 use sdl2::pixels::PixelFormatEnum;
-pub use sdl2::gfx::primitives::DrawRenderer;
-
+use sdl2::mouse::{Cursor, SystemCursor};
 use sdl2::image::LoadTexture;
+pub use sdl2::gfx::primitives::DrawRenderer;
 
 use std::path::Path;
 use std::collections::HashMap;
 
 use common::*;
+
+type Cursors = HashMap<SystemCursor, Cursor>;
+fn create_cursors() -> Cursors {
+	let cursors = [
+		SystemCursor::Arrow,
+		SystemCursor::IBeam,
+		SystemCursor::Wait,
+		SystemCursor::Crosshair,
+		SystemCursor::WaitArrow,
+		SystemCursor::SizeNWSE,
+		SystemCursor::SizeNESW,
+		SystemCursor::SizeWE,
+		SystemCursor::SizeNS,
+		SystemCursor::SizeAll,
+		SystemCursor::No,
+		SystemCursor::Hand,
+	];
+
+	let cursors: HashMap<_, _> = cursors.iter().map(|&c| (c, Cursor::from_system(c).unwrap())).collect();
+	cursors[&SystemCursor::Crosshair].set();
+	cursors
+}
+
 
 #[derive(PartialEq)]
 pub enum Key {
@@ -43,6 +66,8 @@ pub struct Render<'t, 'ttf_module, 'rwops> {
 
 	pub key: Option<Key>,
 	pub mouse: (bool, Point<i16>),
+
+	cursors: Cursors,
 }
 
 impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
@@ -55,6 +80,8 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 			mouse: (false, Point::new(0, 0)),
 			textures: HashMap::new(),
 			last_texture_id: 0,
+
+			cursors: create_cursors(),
 		}
 	}
 
@@ -108,6 +135,9 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 		// Clear the entered key
 		self.key = None;
 
+		let cur = if self.hot != 0 { SystemCursor::Hand } else { SystemCursor::Crosshair };
+		self.cursors[&cur].set();
+
 		last_active != self.active //|| last_kbd != self.kbd
 	}
 
@@ -141,8 +171,8 @@ impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
 
 			Command::Image(id, r) => {
 				let &(ref texture, w, h) = &self.textures[&id];
-				let dx = (r.w() as i32 - w as i32) / 2;
-				let dy = (r.h() as i32 - h as i32) / 2;
+				let dx = (r.dx() as i32 - w as i32) / 2;
+				let dy = (r.dy() as i32 - h as i32) / 2;
 				let (x, y) = (r.min.x as i32 + dx, r.min.y as i32 + dy);
 				let dst = rect!(x, y, w, h);
 				self.ctx.copy(texture, None, dst).unwrap();
@@ -150,7 +180,7 @@ impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
 
 			Command::Clip(r) => {
 				self.ctx.set_clip_rect(r.map(|r|
-					rect!(r.min.x, r.min.y, r.w(), r.h())
+					rect!(r.min.x, r.min.y, r.dx(), r.dy())
 				));
 			}
 			Command::Text(s, p, color) => {
