@@ -1,5 +1,5 @@
 mod cmd_page;
-use self::cmd_page::*;
+pub use self::cmd_page::*;
 
 use common::*;
 use tool::*;
@@ -24,15 +24,19 @@ impl<'a> Editor<'a> {
 		}
 	}
 
-	pub fn image(&self) -> &Sprite {
-		self.image.as_receiver()
+	pub fn select_layer(&mut self, layer: usize) {
+		let _ = self.image.push(ChangeLayer(layer));
+		self.sync();
 	}
 
-	pub fn draw_pages<F: FnMut(&[u8], usize, &Palette<u32>)>(&self, mut f: F) {
-		let image = self.image();
+	pub fn draw_pages<F: FnMut(&Page, &Palette<u32>)>(&self, mut f: F) {
+		let image = self.image.as_receiver();
 		let current_layer = image.layer;
 		let current_frame = image.frame;
 		for (layer_id, layer) in image.data.iter().enumerate() {
+			if !layer.visible {
+				continue;
+			}
 			for (frame_id, _) in layer.frames.iter().enumerate() {
 				let is_canvas = layer_id == current_layer && frame_id == current_frame;
 				let page = if is_canvas {
@@ -41,7 +45,7 @@ impl<'a> Editor<'a> {
 					Some(image.page(layer_id, frame_id))
 				};
 				if let Some(page) = page {
-					f(&page.page, page.width, &image.palette)
+					f(&page, &image.palette)
 				}
 			}
 		}
@@ -87,17 +91,22 @@ impl<'a> Image<i16, u8> for Editor<'a> {
 
 impl<'a> Context<i16, u8> for Editor<'a> {
 	fn sync(&mut self) {
-		self.canvas.to_mut().copy_from(&self.image.as_receiver().page(0, 0));
+		let m = self.image.as_receiver();
+		self.canvas.to_mut().copy_from(&m.page(m.layer, m.frame));
 		self.redraw = true;
 	}
 
 	fn start(&mut self) -> u8 {
 		self.sync();
-		self.image().color
+		self.image.as_receiver().color
 	}
 	fn commit(&mut self) {
 		let page = self.canvas.clone();
-		let _ = self.image.push(PageCmd::new(0, 0, page.into_owned()));
+		let (layer, frame) = {
+			let m = self.image.as_receiver();
+			(m.layer, m.frame)
+		};
+		let _ = self.image.push(DrawCommand::new(layer, frame, page.into_owned()));
 		self.sync();
 	}
 	fn rollback(&mut self) {

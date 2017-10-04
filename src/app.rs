@@ -8,12 +8,55 @@ use std::collections::HashMap;
 
 use common::*;
 use tool::*;
+use cmd::*;
 use ui;
 use ui::*;
 use editor::*;
 use sprite::Sprite;
 
 type Cursors = HashMap<SystemCursor, Cursor>;
+
+pub fn open_file() -> Option<String> {
+	use nfd::{self, Response};
+
+	let result = nfd::dialog().filter("gif").open().unwrap();
+
+	let result = match result {
+		Response::Okay(file) => Some(file),
+		Response::OkayMultiple(files) => Some(files[0].clone()),
+		Response::Cancel => None,
+	};
+
+	if let Some(filename) = result.clone() {
+		// Open the file
+		use std::fs::File;
+		use gif;
+		use gif::SetParameter;
+		let file = File::open(filename).unwrap();
+
+		let mut decoder = gif::Decoder::new(file);
+		// Configure the decoder such that it will expand the image to RGBA.
+		decoder.set(gif::ColorOutput::Indexed);
+		// Read the file header
+		let mut decoder = decoder.read_info().unwrap();
+		println!("{}x{} has_pal: {} bg: {:?}",
+			decoder.width(),
+			decoder.height(),
+			decoder.global_palette().is_some(),
+			decoder.bg_color(),
+		);
+		while let Some(frame) = decoder.read_next_frame().unwrap() {
+			// Process every frame
+			println!("frame[{}]: {}x{} {}x{}, transparent: {:?} dis: {:?}",
+				frame.palette.is_some(),
+				frame.top, frame.left, frame.width, frame.height, frame.transparent, frame.dispose);
+		}
+	}
+
+
+
+	result
+}
 
 fn create_cursors() -> Cursors {
 	let cursors = [
@@ -90,10 +133,6 @@ impl<'a> App<'a> {
 		let timeline = Rect::with_size(0, height - 20 - 200, width, 200);
 		let palette = Rect::with_size(width-250, 60, 250, 500);
 
-		ui.panel(menubar, |mut ui| {
-			ui.clear(MENUBAR_BG);
-			ui.label_left(LABEL_COLOR, " File  Edit  Select  View  Image  Layer  Tools  Help");
-		});
 
 		ui.panel(contextbar, |mut ui| {
 			ui.clear(BAR_BG);
@@ -174,30 +213,46 @@ impl<'a> App<'a> {
 			let tools = &self.tools;
 			ui.label_left(STATUSBAR_COLOR, &format!(" zoom:{}  #{:<3}  [{:+} {:+}]",
 				tools.zoom,
-				tools.editor.image().color,
+				tools.color_index(),
 				tools.mouse.x, tools.mouse.y,
 			));
 		});
 
 		ui.panel(timeline, |mut ui| {
 			ui.clear(TIMELINE_BG);
-			static mut SHOW: [bool; 5] = [true, false, true, false, false];
 			static mut LOCK: [bool; 5] = [false, false, false, false, false];
-			for j in 0..5 {
-				let show = unsafe { &mut SHOW[j] };
-				let lock = unsafe { &mut LOCK[j] };
-				for (i, layer) in self.tools.editor.image().data.iter().enumerate() {
-					let i = i + j;
-					ui.lay(Rect::with_size(0, 19 + 19 * i as i16, 20, 20));
-					ui.checkbox(70 + i as u32, show);
-					ui.lay(Rect::with_size(19, 19 + 19 * i as i16, 20, 20));
+			let mut vis = None;
+			let mut select = None;
+			{
+				let image = self.tools.editor.image.as_receiver();
+				let count = image.data.len();
+				for (i, layer) in image.data.iter().enumerate() {
+					let lock = unsafe { &mut LOCK[i] };
+					let y = 19 + 19 * (count - i - 1) as i16;
+
+					ui.lay(Rect::with_size(0, y, 20, 20));
+					let mut show = layer.visible;
+					ui.checkbox(70 + i as u32, &mut show);
+					if show != layer.visible {
+						vis = Some((i, show));
+					}
+
+					ui.lay(Rect::with_size(19, y, 20, 20));
 					ui.checkbox(90 + i as u32, lock);
 
-					ui.lay(Rect::with_size(38, 19 + 19 * i as i16, 160, 20));
-					let r = ui.widget_rect();
-					ui.border(r, BTN_BORDER);
-					ui.label_left(LABEL_COLOR, &format!("  {}: {}", i, layer.name));
+					ui.lay(Rect::with_size(38, y, 160, 20));
+					if ui.btn_label_left(100 + i as u32, &format!("  {}: {}", i, layer.name)) {
+						println!("select layer: {}", i);
+						select = Some(i);
+					}
 				}
+			}
+			if let Some(select) = select {
+				self.tools.editor.select_layer(select);
+			}
+			if let Some((i, show)) = vis {
+				let _ = self.tools.editor.image.push(LayerVisible(i, show));
+				self.tools.editor.sync();
 			}
 		});
 
@@ -205,13 +260,24 @@ impl<'a> App<'a> {
 			ui.clear(BAR_BG);
 			ui.header(" Palette");
 
-			let editor = &mut self.tools.editor;
 			for i in 0..5u8 {
 				ui.lay(Rect::with_size(50, 40 + 20*i as i16, 20, 20));
-				let color = editor.image().palette[i];
-				if ui.btn_color(100 + i as u32, color) {
-					editor.change_color(i as u8);
+				let color = self.tools.pal(i);
+				if ui.btn_color(1000 + i as u32, color) {
+					self.tools.editor.change_color(i as u8);
 				}
+			}
+		});
+
+		ui.panel(menubar, |mut ui| {
+			ui.clear(MENUBAR_BG);
+			ui.label_left(LABEL_COLOR, " File  Edit  Select  View  Image  Layer  Tools  Help");
+			let _r = ui.widget(999);
+			if ui.is_click() {
+				use std::thread;
+				thread::spawn(move || {
+					println!("open file: {:?}", open_file());
+				});
 			}
 		});
 	}

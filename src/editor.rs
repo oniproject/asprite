@@ -136,8 +136,18 @@ impl<'a> Tools<'a> {
 	}
 
 	pub fn color(&self) -> u32 {
-		let image = self.editor.image();
-		image.palette[image.color]
+		let m = self.editor.image.as_receiver();
+		m.palette[m.color]
+	}
+
+	pub fn pal(&self, color: u8) -> u32 {
+		let m = self.editor.image.as_receiver();
+		m.palette[color]
+	}
+
+	pub fn color_index(&self) -> u8 {
+		let m = self.editor.image.as_receiver();
+		m.color
 	}
 
 	pub fn draw(&mut self, render: &mut ui::Render) {
@@ -164,25 +174,31 @@ impl<'a> Tools<'a> {
 		render.ctx.with_multiple_texture_canvas(textures.iter(), |canvas, layer| {
 			match *layer {
 			Layer::Sprite => if self.editor.redraw {
+				let clear_color = color!(self.pal(0));
+				canvas.set_draw_color(clear_color);
+				canvas.clear();
 				self.editor.redraw = false;
-				self.editor.draw_pages(|page, stride, palette| {
-					for (idx, c) in page.iter().enumerate() {
+				self.editor.draw_pages(|page, palette| {
+					let stride = page.width;
+					let transparent = page.transparent;
+					for (idx, &c) in page.page.iter().enumerate() {
 						let x = idx % stride;
 						let y = idx / stride;
-						canvas.pixel(x as i16, y as i16, palette[*c].to_be()).unwrap();
+						if Some(c) != transparent {
+							canvas.pixel(x as i16, y as i16, palette[c].to_be()).unwrap();
+						}
 					}
 				});
 			}
 			Layer::Preview => {
 				canvas.set_draw_color(color!(TRANSPARENT));
 				canvas.clear();
-				let image = self.editor.image();
 
 				// freehand preview
 				let color = self.freehand.color;
 				for &(p, active) in &self.freehand.pts {
 					let c = if active {
-						image.palette[color].to_be()
+						self.pal(color).to_be()
 					} else {
 						red
 					};

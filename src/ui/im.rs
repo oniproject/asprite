@@ -116,6 +116,18 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		}
 	}
 
+	fn btn_label_left(&mut self, id: u32, label: &str) -> bool {
+		let r = self.widget(id);
+
+		if self.is_hot() {
+			let bg = if self.is_active() { BTN_ACTIVE } else { BTN_BG };
+			self.fill(r, bg);
+		};
+		self.border(r, BTN_BORDER);
+		self.text_center_left(r, LABEL_COLOR, label);
+		self.is_click()
+	}
+
 	fn btn_label<F: FnMut()>(&mut self, id: u32, label: &str, mut cb: F) {
 		let r = self.widget(id);
 

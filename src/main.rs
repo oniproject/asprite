@@ -2,14 +2,13 @@
 #![feature(const_fn)]
 
 //extern crate image;
+extern crate gif;
 extern crate rand;
 extern crate undo;
 extern crate sdl2;
 extern crate num_traits;
 extern crate nalgebra as na;
 extern crate nfd;
-
-use nfd::Response;
 
 use sdl2::mouse::Cursor;
 
@@ -89,25 +88,7 @@ fn _create_cursor() -> Cursor {
 	Cursor::new(&data[..], &mask[..], 8, 8, 4, 4).unwrap()
 }
 
-fn open_file() -> Option<String> {
-	let result = nfd::open_file_dialog(None, None).unwrap();
-
-	let result = match result {
-		Response::Okay(file) => Some(file),
-		Response::OkayMultiple(files) => Some(files[0].clone()),
-		Response::Cancel => None,
-	};
-	result
-}
-
 fn main() {
-	{
-		use std::thread;
-		thread::spawn(move || {
-			println!("open file: {:?}", open_file());
-		});
-	}
-
 	let sdl_context = sdl2::init().unwrap();
 	let video_subsys = sdl_context.video().unwrap();
 	let ttf_context = sdl2::ttf::init().unwrap();
@@ -133,7 +114,14 @@ fn main() {
 	let mut events = sdl_context.event_pump().unwrap();
 
 	let mut sprite = sprite::Sprite::new(160, 120);
+	sprite.add_layer("Layer Down");
+	sprite.add_layer("Layer 2");
+	sprite.add_layer("Layer 3");
+	sprite.add_layer("Layer 4");
+	sprite.add_layer("Layer Up");
+
 	create_pal(&mut sprite.palette);
+	println!("hello");
 
 	if true {
 		let page = sprite.page_mut(0, 0);
@@ -148,6 +136,8 @@ fn main() {
 			page.page[ii as usize] = pos as u8;
 		});
 	}
+
+	println!("run");
 
 	let font = ttf_context.load_font(FONT_PATH, FONT_HEIGHT).unwrap();
 
@@ -165,6 +155,7 @@ fn main() {
 
 	let mut app = app::App::new(sprite);
 
+	println!("loop");
 	let mut main_loop = || {
 		if app.quit {
 			process::exit(1);

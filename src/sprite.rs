@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 use common::*;
 
-use std::mem::swap;
-
 pub struct Sprite {
 	pub data: Vec<Layer>,
 	pub palette: Palette<u32>,
@@ -17,10 +15,8 @@ pub struct Sprite {
 
 impl Sprite {
 	pub fn new(width: usize, height: usize) -> Self {
-		let mut layer = Layer::new("Layer");
-		layer.push(Page::new(width, height));
 		Self {
-			data: vec![layer],
+			data: Vec::new(),
 			palette: Palette::new(0, None),
 			width, height,
 			frame: 0,
@@ -28,25 +24,25 @@ impl Sprite {
 			color: 0,
 		}
 	}
-	pub fn page(&self, frame: usize, layer: usize) -> &Page {
+	pub fn page(&self, layer: usize, frame: usize) -> &Page {
 		self.data[layer].get(frame)
 	}
-	pub fn page_mut(&mut self, frame: usize, layer: usize) -> &mut Page {
+	pub fn page_mut(&mut self, layer: usize, frame: usize) -> &mut Page {
 		self.data[layer].get_mut(frame)
 	}
 
-	pub fn add_frame(&mut self) {}
 	pub fn add_layer(&mut self, name: &str) {
 		let mut layer = Layer::new(name);
-		layer.push(Page::new(self.width, self.height));
+		let page = Page::new(self.width, self.height);
+		layer.push(page);
 		self.data.push(layer);
-		unimplemented!();
 	}
 }
 
 pub struct Layer {
 	pub frames: Vec<Page>,
 	pub name: String,
+	pub visible: bool,
 }
 
 impl Layer {
@@ -54,6 +50,7 @@ impl Layer {
 		Self {
 			frames: Vec::new(),
 			name: name.to_string(),
+			visible: true,
 		}
 	}
 
@@ -79,6 +76,7 @@ impl Layer {
 #[derive(Clone)]
 pub struct Page {
 	pub page: Vec<u8>,
+	pub transparent: Option<u8>,
 	pub width: usize,
 	pub height: usize,
 }
@@ -86,16 +84,15 @@ impl Page {
 	pub fn new(width: usize, height: usize) -> Self {
 		Self {
 			page: vec![0; width * height],
+			transparent: Some(0),
 			width, height,
 		}
 	}
 	pub fn copy_from(&mut self, other: &Page) {
 		self.width = other.width;
 		self.height = other.height;
+		self.transparent = other.transparent;
 		self.page.resize(other.page.len(), 0);
 		self.page.copy_from_slice(&other.page);
-	}
-	pub fn swap(&mut self, other: &mut Page) {
-		swap(self, other);
 	}
 }
