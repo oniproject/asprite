@@ -1,5 +1,6 @@
 use common::*;
 use super::*;
+use std::cell::Cell;
 
 pub struct Panel<'a, R: Immediate + 'a> {
 	render: &'a mut R,
@@ -152,6 +153,16 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 			*value = !*value;
 		}
 		self.draw_checkbox(r, *value);
+	}
+
+	fn checkbox_cell(&mut self, id: u32, value: &Cell<bool>) -> bool {
+		let r = self.widget(id);
+		let click = self.is_click();
+		if click {
+			value.set(!value.get());
+		}
+		self.draw_checkbox(r, value.get());
+		click
 	}
 
 	fn checkbox_label(&mut self, id: u32, label: &str, value: &mut bool) {

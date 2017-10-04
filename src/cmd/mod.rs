@@ -6,11 +6,10 @@ use tool::*;
 use sprite::*;
 
 use undo::record::Record;
-use std::borrow::Cow;
 
 pub struct Editor<'a> {
 	pub image: Record<'a, Sprite>,
-	pub canvas: Cow<'a, Page>,
+	pub canvas: Page,
 
 	pub redraw: bool,
 }
@@ -18,29 +17,24 @@ pub struct Editor<'a> {
 impl<'a> Editor<'a> {
 	pub fn new(image: Sprite) -> Self {
 		Editor {
-			canvas: Cow::Owned(Page::new(image.width, image.height).to_owned()),
+			canvas: Page::new(image.width, image.height).to_owned(),
 			image: Record::new(image),
 			redraw: true,
 		}
 	}
 
-	pub fn select_layer(&mut self, layer: usize) {
-		let _ = self.image.push(ChangeLayer(layer));
-		self.sync();
-	}
-
 	pub fn draw_pages<F: FnMut(&Page, &Palette<u32>)>(&self, mut f: F) {
 		let image = self.image.as_receiver();
-		let current_layer = image.layer;
-		let current_frame = image.frame;
+		let current_layer = image.layer.get();
+		let current_frame = image.frame.get();
 		for (layer_id, layer) in image.data.iter().enumerate() {
-			if !layer.visible {
+			if !layer.visible.get() {
 				continue;
 			}
 			for (frame_id, _) in layer.frames.iter().enumerate() {
 				let is_canvas = layer_id == current_layer && frame_id == current_frame;
 				let page = if is_canvas {
-					Some(self.canvas.as_ref())
+					Some(&self.canvas)
 				} else {
 					Some(image.page(layer_id, frame_id))
 				};
@@ -73,7 +67,7 @@ impl<'a> Image<i16, u8> for Editor<'a> {
 		if x && y {
 			self.redraw = true;
 			let idx = p.x + p.y * w;
-			self.canvas.to_mut().page[idx as usize] = color;
+			self.canvas.page[idx as usize] = color;
 		}
 	}
 
@@ -84,7 +78,7 @@ impl<'a> Image<i16, u8> for Editor<'a> {
 		if x && y {
 			self.redraw = true;
 			let idx = p.x + p.y * w;
-			self.canvas.to_mut().page[idx as usize] = color;
+			self.canvas.page[idx as usize] = color;
 		}
 	}
 }
@@ -92,21 +86,24 @@ impl<'a> Image<i16, u8> for Editor<'a> {
 impl<'a> Context<i16, u8> for Editor<'a> {
 	fn sync(&mut self) {
 		let m = self.image.as_receiver();
-		self.canvas.to_mut().copy_from(&m.page(m.layer, m.frame));
+		let (layer, frame) = {
+			(m.layer.get(), m.frame.get())
+		};
+		self.canvas.copy_from(&m.page(layer, frame));
 		self.redraw = true;
 	}
 
 	fn start(&mut self) -> u8 {
 		self.sync();
-		self.image.as_receiver().color
+		self.image.as_receiver().color.get()
 	}
 	fn commit(&mut self) {
 		let page = self.canvas.clone();
 		let (layer, frame) = {
 			let m = self.image.as_receiver();
-			(m.layer, m.frame)
+			(m.layer.get(), m.frame.get())
 		};
-		let _ = self.image.push(DrawCommand::new(layer, frame, page.into_owned()));
+		let _ = self.image.push(DrawCommand::new(layer, frame, page.clone()));
 		self.sync();
 	}
 	fn rollback(&mut self) {
@@ -114,6 +111,6 @@ impl<'a> Context<i16, u8> for Editor<'a> {
 	}
 
 	fn change_color(&mut self, color: u8) {
-		let _ = self.image.push(ChangeColor(color));
+		let _ = self.image.as_receiver().color.set(color);
 	}
 }

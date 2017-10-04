@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use common::*;
+use std::cell::Cell;
 
 pub struct Sprite {
 	pub data: Vec<Layer>,
@@ -7,10 +8,10 @@ pub struct Sprite {
 	pub width: usize,
 	pub height: usize,
 
-	pub frame: usize,
-	pub layer: usize,
+	pub frame: Cell<usize>,
+	pub layer: Cell<usize>,
 
-	pub color: u8,
+	pub color: Cell<u8>,
 }
 
 impl Sprite {
@@ -19,11 +20,16 @@ impl Sprite {
 			data: Vec::new(),
 			palette: Palette::new(0, None),
 			width, height,
-			frame: 0,
-			layer: 0,
-			color: 0,
+			frame: Cell::new(0),
+			layer: Cell::new(0),
+			color: Cell::new(1),
 		}
 	}
+
+	pub fn is_lock(&self) -> bool {
+		self.data[self.layer.get()].lock.get()
+	}
+
 	pub fn page(&self, layer: usize, frame: usize) -> &Page {
 		self.data[layer].get(frame)
 	}
@@ -42,7 +48,8 @@ impl Sprite {
 pub struct Layer {
 	pub frames: Vec<Page>,
 	pub name: String,
-	pub visible: bool,
+	pub visible: Cell<bool>,
+	pub lock: Cell<bool>,
 }
 
 impl Layer {
@@ -50,7 +57,8 @@ impl Layer {
 		Self {
 			frames: Vec::new(),
 			name: name.to_string(),
-			visible: true,
+			visible: Cell::new(true),
+			lock: Cell::new(false),
 		}
 	}
 

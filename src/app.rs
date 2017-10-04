@@ -8,7 +8,6 @@ use std::collections::HashMap;
 
 use common::*;
 use tool::*;
-use cmd::*;
 use ui;
 use ui::*;
 use editor::*;
@@ -52,8 +51,6 @@ pub fn open_file() -> Option<String> {
 				frame.top, frame.left, frame.width, frame.height, frame.transparent, frame.dispose);
 		}
 	}
-
-
 
 	result
 }
@@ -220,38 +217,28 @@ impl<'a> App<'a> {
 
 		ui.panel(timeline, |mut ui| {
 			ui.clear(TIMELINE_BG);
-			static mut LOCK: [bool; 5] = [false, false, false, false, false];
-			let mut vis = None;
-			let mut select = None;
+			let mut sync = false;
 			{
 				let image = self.tools.editor.image.as_receiver();
 				let count = image.data.len();
 				for (i, layer) in image.data.iter().enumerate() {
-					let lock = unsafe { &mut LOCK[i] };
 					let y = 19 + 19 * (count - i - 1) as i16;
 
 					ui.lay(Rect::with_size(0, y, 20, 20));
-					let mut show = layer.visible;
-					ui.checkbox(70 + i as u32, &mut show);
-					if show != layer.visible {
-						vis = Some((i, show));
-					}
+					sync = sync || ui.checkbox_cell(70 + i as u32, &layer.visible);
 
 					ui.lay(Rect::with_size(19, y, 20, 20));
-					ui.checkbox(90 + i as u32, lock);
+					sync = sync || ui.checkbox_cell(90 + i as u32, &layer.lock);
 
 					ui.lay(Rect::with_size(38, y, 160, 20));
 					if ui.btn_label_left(100 + i as u32, &format!("  {}: {}", i, layer.name)) {
 						println!("select layer: {}", i);
-						select = Some(i);
+						image.layer.set(i);
+						sync = true;
 					}
 				}
 			}
-			if let Some(select) = select {
-				self.tools.editor.select_layer(select);
-			}
-			if let Some((i, show)) = vis {
-				let _ = self.tools.editor.image.push(LayerVisible(i, show));
+			if sync {
 				self.tools.editor.sync();
 			}
 		});

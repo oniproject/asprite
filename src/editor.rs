@@ -59,6 +59,9 @@ impl<'a> Tools<'a> {
 	}
 
 	pub fn input(&mut self, ev: Input<i16>) {
+		if self.editor.image.as_receiver().is_lock() {
+			return
+		}
 		match self.current {
 			CurrentTool::Freehand => self.freehand.run(ev, &mut self.editor),
 			CurrentTool::Bucket => self.bucket.run(ev, &mut self.editor),
@@ -137,7 +140,7 @@ impl<'a> Tools<'a> {
 
 	pub fn color(&self) -> u32 {
 		let m = self.editor.image.as_receiver();
-		m.palette[m.color]
+		m.palette[m.color.get()]
 	}
 
 	pub fn pal(&self, color: u8) -> u32 {
@@ -147,7 +150,7 @@ impl<'a> Tools<'a> {
 
 	pub fn color_index(&self) -> u8 {
 		let m = self.editor.image.as_receiver();
-		m.color
+		m.color.get()
 	}
 
 	pub fn draw(&mut self, render: &mut ui::Render) {
@@ -174,7 +177,8 @@ impl<'a> Tools<'a> {
 		render.ctx.with_multiple_texture_canvas(textures.iter(), |canvas, layer| {
 			match *layer {
 			Layer::Sprite => if self.editor.redraw {
-				let clear_color = color!(self.pal(0));
+				let clear_color = color!(TRANSPARENT);
+				//let clear_color = color!(self.pal(0));
 				canvas.set_draw_color(clear_color);
 				canvas.clear();
 				self.editor.redraw = false;
