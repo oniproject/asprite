@@ -279,7 +279,7 @@ impl<'a> App<'a> {
 					sync = sync || ui.checkbox_cell(90 + i as u32, &layer.lock);
 
 					ui.lay(r.x(38).w(160));
-					if ui.btn_label_left(100 + i as u32, &format!("  {}: {}", i, layer.name)) {
+					if ui.btn_label_left(100 + i as u32, &format!("{}: {}", i, layer.name)) {
 						println!("select layer: {}", i);
 						image.layer.set(i);
 						sync = true;
@@ -308,7 +308,11 @@ impl<'a> App<'a> {
 		ui.panel(menubar, |mut ui| {
 			ui.clear(MENUBAR_BG);
 			ui.label_left(" File  Edit  Select  View  Image  Layer  Tools  Help");
-			let r = ui.widget(999);
+			let w = ui.width();
+			let h = ui.height();
+
+			ui.lay(Rect::new().wh(200, h));
+			let _r = ui.widget(999);
 			if ui.is_click() {
 				use std::thread;
 				thread::spawn(move || {
@@ -316,13 +320,22 @@ impl<'a> App<'a> {
 				});
 			}
 
-			let w = r.dx();
-			let h = r.dy();
 			let tabs = Rect::with_size(200, 0, w - 200, h);
 			ui.panel(tabs, |mut ui| {
-				ui.lay(tabs.w(100));
-				ui.frame(BAR_BG, None);
-				ui.label_center("file.gif");
+				let r = tabs.w(100); 
+				static mut SELECTED: usize = 0;
+				for i in 0..5 {
+					ui.lay(r.x(100 * i as i16));
+					ui.widget(555 + i as u32);
+					let bg = if unsafe { SELECTED == i } { Some(BAR_BG) } else { None };
+					if let Some(bg) = ui.btn_bg(bg, Some(BTN_BG), Some(BTN_ACTIVE)) {
+						ui.frame(bg, None);
+					}
+					if ui.is_click() {
+						unsafe { SELECTED = i; }
+					}
+					ui.label_center(&format!("file_{}.gif", i));
+				}
 			})
 		});
 	}

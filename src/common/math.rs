@@ -25,7 +25,7 @@ impl Signed for i32 {}
 impl Signed for i64 {}
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Rect<T: Signed> {
 	pub min: Point<T>,
 	pub max: Point<T>,
@@ -120,23 +120,27 @@ impl<T: Signed> Rect<T> {
 	pub fn dy(&self) -> T { self.max.y - self.min.y }
 
 	pub fn inset(self, n: T) -> Self {
+		self.inset_xy(n, n)
+	}
+
+	pub fn inset_xy(self, x: T, y: T) -> Self {
 		let Self { mut min, mut max } = self;
 		let two = T::one() + T::one();
 		let dx = max.x - min.x;
 		let dy = max.y - min.y;
-		if dx < two*n {
+		if dx < two*x {
 			min.x = (min.x + max.x) / two;
 			max.x = min.x;
 		} else {
-			min.x += n;
-			max.x -= n;
+			min.x += x;
+			max.x -= x;
 		}
-		if dy < two*n {
+		if dy < two*y {
 			min.y = (min.y + max.y) / two;
 			max.y = min.y;
 		} else {
-			min.y += n;
-			max.y -= n;
+			min.y += y;
+			max.y -= y;
 		}
 		Self {
 			min, max

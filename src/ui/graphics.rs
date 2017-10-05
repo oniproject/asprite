@@ -1,19 +1,41 @@
 use common::*;
 
-pub enum Command<'a, N: Signed, C: Copy> {
+#[derive(Clone, Debug)]
+pub enum Command<N: Signed, C: Copy> {
 	Line(Point<N>, Point<N>, C),
 	Border(Rect<N>, C),
 	Fill(Rect<N>, C),
 	Clip(Option<Rect<N>>),
-	Text(&'a str, Point<N>, C),
+	Text(String, Point<N>, C),
 	Image(usize, Rect<N>),
 }
 
 pub trait Graphics<N: Signed, C: Copy> {
 	// TODO: images
 
-	fn command<'a>(&mut self, cmd: Command<'a, N, C>);
+	fn command(&mut self, cmd: Command<N, C>);
 	fn text_size(&mut self, s: &str) -> (u32, u32);
+
+	fn channel(&mut self, ch: usize);
+
+	fn line(&mut self, a: Point<N>, b: Point<N>, color: C) {
+		self.command(Command::Line(a, b, color));
+	}
+	fn border(&mut self, r: Rect<N>, color: C) {
+		self.command(Command::Border(r, color));
+	}
+	fn fill(&mut self, r: Rect<N>, color: C) {
+		self.command(Command::Fill(r, color));
+	}
+	fn clip(&mut self, r: Option<Rect<N>>) {
+		self.command(Command::Clip(r));
+	}
+	fn image(&mut self, m: usize, r: Rect<N>) {
+		self.command(Command::Image(m, r));
+	}
+	fn text(&mut self, p: Point<N>, color: C, s: &str) {
+		self.command(Command::Text(s.to_string(), p, color));
+	}
 
 	fn text_center_left(&mut self, r: Rect<N>, color: C, s: &str) {
 		self.text_align(r, 0.0, 0.5, color, s);
@@ -42,22 +64,16 @@ pub trait Graphics<N: Signed, C: Copy> {
 		self.text(p, color, s);
 	}
 
-	fn line(&mut self, a: Point<N>, b: Point<N>, color: C) {
-		self.command(Command::Line(a, b, color));
-	}
-	fn border(&mut self, r: Rect<N>, color: C) {
-		self.command(Command::Border(r, color));
-	}
-	fn fill(&mut self, r: Rect<N>, color: C) {
-		self.command(Command::Fill(r, color));
-	}
-	fn clip(&mut self, r: Option<Rect<N>>) {
-		self.command(Command::Clip(r));
-	}
-	fn image(&mut self, m: usize, r: Rect<N>) {
-		self.command(Command::Image(m, r));
-	}
-	fn text(&mut self, p: Point<N>, color: C, s: &str) {
-		self.command(Command::Text(s, p, color));
+	fn render_frame<A, B>(&mut self, r: Rect<N>, bg: A, border: B)
+		where
+			A: Into<Option<C>>,
+			B: Into<Option<C>>,
+	{
+		if let Some(bg) = bg.into() {
+			self.fill(r, bg);
+		}
+		if let Some(border) = border.into() {
+			self.border(r, border);
+		}
 	}
 }

@@ -68,11 +68,14 @@ pub struct Render<'t, 'ttf_module, 'rwops> {
 	pub mouse: (bool, Point<i16>),
 
 	cursors: Cursors,
+
+	channel: usize,
+	cmd_buffer: Vec<Vec<Command<i16, u32>>>,
 }
 
 impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 	pub fn new(ctx: Canvas<Window>, creator: &'t TextureCreator<WindowContext>, font: Font<'ttf, 'rwops>) -> Self {
-		Render {
+		Self {
 			ctx, font, creator,
 			last: 0, hot: 0, active: 0, // kbd: 0,
 			key: None,
@@ -80,8 +83,9 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 			mouse: (false, Point::new(0, 0)),
 			textures: HashMap::new(),
 			last_texture_id: 0,
-
 			cursors: create_cursors(),
+			channel: 0,
+			cmd_buffer: vec![Vec::new()],
 		}
 	}
 
@@ -115,6 +119,7 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 
 	pub fn prepare(&mut self) {
 		self.hot = 0;
+		self.channel = 0;
 	}
 
 	pub fn finish(&mut self) -> bool {
@@ -138,13 +143,14 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 		let cur = if self.hot != 0 { SystemCursor::Hand } else { SystemCursor::Crosshair };
 		self.cursors[&cur].set();
 
+		self.run_commands();
+
 		last_active != self.active //|| last_kbd != self.kbd
 	}
 
-}
-
-impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
-	fn command(&mut self, cmd: Command<i16, u32>) {
+	fn run_commands(&mut self) {
+		for buf in &mut self.cmd_buffer {
+		for cmd in buf.drain(..) {
 		match cmd {
 			Command::Line(start, end, color) =>
 				self.ctx.line(
@@ -187,7 +193,7 @@ impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
 				let color = color!(color);
 
 				// render a surface, and convert it to a texture bound to the canvas
-				let surface = self.font.render(s).blended(color).unwrap();
+				let surface = self.font.render(&s).blended(color).unwrap();
 				let creator = self.ctx.texture_creator();
 				let texture = creator
 					.create_texture_from_surface(&surface)
@@ -201,11 +207,20 @@ impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
 					.unwrap();
 			}
 		}
+		}
+		}
+	}
+}
+
+impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
+	fn command(&mut self, cmd: Command<i16, u32>) {
+		self.cmd_buffer[self.channel].push(cmd);
 	}
 	fn text_size(&mut self, s: &str) -> (u32, u32) {
 		let (w, h) = self.font.size_of(s).unwrap();
 		(w - 1, h - 1)
 	}
+	fn channel(&mut self, ch: usize) { self.channel = ch }
 }
 
 impl<'t, 'ttf, 'rwops> Immediate for Render<'t, 'ttf, 'rwops> {

@@ -10,18 +10,17 @@ pub struct Panel<'a, R: Immediate + 'a> {
 impl<'a, R: Immediate + 'a> Graphics<i16, u32> for Panel<'a, R> {
 	fn command(&mut self, cmd: Command<i16, u32>) { self.render.command(cmd) }
 	fn text_size(&mut self, s: &str) -> (u32, u32) { self.render.text_size(s) }
+	fn channel(&mut self, ch: usize) { self.render.channel(ch) }
 }
 
 impl<'a, R: Immediate + 'a> Immediate for Panel<'a, R> {
 	fn bounds(&self) -> Rect<i16> { self.r }
-
 	fn widget(&mut self, id: u32) -> Rect<i16> { self.render.widget(id) }
-
 	fn widget_rect(&self) -> Rect<i16> { self.render.widget_rect() }
-
 	fn is_hot(&self) -> bool { self.render.is_hot() }
 	fn is_active(&self) -> bool { self.render.is_active() }
 	fn is_click(&self) -> bool { self.render.is_click() }
+
 	fn lay(&mut self, r: Rect<i16>) {
 		let r = self.r.min_translate_rect(r);
 		self.render.lay(r);
@@ -50,8 +49,9 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 	fn header(&mut self, title: &str) {
 		let w = self.width();
 		let r = Rect::new().wh(w, 20);
+		self.render_frame(r, HEADER_BG, None);
+
 		self.lay(r);
-		self.frame(HEADER_BG, None);
 		self.label_right("\u{25BC} ");
 		self.lay(r.x(FONT_HEIGHT as i16));
 		self.label_left(title);
@@ -72,12 +72,7 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 			B: Into<Option<u32>>,
 	{
 		let r = self.widget_rect();
-		if let Some(bg) = bg.into() {
-			self.fill(r, bg);
-		}
-		if let Some(border) = border.into() {
-			self.border(r, border);
-		}
+		self.render_frame(r, bg, border);
 	}
 
 	fn label_right(&mut self, text: &str) {
@@ -119,42 +114,38 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		}
 	}
 
+	fn btn_bg(&self, normal: Option<u32>, hot: Option<u32>, active: Option<u32>) -> Option<u32> {
+		if !self.is_hot() {
+			normal
+		} else if self.is_active() {
+			active
+		} else {
+			hot
+		}
+	}
+
 	fn btn_label_left(&mut self, id: u32, label: &str) -> bool {
 		let r = self.widget(id);
-
-		if self.is_hot() {
-			let bg = if self.is_active() { BTN_ACTIVE } else { BTN_BG };
+		if let Some(bg) = self.btn_bg(None, Some(BTN_BG), Some(BTN_ACTIVE)) {
 			self.fill(r, bg);
-		};
+		}
 		self.border(r, BTN_BORDER);
-		self.text_center_left(r, LABEL_COLOR, label);
+		self.text_center_left(r.inset_x(FONT_HEIGHT as i16 / 2), LABEL_COLOR, label);
 		self.is_click()
 	}
 
-	fn btn_label<F: FnMut()>(&mut self, id: u32, label: &str, mut cb: F) {
+	fn btn_label(&mut self, id: u32, label: &str) -> bool {
 		let r = self.widget(id);
 
 		let bg = 0x353D4B_FF;
 		let active_color = 0x0076FF_FF;
 
-		if self.is_hot() {
-			let bg = if self.is_active() { active_color } else { bg };
+		if let Some(bg) = self.btn_bg(None, Some(bg), Some(active_color)) {
 			self.fill(r, bg);
-		};
+		}
 		self.border(r, bg);
 		self.text_center(r, LABEL_COLOR, label);
-		if self.is_click() {
-			cb();
-		}
-	}
-
-
-	fn checkbox(&mut self, id: u32, value: &mut bool) {
-		let r = self.widget(id);
-		if self.is_click() {
-			*value = !*value;
-		}
-		self.draw_checkbox(r, *value);
+		self.is_click()
 	}
 
 	fn checkbox_cell(&mut self, id: u32, value: &Cell<bool>) -> bool {
@@ -169,11 +160,11 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 
 	fn checkbox_label(&mut self, id: u32, label: &str, value: &mut bool) {
 		let r = self.widget(id);
-		let check = r.w(r.dy());
-		let lab = r.x(r.dy() + FONT_HEIGHT as i16);
 		if self.is_click() {
 			*value = !*value;
 		}
+		let check = r.w(r.dy());
+		let lab = r.x(r.dy() + FONT_HEIGHT as i16 / 2);
 		self.draw_checkbox(check, *value);
 		self.text_center_left(lab, LABEL_COLOR, label)
 	}
