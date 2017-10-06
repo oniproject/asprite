@@ -7,7 +7,7 @@ pub enum Command<N: Signed, C: Copy> {
 	Fill(Rect<N>, C),
 	Clip(Option<Rect<N>>),
 	Text(String, Point<N>, C),
-	Image(usize, Rect<N>),
+	Image(usize, Point<N>),
 }
 
 pub trait Graphics<N: Signed, C: Copy> {
@@ -15,6 +15,7 @@ pub trait Graphics<N: Signed, C: Copy> {
 
 	fn command(&mut self, cmd: Command<N, C>);
 	fn text_size(&mut self, s: &str) -> (u32, u32);
+	fn image_size(&mut self, id: usize) -> (u32, u32);
 
 	fn channel(&mut self, ch: usize);
 
@@ -30,9 +31,21 @@ pub trait Graphics<N: Signed, C: Copy> {
 	fn clip(&mut self, r: Option<Rect<N>>) {
 		self.command(Command::Clip(r));
 	}
-	fn image(&mut self, m: usize, r: Rect<N>) {
-		self.command(Command::Image(m, r));
+
+	fn image(&mut self, m: usize, p: Point<N>) {
+		self.command(Command::Image(m, p));
 	}
+	fn image_rect_center(&mut self, m: usize, r: Rect<N>) {
+		self.image_align(m, r, 0.5, 0.5);
+	}
+
+	fn image_align(&mut self, m: usize, r: Rect<N>, x: f32, y: f32) {
+		let (tw, th) = self.image_size(m);
+		let size = Point::new(N::from(tw).unwrap(), N::from(th).unwrap());
+		let p = align32(r, x, y, size);
+		self.image(m, p);
+	}
+
 	fn text(&mut self, p: Point<N>, color: C, s: &str) {
 		self.command(Command::Text(s.to_string(), p, color));
 	}
@@ -51,16 +64,8 @@ pub trait Graphics<N: Signed, C: Copy> {
 
 	fn text_align(&mut self, r: Rect<N>, x: f32, y: f32, color: C, s: &str) {
 		let (tw, th) = self.text_size(s);
-		let (tw, th) = (N::from(tw).unwrap(), N::from(th).unwrap());
-		let (rw, rh) = (r.dx(), r.dy());
-
-		let dw = (rw - tw).to_f32().unwrap();
-		let dh = (rh - th).to_f32().unwrap();
-
-		let x = r.min.x + N::from(dw * x).unwrap();
-		let y = r.min.y + N::from(dh * y).unwrap();
-
-		let p = Point::new(x, y);
+		let size = Point::new(N::from(tw).unwrap(), N::from(th).unwrap());
+		let p = align32(r, x, y, size);
 		self.text(p, color, s);
 	}
 

@@ -39,6 +39,7 @@ mod mask;
 mod editor;
 mod cmd;
 mod sprite;
+mod grid;
 
 mod app;
 

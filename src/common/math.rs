@@ -218,3 +218,30 @@ impl<T: Signed> Rect<T> {
 		}
 	}
 }
+
+pub fn align64<N: Signed>(r: Rect<N>, x: f64, y: f64, size: Point<N>) -> Point<N> {
+	let (tw, th) = (size.x, size.y);
+	let (rw, rh) = (r.dx(), r.dy());
+
+	let dw = (rw - tw).to_f64().unwrap();
+	let dh = (rh - th).to_f64().unwrap();
+
+	let x = r.min.x + N::from(dw * x).unwrap();
+	let y = r.min.y + N::from(dh * y).unwrap();
+
+	Point::new(x, y)
+}
+
+pub fn align32<N: Signed>(r: Rect<N>, x: f32, y: f32, size: Point<N>) -> Point<N> {
+	let (tw, th) = (size.x, size.y);
+	let (tw, th) = (N::from(tw).unwrap(), N::from(th).unwrap());
+	let (rw, rh) = (r.dx(), r.dy());
+
+	let dw = (rw - tw).to_f32().unwrap();
+	let dh = (rh - th).to_f32().unwrap();
+
+	let x = r.min.x + N::from(dw * x).unwrap();
+	let y = r.min.y + N::from(dh * y).unwrap();
+
+	Point::new(x, y)
+}

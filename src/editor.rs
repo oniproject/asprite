@@ -6,18 +6,14 @@ use sprite::*;
 use ui;
 use ui::*;
 
+use grid::*;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CurrentTool {
 	Freehand,
 	Bucket,
 	EyeDropper,
 	Primitive(PrimitiveMode),
-}
-
-#[derive(PartialEq)]
-pub enum Layer {
-	Sprite,
-	Preview,
 }
 
 pub struct Tools<'a> {
@@ -30,7 +26,7 @@ pub struct Tools<'a> {
 	pub dropper: EyeDropper<i16, u8>,
 
 	pub pos: Point<i16>,
-	pub grid: Option<Point<i16>>,
+	pub grid: Grid,
 
 	pub drag: bool,
 
@@ -49,7 +45,11 @@ impl<'a> Tools<'a> {
 			m: Point::new(-100, -100),
 			drag: false,
 
-			grid: Some(Point::new(16, 16)),
+			grid: Grid {
+				show: true,
+				size: Vector::new(16, 16),
+				offset: Vector::new(-6, -6),
+			},
 
 			current: CurrentTool::Freehand,
 			prim: Primitive::new(),
@@ -168,27 +168,11 @@ impl<'a> Tools<'a> {
 			render.create_texture(EDITOR_PREVIEW_ID, w, h);
 		}
 
-		let textures = {
-			// borrow checker awesome
-			let textures = render.textures.iter_mut().filter_map(|(key, value)| {
-				match *key {
-					EDITOR_SPRITE_ID => Some((&mut value.0, Layer::Sprite)),
-					EDITOR_PREVIEW_ID => Some((&mut value.0, Layer::Preview)),
-					_ => None
-				}
-			// FIXME: maybe use mem::uninitialized? or some other?
-			}).fold((None, None), |acc, v| {
-				match v.1 {
-					Layer::Sprite => { (Some(v), acc.1) },
-					Layer::Preview => { (acc.0, Some(v)) },
-				}
-			});
-			[textures.0.unwrap(), textures.1.unwrap()]
-		};
+		{
 
-		render.ctx.with_multiple_texture_canvas(textures.iter(), |canvas, layer| {
-			match *layer {
-			Layer::Sprite => if self.editor.redraw {
+		render.by_image(&[EDITOR_SPRITE_ID, EDITOR_PREVIEW_ID], |canvas, layer| {
+			match layer {
+			EDITOR_SPRITE_ID => if self.editor.redraw {
 				let clear_color = color!(TRANSPARENT);
 				//let clear_color = color!(self.pal(0));
 				canvas.set_draw_color(clear_color);
@@ -206,7 +190,7 @@ impl<'a> Tools<'a> {
 					}
 				});
 			}
-			Layer::Preview => {
+			EDITOR_PREVIEW_ID => {
 				canvas.set_draw_color(color!(TRANSPARENT));
 				canvas.clear();
 
@@ -229,54 +213,14 @@ impl<'a> Tools<'a> {
 				_ => (),
 				}
 			}
+			_ => (),
 			}
-		}).unwrap();
-
-		{ // display image and preview
-			let size = self.size();
-			let zoom = self.zoom;
-			let size = size * zoom;
-			let pos = self.pos;
-			let dst = rect!(pos.x, pos.y, size.x, size.y);
-			for t in textures.iter() {
-				render.ctx.copy(t.0, None, dst).unwrap();
-			}
+		});
 		}
 
-		{ // grid
-			let rr = GRID_COLOR.to_be();
+		render.draw_image_zoom(EDITOR_SPRITE_ID, self.pos, self.zoom);
+		render.draw_image_zoom(EDITOR_PREVIEW_ID, self.pos, self.zoom);
 
-			let (ox, oy) = (self.pos.x, self.pos.y);
-			let size = self.size();
-			let zoom = self.zoom;
-
-			let (x1, x2) = (ox, ox + size.x * zoom);
-			let (y1, y2) = (oy, oy + size.y * zoom);
-
-			if let Some(grid) = self.grid {
-				let ex = size.x / grid.x;
-				let ey = size.y / grid.y;
-				let ix = (size.x % grid.x != 0) as i16;
-				let iy = (size.y % grid.y != 0) as i16;
-
-				for x in 1..ex + ix {
-					let x = ox - 1 + (x * grid.x) * zoom;
-					render.ctx.vline(x, y1, y2, rr).unwrap();
-				}
-
-				for y in 1..ey + iy {
-					let y = oy - 1 + (y * grid.y) * zoom;
-					render.ctx.hline(x1, x2, y, rr).unwrap();
-				}
-			}
-
-			let gg = CORNER_COLOR.to_be();
-
-			// canvas border
-			render.ctx.hline(x1-1, x2, y1-1, gg).unwrap();
-			render.ctx.hline(x1-1, x2, y2+0, gg).unwrap();
-			render.ctx.vline(x1-1, y1-1, y2, gg).unwrap();
-			render.ctx.vline(x2+0, y1-1, y2, gg).unwrap();
-		}
+		self.grid.draw(render, self.pos, self.size(), self.zoom);
 	}
 }

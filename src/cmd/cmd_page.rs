@@ -4,13 +4,13 @@ use sprite::*;
 use std::mem::swap;
 
 pub struct DrawCommand {
-	page: Page,
+	page: Frame,
 	frame: usize,
 	layer: usize,
 }
 
 impl DrawCommand {
-	pub fn new(frame: usize, layer: usize, page: Page) -> Self {
+	pub fn new(frame: usize, layer: usize, page: Frame) -> Self {
 		DrawCommand { frame, layer, page }
 	}
 	fn run(&mut self, image: &mut Sprite) -> Result<(), Box<Error>> {

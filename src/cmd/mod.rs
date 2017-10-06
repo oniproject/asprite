@@ -9,7 +9,7 @@ use undo::record::Record;
 
 pub struct Editor<'a> {
 	pub image: Record<'a, Sprite>,
-	pub canvas: Page,
+	pub canvas: Frame,
 
 	pub redraw: bool,
 }
@@ -17,13 +17,13 @@ pub struct Editor<'a> {
 impl<'a> Editor<'a> {
 	pub fn new(image: Sprite) -> Self {
 		Editor {
-			canvas: Page::new(image.width, image.height).to_owned(),
+			canvas: Frame::new(image.width, image.height).to_owned(),
 			image: Record::new(image),
 			redraw: true,
 		}
 	}
 
-	pub fn draw_pages<F: FnMut(&Page, &Palette<u32>)>(&self, mut f: F) {
+	pub fn draw_pages<F: FnMut(&Frame, &Palette<u32>)>(&self, mut f: F) {
 		let image = self.image.as_receiver();
 		let current_layer = image.layer.get();
 		let current_frame = image.frame.get();

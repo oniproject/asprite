@@ -150,67 +150,97 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 		last_active != self.active //|| last_kbd != self.kbd
 	}
 
+	pub fn draw_image_zoom(&mut self, id: usize, p: Point<i16>, zoom: i16) {
+		let &(ref texture, w, h) = &self.textures[&id];
+		let dst = rect!(p.x, p.y, zoom * w as i16, zoom * h as i16);
+		self.ctx.copy(texture, None, dst).unwrap();
+	}
+
+	pub fn by_image<F>(&mut self, ids: &[usize], mut f: F)
+		where
+			F: FnMut(&mut Canvas<Window>, usize)
+	{
+		let textures: Vec<_> = self.textures
+			.iter_mut()
+			.filter_map(|(key, value)| {
+				if ids.contains(key) {
+					Some((&mut value.0, *key))
+				} else {
+					None
+				}
+			})
+			.collect();
+
+		self.ctx.with_multiple_texture_canvas(textures.iter(), |canvas, id| f(canvas, *id)).unwrap();
+	}
+
 	fn run_commands(&mut self) {
 		for buf in &mut self.cmd_buffer {
-		for cmd in buf.drain(..) {
-		match cmd {
-			Command::Line(start, end, color) =>
-				self.ctx.line(
-					start.x, start.y,
-					end.x, end.y,
-					color.to_be()).unwrap(),
+			for cmd in buf.drain(..) {
+				match cmd {
+				Command::Line(start, end, color) => Self::line(&self.ctx, start, end, color),
+				Command::Fill(r, color) => Self::rect_filled(&self.ctx, r, color),
+				Command::Border(r, color) => Self::rect(&self.ctx, r, color),
 
-			Command::Fill(r, color) =>
-				self.ctx.box_(
-					r.min.x, r.min.y,
-					r.max.x-1, r.max.y-1,
-					color.to_be()).unwrap(),
-			Command::Border(mut r, color) => {
-				r.max.x -= 1;
-				r.max.y -= 1;
-				let color = color.to_be();
-				let (x1, x2) = (r.min.x, r.max.x);
-				self.ctx.hline(x1, x2, r.min.y, color).unwrap();
-				self.ctx.hline(x1, x2, r.max.y, color).unwrap();
-				let (y1, y2) = (r.min.y, r.max.y);
-				self.ctx.vline(r.min.x, y1, y2, color).unwrap();
-				self.ctx.vline(r.max.x, y1, y2, color).unwrap();
-			}
+				Command::Image(id, p) => {
+					let &(ref texture, w, h) = &self.textures[&id];
+					let dst = rect!(p.x, p.y, w, h);
+					self.ctx.copy(texture, None, dst).unwrap();
+				}
 
-			Command::Image(id, r) => {
-				let &(ref texture, w, h) = &self.textures[&id];
-				let dx = (r.dx() as i32 - w as i32) / 2;
-				let dy = (r.dy() as i32 - h as i32) / 2;
-				let (x, y) = (r.min.x as i32 + dx, r.min.y as i32 + dy);
-				let dst = rect!(x, y, w, h);
-				self.ctx.copy(texture, None, dst).unwrap();
-			}
+				Command::Clip(r) => {
+					self.ctx.set_clip_rect(r.map(|r|
+						rect!(r.min.x, r.min.y, r.dx(), r.dy())
+					));
+				}
 
-			Command::Clip(r) => {
-				self.ctx.set_clip_rect(r.map(|r|
-					rect!(r.min.x, r.min.y, r.dx(), r.dy())
-				));
-			}
-			Command::Text(s, p, color) => {
-				let color = color!(color);
+				Command::Text(s, p, color) => {
+					let color = color!(color);
 
-				// render a surface, and convert it to a texture bound to the canvas
-				let surface = self.font.render(&s).blended(color).unwrap();
-				let creator = self.ctx.texture_creator();
-				let texture = creator
-					.create_texture_from_surface(&surface)
-					.unwrap();
+					// render a surface, and convert it to a texture bound to the canvas
+					let surface = self.font.render(&s).blended(color).unwrap();
+					let creator = self.ctx.texture_creator();
+					let texture = creator
+						.create_texture_from_surface(&surface)
+						.unwrap();
 
-				let TextureQuery { width, height, .. } = texture.query();
-				let r = rect!(p.x, p.y, width, height);
+					let TextureQuery { width, height, .. } = texture.query();
+					let r = rect!(p.x, p.y, width, height);
 
-				self.ctx
-					.copy(&texture, None, Some(r))
-					.unwrap();
+					self.ctx
+						.copy(&texture, None, Some(r))
+						.unwrap();
+					}
+				}
 			}
 		}
-		}
-		}
+	}
+
+	fn line(ctx: &Canvas<Window>, start: Point<i16>, end: Point<i16>, color: u32) {
+		ctx.line(
+			start.x, start.y,
+			end.x, end.y,
+			color.to_be()).unwrap()
+	}
+
+	fn rect_filled(ctx: &Canvas<Window>, r: Rect<i16>, color: u32) {
+		ctx.box_(
+			r.min.x, r.min.y,
+			r.max.x-1, r.max.y-1,
+			color.to_be()).unwrap()
+	}
+
+	fn rect(ctx: &Canvas<Window>, mut r: Rect<i16>, color: u32) {
+		r.max.x -= 1;
+		r.max.y -= 1;
+
+		let color = color.to_be();
+		let (x1, x2) = (r.min.x, r.max.x);
+		ctx.hline(x1, x2, r.min.y, color).unwrap();
+		ctx.hline(x1, x2, r.max.y, color).unwrap();
+		let (y1, y2) = (r.min.y, r.max.y);
+		ctx.vline(r.min.x, y1, y2, color).unwrap();
+		ctx.vline(r.max.x, y1, y2, color).unwrap();
 	}
 }
 
@@ -221,6 +251,10 @@ impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
 	fn text_size(&mut self, s: &str) -> (u32, u32) {
 		let (w, h) = self.font.size_of(s).unwrap();
 		(w - 1, h - 1)
+	}
+	fn image_size(&mut self, id: usize) -> (u32, u32) {
+		let (_, w, h) = self.textures[&id];
+		(w, h)
 	}
 	fn channel(&mut self, ch: usize) { self.channel = ch }
 }

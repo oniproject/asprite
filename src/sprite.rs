@@ -2,6 +2,8 @@
 use common::*;
 use std::cell::Cell;
 
+use std::path::Path;
+
 use image::math::nq::NeuQuant as NQ;
 
 pub struct Sprite {
@@ -32,21 +34,21 @@ impl Sprite {
 		self.data[self.layer.get()].lock.get()
 	}
 
-	pub fn page(&self, layer: usize, frame: usize) -> &Page {
+	pub fn page(&self, layer: usize, frame: usize) -> &Frame {
 		self.data[layer].get(frame)
 	}
-	pub fn page_mut(&mut self, layer: usize, frame: usize) -> &mut Page {
+	pub fn page_mut(&mut self, layer: usize, frame: usize) -> &mut Frame {
 		self.data[layer].get_mut(frame)
 	}
 
 	pub fn add_layer(&mut self, name: &str) {
 		let mut layer = Layer::new(name);
-		let page = Page::new(self.width, self.height);
+		let page = Frame::new(self.width, self.height);
 		layer.push(page);
 		self.data.push(layer);
 	}
 
-	pub fn add_layer_page(&mut self, name: &str, page: Page) {
+	pub fn add_layer_page(&mut self, name: &str, page: Frame) {
 		let mut layer = Layer::new(name);
 		layer.push(page);
 		self.data.push(layer);
@@ -54,7 +56,7 @@ impl Sprite {
 }
 
 pub struct Layer {
-	pub frames: Vec<Page>,
+	pub frames: Vec<Frame>,
 	pub name: String,
 	pub visible: Cell<bool>,
 	pub lock: Cell<bool>,
@@ -70,41 +72,41 @@ impl Layer {
 		}
 	}
 
-	pub fn get(&self, idx: usize) -> &Page {
+	pub fn get(&self, idx: usize) -> &Frame {
 		&self.frames[idx]
 	}
 
-	pub fn get_mut(&mut self, idx: usize) -> &mut Page {
+	pub fn get_mut(&mut self, idx: usize) -> &mut Frame {
 		&mut self.frames[idx]
 	}
 
-	pub fn push(&mut self, page: Page) {
+	pub fn push(&mut self, page: Frame) {
 		self.frames.push(page)
 	}
-	pub fn insert(&mut self, pos: usize, page: Page) {
+	pub fn insert(&mut self, pos: usize, page: Frame) {
 		self.frames.insert(pos, page)
 	}
-	pub fn remove(&mut self, pos: usize) -> Page {
+	pub fn remove(&mut self, pos: usize) -> Frame {
 		self.frames.remove(pos)
 	}
 }
 
 #[derive(Clone)]
-pub struct Page {
+pub struct Frame {
 	pub page: Vec<u8>,
 	pub transparent: Option<u8>,
 	pub width: usize,
 	pub height: usize,
 }
-impl Page {
+impl Frame {
 	pub fn new(width: usize, height: usize) -> Self {
-		Self {
+		Frame {
 			page: vec![0; width * height],
 			transparent: Some(0),
 			width, height,
 		}
 	}
-	pub fn copy_from(&mut self, other: &Page) {
+	pub fn copy_from(&mut self, other: &Frame) {
 		self.width = other.width;
 		self.height = other.height;
 		self.transparent = other.transparent;
@@ -150,18 +152,32 @@ fn get_pal(nq: &NQ) -> Vec<u32> {
 	pal
 }
 
-pub fn load_sprite(filename: &str) -> Option<Sprite> {
-	use image::{open, DynamicImage};
+pub fn load_sprite<P: AsRef<Path>>(filename: P) -> Option<Sprite> {
+	use image::{load, DynamicImage, ImageFormat};
 	use image::imageops::index_colors;
 	use image::math::nq::NeuQuant;
+	use std::fs::File;
+	use std::io::BufReader;
+	use std::ascii::AsciiExt;
 
+	let format = {
+		let ext = filename.as_ref().extension()
+			.and_then(|s| s.to_str())
+			.map_or("".to_string(), |s| s.to_ascii_lowercase());
+		match &*ext {
+			"gif" => ImageFormat::GIF,
+			"png" => ImageFormat::PNG,
+			_ => unimplemented!(),
+		}
+	};
 
-	let m = open(filename).unwrap();
+	let reader = File::open(filename).unwrap();
+	let reader = BufReader::new(reader);
+
+	let m = load(reader, format).unwrap();
 
 	match m {
 		DynamicImage::ImageRgba8(m) => {
-			use sprite::Page;
-
 			let (w, h) = (m.width() as usize, m.height() as usize);
 
 			let mut sprite = Sprite::new(w, h);
@@ -173,7 +189,7 @@ pub fn load_sprite(filename: &str) -> Option<Sprite> {
 			let m = index_colors(&m, &map);
 			println!("{:?}", m);
 
-			let mut page = Page::new(w, h);
+			let mut page = Frame::new(w, h);
 			for (i, p) in m.pixels().enumerate() {
 				page.page[i] = p.data[0];
 			}

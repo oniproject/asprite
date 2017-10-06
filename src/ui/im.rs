@@ -10,6 +10,7 @@ pub struct Panel<'a, R: Immediate + 'a> {
 impl<'a, R: Immediate + 'a> Graphics<i16, u32> for Panel<'a, R> {
 	fn command(&mut self, cmd: Command<i16, u32>) { self.render.command(cmd) }
 	fn text_size(&mut self, s: &str) -> (u32, u32) { self.render.text_size(s) }
+	fn image_size(&mut self, id: usize) -> (u32, u32) { self.render.image_size(id) }
 	fn channel(&mut self, ch: usize) { self.render.channel(ch) }
 }
 
@@ -99,7 +100,7 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		if active {
 			self.fill(r, BTN_ACTIVE);
 		}
-		self.image(icon, r);
+		self.image_rect_center(icon, r);
 		self.is_click()
 	}
 
