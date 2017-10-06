@@ -11,8 +11,6 @@ pub enum Command<N: Signed, C: Copy> {
 }
 
 pub trait Graphics<N: Signed, C: Copy> {
-	// TODO: images
-
 	fn command(&mut self, cmd: Command<N, C>);
 	fn text_size(&mut self, s: &str) -> (u32, u32);
 	fn image_size(&mut self, id: usize) -> (u32, u32);
