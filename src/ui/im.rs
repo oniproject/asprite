@@ -48,12 +48,12 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 	}
 	fn header(&mut self, title: &str) {
 		let w = self.width();
-		let r = Rect::new().wh(w, 20);
+		let r = self.bounds().h(20);
 		self.render_frame(r, HEADER_BG, None);
 
+		let r = Rect::new().wh(w, 20);
 		self.lay(r);
-		self.label_right("\u{25BC} ");
-		self.lay(r.x(FONT_HEIGHT as i16));
+		self.label_right("\u{25BC}");
 		self.label_left(title);
 	}
 
@@ -76,15 +76,15 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 	}
 
 	fn label_right(&mut self, text: &str) {
-		let r = self.widget_rect();
+		let r = self.widget_rect().inset_x(INSET_X);
 		self.text_center_right(r, LABEL_COLOR, text)
 	}
 	fn label_center(&mut self, text: &str) {
-		let r = self.widget_rect();
+		let r = self.widget_rect().inset_x(INSET_X);
 		self.text_center(r, LABEL_COLOR, text)
 	}
 	fn label_left(&mut self, text: &str) {
-		let r = self.widget_rect();
+		let r = self.widget_rect().inset_x(INSET_X);
 		self.text_center_left(r, LABEL_COLOR, text)
 	}
 
@@ -126,11 +126,12 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 
 	fn btn_label_left(&mut self, id: u32, label: &str) -> bool {
 		let r = self.widget(id);
-		if let Some(bg) = self.btn_bg(None, Some(BTN_BG), Some(BTN_ACTIVE)) {
+		//if let Some(bg) = self.btn_bg(None, Some(BTN_BG), Some(BTN_ACTIVE)) {
+		if let Some(bg) = self.btn_bg(None, None, Some(BTN_ACTIVE)) {
 			self.fill(r, bg);
 		}
 		self.border(r, BTN_BORDER);
-		self.text_center_left(r.inset_x(FONT_HEIGHT as i16 / 2), LABEL_COLOR, label);
+		self.text_center_left(r.inset_x(INSET_X), LABEL_COLOR, label);
 		self.is_click()
 	}
 
@@ -164,7 +165,7 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 			*value = !*value;
 		}
 		let check = r.w(r.dy());
-		let lab = r.x(r.dy() + FONT_HEIGHT as i16 / 2);
+		let lab = r.x(r.dy() + INSET_X);
 		self.draw_checkbox(check, *value);
 		self.text_center_left(lab, LABEL_COLOR, label)
 	}

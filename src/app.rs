@@ -9,47 +9,7 @@ use tool::*;
 use ui;
 use ui::*;
 use editor::*;
-use sprite::Sprite;
-
-pub fn open_file() -> Option<String> {
-	use nfd::{self, Response};
-
-	let result = nfd::dialog().filter("gif").open().unwrap();
-
-	let result = match result {
-		Response::Okay(file) => Some(file),
-		Response::OkayMultiple(files) => Some(files[0].clone()),
-		Response::Cancel => None,
-	};
-
-	if let Some(filename) = result.clone() {
-		// Open the file
-		use std::fs::File;
-		use gif;
-		use gif::SetParameter;
-		let file = File::open(filename).unwrap();
-
-		let mut decoder = gif::Decoder::new(file);
-		// Configure the decoder such that it will expand the image to RGBA.
-		decoder.set(gif::ColorOutput::Indexed);
-		// Read the file header
-		let mut decoder = decoder.read_info().unwrap();
-		println!("{}x{} has_pal: {} bg: {:?}",
-			decoder.width(),
-			decoder.height(),
-			decoder.global_palette().is_some(),
-			decoder.bg_color(),
-		);
-		while let Some(frame) = decoder.read_next_frame().unwrap() {
-			// Process every frame
-			println!("frame[{}]: {}x{} {}x{}, transparent: {:?} dis: {:?}",
-				frame.palette.is_some(),
-				frame.top, frame.left, frame.width, frame.height, frame.transparent, frame.dispose);
-		}
-	}
-
-	result
-}
+use sprite::*;
 
 pub struct App<'a> {
 	pub update: bool,
@@ -60,10 +20,12 @@ pub struct App<'a> {
 
 impl<'a> App<'a> {
 	pub fn new(sprite: Sprite) -> Self {
+		let mut tools = Tools::new(6, Point::new(300, 300), sprite);
+		tools.editor.sync();
 		Self {
 			update: true,
 			quit: false,
-			tools: Tools::new(6, Point::new(200, 100), sprite),
+			tools,
 		}
 	}
 
@@ -89,81 +51,76 @@ impl<'a> App<'a> {
 	pub fn event(&mut self, event: sdl2::event::Event, render: &mut ui::Render) {
 		self.update = true;
 		match event {
-			Event::MouseMotion {x, y, xrel, yrel, ..} => {
-				let p = Point::new(x as i16, y as i16);
-				let v = Vector::new(xrel as i16, yrel as i16);
-				render.mouse.1 = p;
-				self.tools.mouse_move(p, v);
+		Event::MouseMotion {x, y, xrel, yrel, ..} => {
+			let p = Point::new(x as i16, y as i16);
+			let v = Vector::new(xrel as i16, yrel as i16);
+			render.mouse.1 = p;
+			self.tools.mouse_move(p, v);
+		}
+
+		Event::Quit {..} => self.quit = true,
+
+		Event::KeyUp { keycode: Some(keycode), .. } => {
+			match keycode {
+				Keycode::LShift |
+				Keycode::RShift =>
+					self.tools.input(Input::Special(false)),
+				Keycode::LCtrl |
+				Keycode::RCtrl =>
+					self.tools.drag = false,
+				_ => (),
 			}
+		}
 
-			Event::Quit {..} => self.quit = true,
+		Event::KeyDown { keycode: Some(keycode), keymod, ..} => {
+			let shift = keymod.intersects(sdl2::keyboard::LSHIFTMOD | sdl2::keyboard::RSHIFTMOD);
+			let _alt = keymod.intersects(sdl2::keyboard::LALTMOD | sdl2::keyboard::RALTMOD);
+			let _ctrl = keymod.intersects(sdl2::keyboard::LCTRLMOD | sdl2::keyboard::RCTRLMOD);
+			match keycode {
+				Keycode::Escape => self.tools.input(Input::Cancel),
 
-			Event::KeyUp { keycode: Some(keycode), ..} => {
-				match keycode {
-					Keycode::LShift |
-					Keycode::RShift =>
-						self.tools.input(Input::Special(false)),
-					Keycode::LCtrl |
-					Keycode::RCtrl =>
-						self.tools.drag = false,
-					_ => (),
-				}
+				Keycode::Plus  | Keycode::KpPlus  => self.tools.zoom_from_center(1),
+				Keycode::Minus | Keycode::KpMinus => self.tools.zoom_from_center(-1),
+
+				Keycode::LShift |
+				Keycode::RShift =>
+					self.tools.input(Input::Special(true)),
+
+				Keycode::LCtrl |
+				Keycode::RCtrl =>
+					self.tools.drag = true,
+
+				Keycode::U => self.tools.undo(),
+				Keycode::R => self.tools.redo(),
+
+				Keycode::Tab if shift => render.key = Some(ui::Key::PrevWidget),
+				Keycode::Tab if !shift => render.key = Some(ui::Key::NextWidget),
+
+				_ => (),
 			}
+		}
 
-			Event::KeyDown { keycode: Some(keycode), keymod, ..} => {
-				let shift = keymod.intersects(sdl2::keyboard::LSHIFTMOD | sdl2::keyboard::RSHIFTMOD);
-				let _alt = keymod.intersects(sdl2::keyboard::LALTMOD | sdl2::keyboard::RALTMOD);
-				let ctrl = keymod.intersects(sdl2::keyboard::LCTRLMOD | sdl2::keyboard::RCTRLMOD);
-				match keycode {
-					Keycode::Q if ctrl => self.quit = true,
-					Keycode::Escape => self.tools.input(Input::Cancel),
+		Event::MouseButtonDown { mouse_btn: MouseButton::Middle, .. } => {
+			self.tools.drag = true;
+		}
+		Event::MouseButtonUp { mouse_btn: MouseButton::Middle, .. } => {
+			self.tools.drag = false;
+		}
 
-					Keycode::Plus  | Keycode::KpPlus  => self.tools.zoom_from_center(1),
-					Keycode::Minus | Keycode::KpMinus => self.tools.zoom_from_center(-1),
+		Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
+			let p = Point::new(x as i16, y as i16);
+			render.mouse = (true, p);
+			self.tools.mouse_press(p);
+		}
+		Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
+			let p = Point::new(x as i16, y as i16);
+			render.mouse = (false, p);
+			self.tools.mouse_release(p);
+		}
 
-					Keycode::LShift |
-					Keycode::RShift =>
-						self.tools.input(Input::Special(true)),
+		Event::MouseWheel { y, ..} => { self.tools.zoom_from_mouse(y as i16); }
 
-					Keycode::LCtrl |
-					Keycode::RCtrl =>
-						self.tools.drag = true,
-
-					Keycode::U => self.tools.undo(),
-					Keycode::R => self.tools.redo(),
-
-					Keycode::Tab if shift => render.key = Some(ui::Key::PrevWidget),
-					Keycode::Tab if !shift => render.key = Some(ui::Key::NextWidget),
-
-					_ => (),
-				}
-			}
-
-			Event::MouseButtonDown { mouse_btn: MouseButton::Middle, .. } => {
-				self.tools.drag = true;
-			}
-			Event::MouseButtonUp { mouse_btn: MouseButton::Middle, .. } => {
-				self.tools.drag = false;
-			}
-
-			Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
-				let p = Point::new(x as i16, y as i16);
-				render.mouse = (true, p);
-				self.tools.mouse_press(p);
-			}
-			Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
-				let p = Point::new(x as i16, y as i16);
-				render.mouse = (false, p);
-				self.tools.mouse_release(p);
-			}
-
-			Event::MouseWheel { y, ..} => { self.tools.zoom_from_mouse(y as i16); }
-
-			// Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
-				//self.statusbar = Rect::with_size(0, h as i16 - 20, w as i16, 20);
-			// }
-
-			_ => (),
+		_ => (),
 		}
 	}
 
@@ -176,7 +133,7 @@ impl<'a> App<'a> {
 		let contextbar = Rect::with_size(0, 20, width, 40);
 		let statusbar = Rect::with_size(0, height - 20, width, 20);
 		let timeline = Rect::with_size(0, height - 20 - 200, width, 200);
-		let palette = Rect::with_size(width-250, 60, 250, 500);
+		let palette = Rect::with_size(0, 60 + 50, 250, 500);
 
 		ui.panel(contextbar, |mut ui| {
 			ui.clear(BAR_BG);
@@ -227,7 +184,7 @@ impl<'a> App<'a> {
 				ui.frame(BTN_BG, BTN_BORDER);
 
 				ui.lay(label);
-				ui.label_left(&format!(" ZOOM {}", self.tools.zoom));
+				ui.label_left(&format!("ZOOM {}", self.tools.zoom));
 				ui.lay(r1);
 				ui.btn_mini(30, "+", || self.tools.zoom_from_center(1));
 				ui.lay(r2);
@@ -254,8 +211,8 @@ impl<'a> App<'a> {
 		ui.panel(statusbar, |mut ui| {
 			ui.clear(STATUSBAR_BG);
 			let tools = &self.tools;
-			let r = ui.widget_rect();
-			ui.text_center_left(r, STATUSBAR_COLOR, &format!(" zoom:{}  #{:<3}  [{:+} {:+}]",
+			let r = ui.widget_rect().inset_x(INSET_X);
+			ui.text_center_left(r, STATUSBAR_COLOR, &format!("zoom:{}  #{:<3}  [{:+} {:+}]",
 				tools.zoom,
 				tools.color_index(),
 				tools.mouse.x, tools.mouse.y,
@@ -270,7 +227,7 @@ impl<'a> App<'a> {
 				let count = image.data.len();
 				for (i, layer) in image.data.iter().enumerate() {
 					let y = 19 + 19 * (count - i - 1) as i16;
-					let r = Rect::with_size(0, y, 20, 20);
+					let r = Rect::with_size(8, y, 20, 20);
 
 					ui.lay(r.x(0));
 					sync = sync || ui.checkbox_cell(70 + i as u32, &layer.visible);
@@ -279,6 +236,9 @@ impl<'a> App<'a> {
 					sync = sync || ui.checkbox_cell(90 + i as u32, &layer.lock);
 
 					ui.lay(r.x(38).w(160));
+					if i == image.layer.get() {
+						ui.frame(BTN_ACTIVE, None);
+					}
 					if ui.btn_label_left(100 + i as u32, &format!("{}: {}", i, layer.name)) {
 						println!("select layer: {}", i);
 						image.layer.set(i);
@@ -316,7 +276,11 @@ impl<'a> App<'a> {
 			if ui.is_click() {
 				use std::thread;
 				thread::spawn(move || {
-					println!("open file: {:?}", open_file());
+					let f = open_file();
+					println!("open file: {:?}", f);
+					if let Some(f) = f {
+						let _sprite = load_sprite(&f);
+					}
 				});
 			}
 
@@ -324,8 +288,10 @@ impl<'a> App<'a> {
 			ui.panel(tabs, |mut ui| {
 				let r = tabs.w(100); 
 				static mut SELECTED: usize = 0;
-				for i in 0..5 {
-					ui.lay(r.x(100 * i as i16));
+				let tabs_list = ["file1.gif", "2345y.gif", "245vfs.img"];
+				for (i, name) in tabs_list.iter().enumerate() {
+					let r = r.x(100 * i as i16);
+					ui.lay(r);
 					ui.widget(555 + i as u32);
 					let bg = if unsafe { SELECTED == i } { Some(BAR_BG) } else { None };
 					if let Some(bg) = ui.btn_bg(bg, Some(BTN_BG), Some(BTN_ACTIVE)) {
@@ -334,7 +300,7 @@ impl<'a> App<'a> {
 					if ui.is_click() {
 						unsafe { SELECTED = i; }
 					}
-					ui.label_center(&format!("file_{}.gif", i));
+					ui.label_left(name);
 				}
 			})
 		});

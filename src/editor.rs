@@ -37,6 +37,8 @@ pub struct Tools<'a> {
 	pub m: Point<i16>,
 	pub mouse: Point<i16>,
 	pub zoom: i16,
+
+	pub created: bool,
 }
 
 impl<'a> Tools<'a> {
@@ -55,6 +57,8 @@ impl<'a> Tools<'a> {
 			freehand: Freehand::new(),
 			dropper: EyeDropper::new(),
 			editor: Editor::new(sprite),
+
+			created: false,
 		}
 	}
 
@@ -156,6 +160,14 @@ impl<'a> Tools<'a> {
 	pub fn draw(&mut self, render: &mut ui::Render) {
 		let red = 0xFF4136_FFu32;
 
+		if !self.created {
+			self.created = true;
+			let m = self.editor.image.as_receiver();
+			let (w, h) = (m.width as u32, m.height as u32);
+			render.create_texture(EDITOR_SPRITE_ID, w, h);
+			render.create_texture(EDITOR_PREVIEW_ID, w, h);
+		}
+
 		let textures = {
 			// borrow checker awesome
 			let textures = render.textures.iter_mut().filter_map(|(key, value)| {
@@ -198,19 +210,24 @@ impl<'a> Tools<'a> {
 				canvas.set_draw_color(color!(TRANSPARENT));
 				canvas.clear();
 
-				// freehand preview
-				let color = self.freehand.color;
-				for &(p, active) in &self.freehand.pts {
-					let c = if active {
-						self.pal(color).to_be()
-					} else {
-						red
-					};
-					canvas.pixel(p.x, p.y, c).unwrap();
-				}
+				match self.current {
+				CurrentTool::Freehand => {
+					// freehand preview
+					let color = self.freehand.color;
+					for &(p, active) in &self.freehand.pts {
+						let c = if active {
+							self.pal(color).to_be()
+						} else {
+							red
+						};
+						canvas.pixel(p.x, p.y, c).unwrap();
+					}
 
-				// preview brush
-				canvas.pixel(self.mouse.x, self.mouse.y, self.color().to_be()).unwrap();
+					// preview brush
+					canvas.pixel(self.mouse.x, self.mouse.y, self.color().to_be()).unwrap();
+				}
+				_ => (),
+				}
 			}
 			}
 		}).unwrap();

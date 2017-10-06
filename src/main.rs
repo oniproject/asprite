@@ -1,8 +1,8 @@
 #![feature(step_trait)]
 #![feature(const_fn)]
 
-//extern crate image;
-extern crate gif;
+extern crate image;
+extern crate either;
 extern crate rand;
 extern crate undo;
 extern crate sdl2;
@@ -44,6 +44,8 @@ mod app;
 
 use common::*;
 use ui::*;
+
+use sprite::*;
 
 fn create_pal(pal: &mut Palette<u32>) {
 	const GB0: u32 = 0xCADC9F_FF;
@@ -113,29 +115,37 @@ fn main() {
 
 	let mut events = sdl_context.event_pump().unwrap();
 
-	let mut sprite = sprite::Sprite::new(160, 120);
-	sprite.add_layer("Layer Down");
-	sprite.add_layer("Layer 2");
-	sprite.add_layer("Layer 3");
-	sprite.add_layer("Layer 4");
-	sprite.add_layer("Layer Up");
 
-	create_pal(&mut sprite.palette);
-	println!("hello");
+	let f = open_file();
+	println!("open file: {:?}", f);
+	let sprite = f
+		.and_then(|f| load_sprite(&f))
+		.unwrap_or_else(|| {
+			let mut sprite = sprite::Sprite::new(160, 120);
+			sprite.add_layer("Layer Down");
+			sprite.add_layer("Layer 2");
+			sprite.add_layer("Layer 3");
+			sprite.add_layer("Layer 4");
+			sprite.add_layer("Layer Up");
 
-	if true {
-		let page = sprite.page_mut(0, 0);
+			create_pal(&mut sprite.palette);
+			println!("hello");
 
-		let r = Rect::with_size(0i32, 0, 159, 119);
-		let va = Point::new(20i32, 10);
-		let vb = Point::new(130i32, 100);
+			if true {
+				let page = sprite.page_mut(0, 0);
 
-		gradient::draw_gradient(r, va, vb, |p, idx, total| {
-			let pos = gradient::extra_dithered(idx, p.x as i16, p.y as i16, total, 5, 1);
-			let ii = p.x + p.y * page.width as i32;
-			page.page[ii as usize] = pos as u8;
+				let r = Rect::with_size(0i32, 0, 159, 119);
+				let va = Point::new(20i32, 10);
+				let vb = Point::new(130i32, 100);
+
+				gradient::draw_gradient(r, va, vb, |p, idx, total| {
+					let pos = gradient::extra_dithered(idx, p.x as i16, p.y as i16, total, 5, 1);
+					let ii = p.x + p.y * page.width as i32;
+					page.page[ii as usize] = pos as u8;
+				});
+			}
+			sprite
 		});
-	}
 
 	println!("run");
 
@@ -143,9 +153,6 @@ fn main() {
 
 	let creator = ctx.texture_creator();
 	let mut render = Render::new(ctx, &creator, font);
-
-	render.create_texture(EDITOR_SPRITE_ID, sprite.width as u32, sprite.height as u32);
-	render.create_texture(EDITOR_PREVIEW_ID, sprite.width as u32, sprite.height as u32);
 
 	render.load_texture(ICON_TOOL_FREEHAND, "./res/tool_freehand.png");
 	render.load_texture(ICON_TOOL_FILL, "./res/tool_fill.png");

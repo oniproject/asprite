@@ -61,10 +61,11 @@ impl<'a> Image<i16, u8> for Editor<'a> {
 	}
 
 	fn paint_brush(&mut self, p: Point<i16>, color: u8) {
-		let (w, h) = (self.canvas.width as i16, self.canvas.height as i16);
-		let x = p.x >= 0 && p.x < w;
-		let y = p.y >= 0 && p.y < h;
-		if x && y {
+		let w = self.canvas.width as i16;
+		let h = self.canvas.height as i16;
+		let r = Rect::with_size(0, 0, w, h);
+		let pp = Rect::with_size(p.x, p.y, 1, 1);
+		if let Some(_r) = r.intersect(pp) {
 			self.redraw = true;
 			let idx = p.x + p.y * w;
 			self.canvas.page[idx as usize] = color;

@@ -2,6 +2,8 @@ mod im;
 mod theme;
 mod graphics;
 
+mod event;
+
 pub use self::im::*;
 pub use self::theme::*;
 pub use self::graphics::*;

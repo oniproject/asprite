@@ -58,7 +58,6 @@ impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Primitive<N, C> {
 
 			Input::Special(on) => self.square = on,
 			Input::Press(p) => {
-				assert!(!self.active);
 				self.active = true;
 				self.color = ctx.start();
 				self.start = p;

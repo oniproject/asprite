@@ -179,6 +179,22 @@ impl<T: Signed> Rect<T> {
 		}
 	}
 
+	fn empty(&self) -> bool {
+		self.min.x >= self.max.x || self.min.y >= self.max.y
+	}
+
+	pub fn intersect(mut self, s: Self) -> Option<Self> {
+		self.min.x = self.min.x.max(s.min.x);
+		self.min.y = self.min.y.max(s.min.y);
+		self.max.x = self.max.x.min(s.max.x);
+		self.max.y = self.max.y.min(s.max.y);
+		if self.empty() {
+			None
+		} else {
+			Some(self)
+		}
+	}
+
 	pub fn min_translate(&self, p: Point<T>) -> Point<T> {
 		Point::from_coordinates(self.min.coords + p.coords)
 	}

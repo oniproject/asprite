@@ -10,7 +10,6 @@ pub struct Freehand<N: Signed, C: Copy + PartialEq> {
 	pub active: bool,
 }
 
-
 impl Freehand<i16, u8> {
 	pub fn new() -> Self {
 		Self {
@@ -49,9 +48,7 @@ impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Freehand<N, C> {
 				}
 			}
 			Input::Press(p) => {
-				assert!(!self.active);
-				if self.line {
-				} else {
+				if !self.line {
 					self.active = true;
 					self.color = ctx.start();
 					ctx.paint_brush(p, self.color);
