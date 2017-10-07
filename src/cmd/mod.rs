@@ -1,5 +1,4 @@
 mod canvas;
-mod two;
 
 mod cmd_page;
 pub use self::cmd_page::*;
@@ -254,11 +253,5 @@ impl<'a> Context<i32, u8> for Editor<'a> {
 
 		self.mask(r, &brush, color);
 		self.update(r);
-
-		//self.pixel(p.x, p.y, color);
-		// self.update_point(p);
-
-		// let r = Rect::with_size(p.x-2, p.y-2, 4, 4);
-		// self.update(r);
 	}
 }
