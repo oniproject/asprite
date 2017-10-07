@@ -7,6 +7,7 @@ use std::path::Path;
 use image::math::nq::NeuQuant as NQ;
 
 pub struct Sprite {
+	pub name: String,
 	pub data: Vec<Layer>,
 	pub palette: Palette<u32>,
 	pub width: usize,
@@ -19,8 +20,9 @@ pub struct Sprite {
 }
 
 impl Sprite {
-	pub fn new(width: usize, height: usize) -> Self {
+	pub fn new(name: &str, width: usize, height: usize) -> Self {
 		Self {
+			name: name.to_string(),
 			data: Vec::new(),
 			palette: Palette::new(0, None),
 			width, height,
@@ -153,8 +155,8 @@ fn get_pal(nq: &NQ) -> Vec<u32> {
 }
 
 pub fn load_sprite<P: AsRef<Path>>(filename: P) -> Option<Sprite> {
-	use image::{load, DynamicImage, ImageFormat};
-	use image::imageops::index_colors;
+	use image::{load, ImageFormat};
+	use image::imageops::{index_colors, dither};
 	use image::math::nq::NeuQuant;
 	use std::fs::File;
 	use std::io::BufReader;
@@ -167,53 +169,55 @@ pub fn load_sprite<P: AsRef<Path>>(filename: P) -> Option<Sprite> {
 		match &*ext {
 			"gif" => ImageFormat::GIF,
 			"png" => ImageFormat::PNG,
+			"jpeg" | "jpg" => ImageFormat::JPEG,
 			_ => unimplemented!(),
 		}
 	};
+
+	let name = filename
+		.as_ref().file_name().unwrap()
+		.to_str().unwrap()
+		.to_string();
 
 	let reader = File::open(filename).unwrap();
 	let reader = BufReader::new(reader);
 
 	let m = load(reader, format).unwrap();
+	let mut m = m.to_rgba();
 
-	match m {
-		DynamicImage::ImageRgba8(m) => {
-			let (w, h) = (m.width() as usize, m.height() as usize);
+	let (w, h) = (m.width() as usize, m.height() as usize);
 
-			let mut sprite = Sprite::new(w, h);
+	let mut sprite = Sprite::new(&name, w, h);
 
-			let data: Vec<u8> = m.pixels()
-				.flat_map(|c| c.data.iter().map(|&u| u))
-				.collect();
-			let map = NeuQuant::new(10, 256, &data);
-			let m = index_colors(&m, &map);
-			println!("{:?}", m);
+	let data: Vec<u8> = m.pixels()
+		.flat_map(|c| c.data.iter().map(|&u| u))
+		.collect();
+	let map = NeuQuant::new(10, 256, &data);
 
-			let mut page = Frame::new(w, h);
-			for (i, p) in m.pixels().enumerate() {
-				page.page[i] = p.data[0];
-			}
+	dither(&mut m, &map);
+	let m = index_colors(&m, &map);
 
-			sprite.add_layer_page("load", page);
-
-			let pal = get_pal(&map);
-			for (i, &c) in pal.iter().enumerate() {
-				println!("#{:8x} ", c);
-				if i < 256 {
-					sprite.palette[i as u8] = c;
-				}
-			}
-
-			Some(sprite)
-		}
-		_ => unimplemented!(),
+	let mut page = Frame::new(w, h);
+	for (i, p) in m.pixels().enumerate() {
+		page.page[i] = p.data[0];
 	}
+
+	sprite.add_layer_page("load", page);
+
+	let pal = get_pal(&map);
+	for (i, &c) in pal.iter().enumerate() {
+		if i < 256 {
+			sprite.palette[i as u8] = c;
+		}
+	}
+
+	Some(sprite)
 }
 
 pub fn open_file() -> Option<String> {
 	use nfd::{self, Response};
 
-	let result = nfd::dialog().filter("gif,png").open().unwrap();
+	let result = nfd::dialog().filter("gif,png,jpg,jpeg").open().unwrap();
 
 	let result = match result {
 		Response::Okay(file) => Some(file),

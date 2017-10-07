@@ -10,21 +10,35 @@ use ui;
 use ui::*;
 use editor::*;
 use sprite::*;
+use cmd::*;
+
+use undo::record::Record;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub struct App<'a> {
 	pub update: bool,
 	pub quit: bool,
+
+	pub files: Vec<ImageCell<'a>>,
+	pub current: usize,
 
 	tools: Tools<'a>,
 }
 
 impl<'a> App<'a> {
 	pub fn new(sprite: Sprite) -> Self {
-		let mut tools = Tools::new(6, Point::new(300, 300), sprite);
+		let files = vec![
+			Rc::new(RefCell::new(Record::new(sprite))),
+		];
+		
+		let mut tools = Tools::new(6, Point::new(300, 300), files[0].clone());
 		tools.editor.sync();
 		Self {
 			update: true,
 			quit: false,
+			current: 0,
+			files,
 			tools,
 		}
 	}
@@ -223,7 +237,8 @@ impl<'a> App<'a> {
 			ui.clear(TIMELINE_BG);
 			let mut sync = false;
 			{
-				let image = self.tools.editor.image.as_receiver();
+				let image = self.tools.editor.sprite();
+				let image = image.as_receiver();
 				let count = image.data.len();
 				for (i, layer) in image.data.iter().enumerate() {
 					let y = 19 + 19 * (count - i - 1) as i16;
@@ -255,10 +270,13 @@ impl<'a> App<'a> {
 			ui.clear(BAR_BG);
 			ui.header("Palette");
 
-			let r = Rect::with_size(10, 40, 20, 20);
-			for i in 0..5u8 {
-				ui.lay(r.y(20*i as i16));
-				let color = self.tools.pal(i);
+			let w = (palette.dx() - 5 * 2) / 20;
+			let r = Rect::with_size(5, 40, 20, 20);
+			for i in 0..256 {
+				let x = i % w;
+				let y = i / w;
+				ui.lay(r.xy(20*x as i16, 20*y as i16));
+				let color = self.tools.pal(i as u8);
 				if ui.btn_color(1000 + i as u32, color) {
 					self.tools.editor.change_color(i as u8);
 				}
@@ -267,40 +285,36 @@ impl<'a> App<'a> {
 
 		ui.panel(menubar, |mut ui| {
 			ui.clear(MENUBAR_BG);
-			ui.label_left(" File  Edit  Select  View  Image  Layer  Tools  Help");
+			ui.label_left("Open File");
 			let w = ui.width();
 			let h = ui.height();
 
-			ui.lay(Rect::new().wh(200, h));
-			let _r = ui.widget(999);
+			ui.lay(Rect::new().wh(40, h));
+			let _r = ui.widget(998);
 			if ui.is_click() {
-				use std::thread;
-				thread::spawn(move || {
-					let f = open_file();
-					println!("open file: {:?}", f);
-					if let Some(f) = f {
-						let _sprite = load_sprite(&f);
-					}
-				});
+				if let Some(sprite) = open_file().and_then(|f| load_sprite(&f)) {
+					self.files.push(Rc::new(RefCell::new(Record::new(sprite))));
+				}
 			}
 
-			let tabs = Rect::with_size(200, 0, w - 200, h);
+			let tabs = Rect::with_size(40, 0, w - 200, h);
 			ui.panel(tabs, |mut ui| {
 				let r = tabs.w(100); 
-				static mut SELECTED: usize = 0;
-				let tabs_list = ["file1.gif", "2345y.gif", "245vfs.img"];
-				for (i, name) in tabs_list.iter().enumerate() {
+				for (i, sprite) in self.files.iter().enumerate() {
 					let r = r.x(100 * i as i16);
 					ui.lay(r);
 					ui.widget(555 + i as u32);
-					let bg = if unsafe { SELECTED == i } { Some(BAR_BG) } else { None };
-					if let Some(bg) = ui.btn_bg(bg, Some(BTN_BG), Some(BTN_ACTIVE)) {
+					let bg = if self.current == i { Some(BAR_BG) } else { None };
+					if let Some(bg) = ui.switch(bg, BTN_BG, BTN_ACTIVE) {
 						ui.frame(bg, None);
 					}
 					if ui.is_click() {
-						unsafe { SELECTED = i; }
+						self.current = i;
+						self.tools.recreate(sprite.clone());
 					}
-					ui.label_left(name);
+					let m = sprite.borrow();
+					let m = m.as_receiver();
+					ui.label_left(&m.name);
 				}
 			})
 		});

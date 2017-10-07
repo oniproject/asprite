@@ -115,20 +115,25 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		}
 	}
 
-	fn btn_bg(&self, normal: Option<u32>, hot: Option<u32>, active: Option<u32>) -> Option<u32> {
+	fn switch<T, A, B, C>(&self, normal: A, hot: B, active: C) -> Option<T>
+		where
+			A: Into<Option<T>>,
+			B: Into<Option<T>>,
+			C: Into<Option<T>>,
+	{
 		if !self.is_hot() {
-			normal
+			normal.into()
 		} else if self.is_active() {
-			active
+			active.into()
 		} else {
-			hot
+			hot.into()
 		}
 	}
 
 	fn btn_label_left(&mut self, id: u32, label: &str) -> bool {
 		let r = self.widget(id);
 		//if let Some(bg) = self.btn_bg(None, Some(BTN_BG), Some(BTN_ACTIVE)) {
-		if let Some(bg) = self.btn_bg(None, None, Some(BTN_ACTIVE)) {
+		if let Some(bg) = self.switch(None, None, BTN_ACTIVE) {
 			self.fill(r, bg);
 		}
 		self.border(r, BTN_BORDER);
@@ -142,7 +147,7 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		let bg = 0x353D4B_FF;
 		let active_color = 0x0076FF_FF;
 
-		if let Some(bg) = self.btn_bg(None, Some(bg), Some(active_color)) {
+		if let Some(bg) = self.switch(None, bg, active_color) {
 			self.fill(r, bg);
 		}
 		self.border(r, bg);

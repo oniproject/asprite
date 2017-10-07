@@ -46,8 +46,6 @@ mod app;
 use common::*;
 use ui::*;
 
-use sprite::*;
-
 fn create_pal(pal: &mut Palette<u32>) {
 	const GB0: u32 = 0xCADC9F_FF;
 	const GB1: u32 = 0x0F380F_FF;
@@ -116,39 +114,31 @@ fn main() {
 
 	let mut events = sdl_context.event_pump().unwrap();
 
+	let sprite = {
+		let mut sprite = sprite::Sprite::new("GEN", 160, 120);
+		sprite.add_layer("Layer Down");
+		sprite.add_layer("Layer 2");
+		sprite.add_layer("Layer 3");
+		sprite.add_layer("Layer 4");
+		sprite.add_layer("Layer Up");
 
-	let f = open_file();
-	println!("open file: {:?}", f);
-	let sprite = f
-		.and_then(|f| load_sprite(&f))
-		.unwrap_or_else(|| {
-			let mut sprite = sprite::Sprite::new(160, 120);
-			sprite.add_layer("Layer Down");
-			sprite.add_layer("Layer 2");
-			sprite.add_layer("Layer 3");
-			sprite.add_layer("Layer 4");
-			sprite.add_layer("Layer Up");
+		create_pal(&mut sprite.palette);
 
-			create_pal(&mut sprite.palette);
-			println!("hello");
+		if true {
+			let page = sprite.page_mut(0, 0);
 
-			if true {
-				let page = sprite.page_mut(0, 0);
+			let r = Rect::with_size(0i32, 0, 159, 119);
+			let va = Point::new(20i32, 10);
+			let vb = Point::new(130i32, 100);
 
-				let r = Rect::with_size(0i32, 0, 159, 119);
-				let va = Point::new(20i32, 10);
-				let vb = Point::new(130i32, 100);
-
-				gradient::draw_gradient(r, va, vb, |p, idx, total| {
-					let pos = gradient::extra_dithered(idx, p.x as i16, p.y as i16, total, 5, 1);
-					let ii = p.x + p.y * page.width as i32;
-					page.page[ii as usize] = pos as u8;
-				});
-			}
-			sprite
-		});
-
-	println!("run");
+			gradient::draw_gradient(r, va, vb, |p, idx, total| {
+				let pos = gradient::extra_dithered(idx, p.x as i16, p.y as i16, total, 5, 1);
+				let ii = p.x + p.y * page.width as i32;
+				page.page[ii as usize] = pos as u8;
+			});
+		}
+		sprite
+	};
 
 	let font = ttf_context.load_font(FONT_PATH, FONT_HEIGHT).unwrap();
 
@@ -163,7 +153,6 @@ fn main() {
 
 	let mut app = app::App::new(sprite);
 
-	println!("loop");
 	let mut main_loop = || {
 		if app.quit {
 			process::exit(1);

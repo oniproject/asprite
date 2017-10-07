@@ -2,7 +2,6 @@ use common::*;
 use tool::*;
 
 use cmd::*;
-use sprite::*;
 use ui;
 use ui::*;
 
@@ -38,7 +37,7 @@ pub struct Tools<'a> {
 }
 
 impl<'a> Tools<'a> {
-	pub fn new(zoom: i16, pos: Point<i16>, sprite: Sprite) -> Self {
+	pub fn new(zoom: i16, pos: Point<i16>, sprite: ImageCell<'a>) -> Self {
 		Self {
 			zoom, pos,
 			mouse: Point::new(-100, -100),
@@ -63,7 +62,7 @@ impl<'a> Tools<'a> {
 	}
 
 	pub fn input(&mut self, ev: Input<i16>) {
-		if self.editor.image.as_receiver().is_lock() {
+		if self.editor.sprite().as_receiver().is_lock() {
 			return
 		}
 		match self.current {
@@ -100,8 +99,13 @@ impl<'a> Tools<'a> {
 		}
 	}
 
+	fn set_mouse(&mut self, p: Point<i16>) -> Point<i16> {
+		self.mouse = Point::from_coordinates((p - self.pos) / self.zoom);
+		self.mouse
+	}
+
 	pub fn zoom_from_center(&mut self, y: i16) {
-		let p = self.size();
+		let p = self.editor.size();
 		self.zoom(y, |diff| p * diff / 2);
 	}
 
@@ -123,38 +127,34 @@ impl<'a> Tools<'a> {
 		self.pos.y += p.y;
 	}
 
-	pub fn set_mouse(&mut self, p: Point<i16>) -> Point<i16> {
-		self.mouse = Point::from_coordinates((p - self.pos) / self.zoom);
-		self.mouse
-	}
-
-	pub fn size(&self) -> Point<i16> {
-		Point::new(self.editor.canvas.width as i16, self.editor.canvas.height as i16)
-	}
-
 	pub fn redo(&mut self) {
-		self.editor.image.redo();
-		self.editor.sync();
+		self.editor.redo();
 	}
 
 	pub fn undo(&mut self) {
-		self.editor.image.undo();
-		self.editor.sync();
+		self.editor.undo();
 	}
 
 	pub fn color(&self) -> u32 {
-		let m = self.editor.image.as_receiver();
+		let m = self.editor.sprite();
+		let m = m.as_receiver();
 		m.palette[m.color.get()]
 	}
 
 	pub fn pal(&self, color: u8) -> u32 {
-		let m = self.editor.image.as_receiver();
-		m.palette[color]
+		let m = self.editor.sprite();
+		m.as_receiver().palette[color]
 	}
 
 	pub fn color_index(&self) -> u8 {
-		let m = self.editor.image.as_receiver();
-		m.color.get()
+		let m = self.editor.sprite();
+		m.as_receiver().color.get()
+	}
+
+	pub fn recreate(&mut self, m: ImageCell<'a>) {
+		self.editor.image = m;
+		self.editor.sync();
+		self.created = false;
 	}
 
 	pub fn draw(&mut self, render: &mut ui::Render) {
@@ -162,13 +162,12 @@ impl<'a> Tools<'a> {
 
 		if !self.created {
 			self.created = true;
-			let m = self.editor.image.as_receiver();
+			let m = self.editor.sprite();
+			let m = m.as_receiver();
 			let (w, h) = (m.width as u32, m.height as u32);
 			render.create_texture(EDITOR_SPRITE_ID, w, h);
 			render.create_texture(EDITOR_PREVIEW_ID, w, h);
 		}
-
-		{
 
 		render.by_image(&[EDITOR_SPRITE_ID, EDITOR_PREVIEW_ID], |canvas, layer| {
 			match layer {
@@ -216,11 +215,10 @@ impl<'a> Tools<'a> {
 			_ => (),
 			}
 		});
-		}
 
 		render.draw_image_zoom(EDITOR_SPRITE_ID, self.pos, self.zoom);
 		render.draw_image_zoom(EDITOR_PREVIEW_ID, self.pos, self.zoom);
 
-		self.grid.draw(render, self.pos, self.size(), self.zoom);
+		self.grid.draw(render, self.pos, self.editor.size(), self.zoom);
 	}
 }

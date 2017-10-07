@@ -3,6 +3,7 @@ use std::ops::IndexMut;
 
 pub struct Palette<T> {
 	pub map: [T; 256],
+	pub size: usize,
 	pub transparent: Option<u8>,
 }
 
@@ -10,6 +11,7 @@ impl<T: Copy> Palette<T> {
 	pub fn new<C: Into<Option<u8>>>(def: T, c: C) -> Self {
 		Self {
 			map: [def; 256],
+			size: 256,
 			transparent: c.into(),
 		}
 	}
@@ -19,6 +21,7 @@ impl<T: Default + Copy> Palette<T> {
 	pub fn empty<C: Into<Option<u8>>>(c: C) -> Self {
 		Self {
 			map: [Default::default(); 256],
+			size: 256,
 			transparent: c.into(),
 		}
 	}
