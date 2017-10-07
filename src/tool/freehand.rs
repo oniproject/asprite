@@ -10,7 +10,7 @@ pub struct Freehand<N: Signed, C: Copy + PartialEq> {
 	pub active: bool,
 }
 
-impl Freehand<i16, u8> {
+impl Freehand<i32, u8> {
 	pub fn new() -> Self {
 		Self {
 			last: Point::new(0, 0),
@@ -24,19 +24,19 @@ impl Freehand<i16, u8> {
 	}
 }
 
-impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Freehand<N, C> {
+impl<N: Signed, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Move(p) => {
 				if self.line {
 					ctx.sync();
-					ctx.draw_line(p, self.last, self.color);
+					draw_line(p, self.last, |p| ctx.paint_brush(p, self.color));
 				} else if self.active {
 					let last = self.last;
 					if self.perfect {
 						self.update(p, last, ctx);
 					} else {
-						ctx.draw_line(p, last, self.color);
+						draw_line(p, last, |p| ctx.paint_brush(p, self.color));
 					}
 					self.last = p;
 				}
@@ -76,7 +76,7 @@ impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Freehand<N, C> {
 	}
 }
 
-impl<N: Signed, C: Copy + PartialEq> Freehand<N, C> {
+impl<N: Signed, C: Copy + Clone + Eq> Freehand<N, C> {
 	pub fn update<Ctx: Context<N, C>>(&mut self, m: Point<N>, last: Point<N>, ctx: &mut Ctx) {
 		if self.point_exists(m.x, m.y) {
 			return;

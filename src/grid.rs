@@ -9,7 +9,11 @@ pub struct Grid {
 }
 
 impl Grid {
-	pub fn draw(&self, render: &mut Render, pos: Point<i16>, size: Point<i16>, zoom: i16) {
+	pub fn draw(&self, render: &mut Render, pos: Point<i32>, size: Point<i32>, zoom: i32) {
+		let pos = Point::new(pos.x as i16, pos.y as i16);
+		let size = Point::new(size.x as i16, size.y as i16);
+		let zoom = zoom as i16;
+
 		let rr = GRID_COLOR.to_be();
 		let gg = CORNER_COLOR.to_be();
 

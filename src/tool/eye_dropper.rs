@@ -5,7 +5,7 @@ pub struct EyeDropper<N: Signed, C: Copy> {
 	pub color: C,
 }
 
-impl EyeDropper<i16, u8> {
+impl EyeDropper<i32, u8> {
 	pub fn new() -> Self {
 		EyeDropper {
 			start: Point::new(0, 0),
@@ -14,7 +14,7 @@ impl EyeDropper<i16, u8> {
 	}
 }
 
-impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for EyeDropper<N, C> {
+impl<N: Signed, C: Copy + Clone + Eq> Tool<N, C> for EyeDropper<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Press(p) => {

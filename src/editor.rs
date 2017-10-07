@@ -19,25 +19,25 @@ pub struct Tools<'a> {
 	pub current: CurrentTool,
 	pub editor: Editor<'a>,
 
-	pub freehand: Freehand<i16, u8>,
-	pub prim: Primitive<i16, u8>,
-	pub bucket: Bucket<i16, u8>,
-	pub dropper: EyeDropper<i16, u8>,
+	pub freehand: Freehand<i32, u8>,
+	pub prim: Primitive<i32, u8>,
+	pub bucket: Bucket<i32, u8>,
+	pub dropper: EyeDropper<i32, u8>,
 
-	pub pos: Point<i16>,
+	pub pos: Point<i32>,
 	pub grid: Grid,
 
 	pub drag: bool,
 
-	pub m: Point<i16>,
-	pub mouse: Point<i16>,
-	pub zoom: i16,
+	pub m: Point<i32>,
+	pub mouse: Point<i32>,
+	pub zoom: i32,
 
 	pub created: bool,
 }
 
 impl<'a> Tools<'a> {
-	pub fn new(zoom: i16, pos: Point<i16>, sprite: ImageCell<'a>) -> Self {
+	pub fn new(zoom: i32, pos: Point<i32>, sprite: ImageCell<'a>) -> Self {
 		Self {
 			zoom, pos,
 			mouse: Point::new(-100, -100),
@@ -51,17 +51,19 @@ impl<'a> Tools<'a> {
 			},
 
 			current: CurrentTool::Freehand,
+
 			prim: Primitive::new(),
 			bucket: Bucket::new(),
 			freehand: Freehand::new(),
 			dropper: EyeDropper::new(),
+
 			editor: Editor::new(sprite),
 
 			created: false,
 		}
 	}
 
-	pub fn input(&mut self, ev: Input<i16>) {
+	pub fn input(&mut self, ev: Input<i32>) {
 		if self.editor.sprite().as_receiver().is_lock() {
 			return
 		}
@@ -76,21 +78,21 @@ impl<'a> Tools<'a> {
 		}
 	}
 
-	pub fn mouse_press(&mut self, p: Point<i16>) {
+	pub fn mouse_press(&mut self, p: Point<i32>) {
 		let p = self.set_mouse(p);
 		if p.x >= 0 && p.y >= 0 {
 			self.input(Input::Press(p));
 		}
 	}
 
-	pub fn mouse_release(&mut self, p: Point<i16>) {
+	pub fn mouse_release(&mut self, p: Point<i32>) {
 		let p = self.set_mouse(p);
 		if p.x >= 0 && p.y >= 0 {
 			self.input(Input::Release(p));
 		}
 	}
 
-	pub fn mouse_move(&mut self, p: Point<i16>, v: Vector<i16>) {
+	pub fn mouse_move(&mut self, p: Point<i32>, v: Vector<i32>) {
 		let p = self.set_mouse(p);
 		if self.drag {
 			self.pos += v;
@@ -99,22 +101,22 @@ impl<'a> Tools<'a> {
 		}
 	}
 
-	fn set_mouse(&mut self, p: Point<i16>) -> Point<i16> {
+	fn set_mouse(&mut self, p: Point<i32>) -> Point<i32> {
 		self.mouse = Point::from_coordinates((p - self.pos) / self.zoom);
 		self.mouse
 	}
 
-	pub fn zoom_from_center(&mut self, y: i16) {
+	pub fn zoom_from_center(&mut self, y: i32) {
 		let p = self.editor.size();
 		self.zoom(y, |diff| p * diff / 2);
 	}
 
-	pub fn zoom_from_mouse(&mut self, y: i16) {
+	pub fn zoom_from_mouse(&mut self, y: i32) {
 		let p = self.mouse;
 		self.zoom(y, |diff| p * diff);
 	}
 
-	fn zoom<F: FnOnce(i16) -> Point<i16>>(&mut self, y: i16, f: F) {
+	fn zoom<F: FnOnce(i32) -> Point<i32>>(&mut self, y: i32, f: F) {
 		let last = self.zoom;
 		self.zoom += y;
 		if self.zoom < 1 { self.zoom = 1 }
@@ -171,22 +173,29 @@ impl<'a> Tools<'a> {
 
 		render.by_image(&[EDITOR_SPRITE_ID, EDITOR_PREVIEW_ID], |canvas, layer| {
 			match layer {
-			EDITOR_SPRITE_ID => if self.editor.redraw {
+			EDITOR_SPRITE_ID => if let Some(r) = self.editor.redraw {
+				self.editor.redraw = None;
+				let r = r.normalize();
+				let clear_rect = rect!(r.min.x, r.min.y, r.dx(), r.dy());
+				//canvas.set_clip_rect(r);
+
 				let clear_color = color!(TRANSPARENT);
-				//let clear_color = color!(self.pal(0));
+				// XXX let clear_color = color!(self.pal(0));
 				canvas.set_draw_color(clear_color);
-				canvas.clear();
-				self.editor.redraw = false;
+				canvas.draw_rect(clear_rect).unwrap();
+				//canvas.clear();
+
 				self.editor.draw_pages(|page, palette| {
-					let stride = page.width;
 					let transparent = page.transparent;
-					for (idx, &c) in page.page.iter().enumerate() {
-						let x = idx % stride;
-						let y = idx / stride;
-						if Some(c) != transparent {
-							canvas.pixel(x as i16, y as i16, palette[c].to_be()).unwrap();
-						}
-					}
+					let br = Rect::with_size(0, 0, page.width as i32, page.height as i32);
+					blit(r, br, &page.page, |x, y, color| {
+						let c = if Some(color) != transparent {
+							palette[color].to_be()
+						} else {
+							TRANSPARENT
+						};
+						canvas.pixel(x as i16, y as i16, c).unwrap();
+					})
 				});
 			}
 			EDITOR_PREVIEW_ID => {
@@ -203,11 +212,13 @@ impl<'a> Tools<'a> {
 						} else {
 							red
 						};
-						canvas.pixel(p.x, p.y, c).unwrap();
+						canvas.pixel(p.x as i16, p.y as i16, c).unwrap();
 					}
 
 					// preview brush
-					canvas.pixel(self.mouse.x, self.mouse.y, self.color().to_be()).unwrap();
+					canvas.pixel(
+						self.mouse.x as i16, self.mouse.y as i16,
+						self.color().to_be()).unwrap();
 				}
 				_ => (),
 				}
@@ -216,8 +227,11 @@ impl<'a> Tools<'a> {
 			}
 		});
 
-		render.draw_image_zoom(EDITOR_SPRITE_ID, self.pos, self.zoom);
-		render.draw_image_zoom(EDITOR_PREVIEW_ID, self.pos, self.zoom);
+		let pos = Point::new(self.pos.x as i16, self.pos.y as i16);
+		let zoom = self.zoom as i16;
+
+		render.draw_image_zoom(EDITOR_SPRITE_ID, pos, zoom);
+		render.draw_image_zoom(EDITOR_PREVIEW_ID, pos, zoom);
 
 		self.grid.draw(render, self.pos, self.editor.size(), self.zoom);
 	}

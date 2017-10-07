@@ -9,6 +9,7 @@ pub enum PrimitiveMode {
 
 pub struct Primitive<N: Signed, C: Copy> {
 	pub start: Point<N>,
+	pub last: Point<N>,
 	pub color: C,
 	pub active: bool,
 	pub square: bool,
@@ -16,10 +17,11 @@ pub struct Primitive<N: Signed, C: Copy> {
 	pub fill: bool,
 }
 
-impl Primitive<i16, u8> {
+impl Primitive<i32, u8> {
 	pub fn new() -> Self {
 		Primitive {
 			start: Point::new(0, 0),
+			last: Point::new(0, 0),
 			color: 0,
 			active: false,
 			square: false,
@@ -29,7 +31,7 @@ impl Primitive<i16, u8> {
 	}
 }
 
-impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Primitive<N, C> {
+impl<N: Signed, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Move(p) => {
@@ -46,14 +48,18 @@ impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Primitive<N, C> {
 					} else {
 						p
 					};
-					let r = Rect { min: p, max: self.start }.normalize();
+					let mut r = Rect { min: p, max: self.start }
+						.normalize();
+					r.max += Vector::new(N::one(), N::one());
 					match (self.fill, self.mode) {
-						(true, PrimitiveMode::Rect) => ctx.fill_rect(r, self.color),
-						(false, PrimitiveMode::Rect) => ctx.draw_rect(r, self.color),
-						(false, PrimitiveMode::Ellipse) => ctx.draw_ellipse(r, self.color),
-						(true, PrimitiveMode::Ellipse) => ctx.fill_ellipse(r, self.color),
+						(true, PrimitiveMode::Rect) => ctx.rect_fill(r, self.color),
+						(false, PrimitiveMode::Rect) => ctx.rect(r, self.color),
+						(false, PrimitiveMode::Ellipse) => ctx.ellipse(r, self.color),
+						(true, PrimitiveMode::Ellipse) => ctx.ellipse_fill(r, self.color),
 					}
+					ctx.update(r.union_point(self.last));
 				}
+				self.last = p;
 			}
 
 			Input::Special(on) => self.square = on,
@@ -61,6 +67,7 @@ impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Primitive<N, C> {
 				self.active = true;
 				self.color = ctx.start();
 				self.start = p;
+				self.last = p;
 			}
 			Input::Release(_) => {
 				self.active = false;

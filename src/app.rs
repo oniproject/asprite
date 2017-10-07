@@ -67,8 +67,9 @@ impl<'a> App<'a> {
 		match event {
 		Event::MouseMotion {x, y, xrel, yrel, ..} => {
 			let p = Point::new(x as i16, y as i16);
-			let v = Vector::new(xrel as i16, yrel as i16);
 			render.mouse.1 = p;
+			let p = Point::new(x as i32, y as i32);
+			let v = Vector::new(xrel as i32, yrel as i32);
 			self.tools.mouse_move(p, v);
 		}
 
@@ -124,15 +125,17 @@ impl<'a> App<'a> {
 		Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
 			let p = Point::new(x as i16, y as i16);
 			render.mouse = (true, p);
+			let p = Point::new(x as i32, y as i32);
 			self.tools.mouse_press(p);
 		}
 		Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
 			let p = Point::new(x as i16, y as i16);
 			render.mouse = (false, p);
+			let p = Point::new(x as i32, y as i32);
 			self.tools.mouse_release(p);
 		}
 
-		Event::MouseWheel { y, ..} => { self.tools.zoom_from_mouse(y as i16); }
+		Event::MouseWheel { y, ..} => { self.tools.zoom_from_mouse(y as i32); }
 
 		_ => (),
 		}

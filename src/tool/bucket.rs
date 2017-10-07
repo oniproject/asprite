@@ -5,7 +5,7 @@ pub struct Bucket<N: Signed, C: Copy> {
 	pub color: C,
 }
 
-impl Bucket<i16, u8> {
+impl Bucket<i32, u8> {
 	pub fn new() -> Self {
 		Self {
 			start: Point::new(0, 0),
@@ -14,13 +14,15 @@ impl Bucket<i16, u8> {
 	}
 }
 
-impl<N: Signed, C: Copy + PartialEq> Tool<N, C> for Bucket<N, C> {
+impl<N: Signed, C: Copy + Clone + Eq> Tool<N, C> for Bucket<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Press(p) => {
 				let color = ctx.start();
 				ctx.scanline_fill(p, color);
 				ctx.commit();
+				let r = ctx.bounds();
+				ctx.update(r);
 			}
 			_ => (),
 		}
