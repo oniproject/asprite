@@ -44,22 +44,10 @@ impl<'a> App<'a> {
 	}
 
 	pub fn paint(&mut self, render: &mut ui::Render) {
-		self.update = false;
-
-		let editor_bg = color!(WINDOW_BG);
-
-		render.ctx.set_viewport(None);
-		render.ctx.set_clip_rect(None);
-		render.ctx.set_draw_color(editor_bg);
-		render.ctx.clear();
-
+		render.prepare(WINDOW_BG);
 		self.tools.draw(render);
-
-		render.prepare();
 		self.ui(render);
-		self.update |= render.finish();
-
-		render.ctx.present();
+		self.update = render.finish();
 	}
 
 	pub fn event(&mut self, event: sdl2::event::Event, render: &mut ui::Render) {
@@ -172,7 +160,7 @@ impl<'a> App<'a> {
 			for (i, &(icon, mode)) in modes.iter().enumerate() {
 				ui.lay(r.x(40 * i as i16));
 				let active = self.tools.current == mode;
-				if ui.btn_icon(770 + i as u32, icon, active) {
+				if ui.btn_icon(770 + i as WidgetId, icon, active) {
 					self.tools.current = mode;
 				}
 			}
@@ -248,16 +236,16 @@ impl<'a> App<'a> {
 					let r = Rect::with_size(8, y, 20, 20);
 
 					ui.lay(r.x(0));
-					sync = sync || ui.checkbox_cell(70 + i as u32, &layer.visible);
+					sync = sync || ui.checkbox_cell(70 + i as WidgetId, &layer.visible);
 
 					ui.lay(r.x(19));
-					sync = sync || ui.checkbox_cell(90 + i as u32, &layer.lock);
+					sync = sync || ui.checkbox_cell(90 + i as WidgetId, &layer.lock);
 
 					ui.lay(r.x(38).w(160));
 					if i == image.layer.get() {
 						ui.frame(BTN_ACTIVE, None);
 					}
-					if ui.btn_label_left(100 + i as u32, &format!("{}: {}", i, layer.name)) {
+					if ui.btn_label_left(100 + i as WidgetId, &format!("{}: {}", i, layer.name)) {
 						println!("select layer: {}", i);
 						image.layer.set(i);
 						sync = true;
@@ -280,7 +268,7 @@ impl<'a> App<'a> {
 				let y = i / w;
 				ui.lay(r.xy(20*x as i16, 20*y as i16));
 				let color = self.tools.pal(i as u8);
-				if ui.btn_color(1000 + i as u32, color) {
+				if ui.btn_color(1000 + i as WidgetId, color) {
 					self.tools.editor.change_color(i as u8);
 				}
 			}
@@ -306,7 +294,7 @@ impl<'a> App<'a> {
 				for (i, sprite) in self.files.iter().enumerate() {
 					let r = r.x(100 * i as i16);
 					ui.lay(r);
-					ui.widget(555 + i as u32);
+					ui.widget(555 + i as WidgetId);
 					let bg = if self.current == i { Some(BAR_BG) } else { None };
 					if let Some(bg) = ui.switch(bg, BTN_BG, BTN_ACTIVE) {
 						ui.frame(bg, None);

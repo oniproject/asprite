@@ -7,10 +7,14 @@ pub enum Command<N: Signed, C: Copy> {
 	Fill(Rect<N>, C),
 	Clip(Option<Rect<N>>),
 	Text(String, Point<N>, C),
-	Image(usize, Point<N>),
+	Image(usize, Point<N>, N),
 }
 
 pub trait Graphics<N: Signed, C: Copy> {
+	type Canvas;
+
+	fn canvas<F: FnMut(&mut Self::Canvas, u32, u32)>(&mut self, id: usize, f: F);
+
 	fn command(&mut self, cmd: Command<N, C>);
 	fn text_size(&mut self, s: &str) -> (u32, u32);
 	fn image_size(&mut self, id: usize) -> (u32, u32);
@@ -20,6 +24,14 @@ pub trait Graphics<N: Signed, C: Copy> {
 	fn line(&mut self, a: Point<N>, b: Point<N>, color: C) {
 		self.command(Command::Line(a, b, color));
 	}
+
+	fn hline(&mut self, x1: N, x2: N, y: N, color: C) {
+		self.line(Point::new(x1, y), Point::new(x2, y), color);
+	}
+	fn vline(&mut self, x: N, y1: N, y2: N, color: C) {
+		self.line(Point::new(x, y1), Point::new(x, y2), color);
+	}
+
 	fn border(&mut self, r: Rect<N>, color: C) {
 		self.command(Command::Border(r, color));
 	}
@@ -31,7 +43,10 @@ pub trait Graphics<N: Signed, C: Copy> {
 	}
 
 	fn image(&mut self, m: usize, p: Point<N>) {
-		self.command(Command::Image(m, p));
+		self.command(Command::Image(m, p, N::one()));
+	}
+	fn image_zoomed(&mut self, m: usize, p: Point<N>, zoom: N) {
+		self.command(Command::Image(m, p, zoom));
 	}
 	fn image_rect_center(&mut self, m: usize, r: Rect<N>) {
 		self.image_align(m, r, 0.5, 0.5);

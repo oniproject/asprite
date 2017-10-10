@@ -48,6 +48,7 @@ impl<'a> Tools<'a> {
 				show: true,
 				size: Vector::new(16, 16),
 				offset: Vector::new(-6, -6),
+				zoom: zoom as i16,
 			},
 
 			current: CurrentTool::Freehand,
@@ -171,10 +172,11 @@ impl<'a> Tools<'a> {
 			render.create_texture(EDITOR_PREVIEW_ID, w, h);
 		}
 
-		render.by_image(&[EDITOR_SPRITE_ID, EDITOR_PREVIEW_ID], |canvas, layer| {
-			match layer {
-			EDITOR_SPRITE_ID => if let Some(r) = self.editor.redraw {
-				self.editor.redraw = None;
+		let redraw = self.editor.redraw;
+		self.editor.redraw = None;
+
+		if let Some(r) = redraw {
+			render.canvas(EDITOR_SPRITE_ID, |canvas, _, _| {
 				let r = r.normalize();
 				let clear_rect = rect!(r.min.x, r.min.y, r.dx(), r.dy());
 				//canvas.set_clip_rect(r);
@@ -183,11 +185,13 @@ impl<'a> Tools<'a> {
 				// XXX let clear_color = color!(self.pal(0));
 				canvas.set_draw_color(clear_color);
 				canvas.draw_rect(clear_rect).unwrap();
-				//canvas.clear();
+
+				canvas.clear();
 
 				self.editor.draw_pages(|page, palette| {
 					let transparent = page.transparent;
 					let br = Rect::with_size(0, 0, page.width as i32, page.height as i32);
+					let r = br;
 					blit(r, br, &page.page, |x, y, color| {
 						let c = if Some(color) != transparent {
 							palette[color].to_be()
@@ -197,31 +201,30 @@ impl<'a> Tools<'a> {
 						canvas.pixel(x as i16, y as i16, c).unwrap();
 					})
 				});
-			}
-			EDITOR_PREVIEW_ID => {
-				canvas.set_draw_color(color!(TRANSPARENT));
-				canvas.clear();
+			});
+		}
 
-				match self.current {
-				CurrentTool::Freehand => {
-					// freehand preview
-					let color = self.freehand.color;
-					for &(p, active) in &self.freehand.pts {
-						let c = if active {
-							self.pal(color).to_be()
-						} else {
-							red
-						};
-						canvas.pixel(p.x as i16, p.y as i16, c).unwrap();
-					}
+		render.canvas(EDITOR_PREVIEW_ID, |canvas, _, _| {
+			canvas.set_draw_color(color!(TRANSPARENT));
+			canvas.clear();
 
-					// preview brush
-					canvas.pixel(
-						self.mouse.x as i16, self.mouse.y as i16,
-						self.color().to_be()).unwrap();
+			match self.current {
+			CurrentTool::Freehand => {
+				// freehand preview
+				let color = self.freehand.color;
+				for &(p, active) in &self.freehand.pts {
+					let c = if active {
+						self.pal(color).to_be()
+					} else {
+						red
+					};
+					canvas.pixel(p.x as i16, p.y as i16, c).unwrap();
 				}
-				_ => (),
-				}
+
+				// preview brush
+				canvas.pixel(
+					self.mouse.x as i16, self.mouse.y as i16,
+					self.color().to_be()).unwrap();
 			}
 			_ => (),
 			}
@@ -230,9 +233,10 @@ impl<'a> Tools<'a> {
 		let pos = Point::new(self.pos.x as i16, self.pos.y as i16);
 		let zoom = self.zoom as i16;
 
-		render.draw_image_zoom(EDITOR_SPRITE_ID, pos, zoom);
-		render.draw_image_zoom(EDITOR_PREVIEW_ID, pos, zoom);
+		render.image_zoomed(EDITOR_SPRITE_ID, pos, zoom);
+		render.image_zoomed(EDITOR_PREVIEW_ID, pos, zoom);
 
-		self.grid.draw(render, self.pos, self.editor.size(), self.zoom);
+		self.grid.zoom = zoom;
+		self.grid.paint(render, self.pos, self.editor.size());
 	}
 }

@@ -110,6 +110,7 @@ fn main() {
 
 	let ctx = window.into_canvas()
 		// XXX: glitch with .software()
+		.software()
 		.build().unwrap();
 
 	let mut events = sdl_context.event_pump().unwrap();
@@ -127,7 +128,7 @@ fn main() {
 		if true {
 			let page = sprite.page_mut(0, 0);
 
-			let r = Rect::with_size(0i32, 0, 159, 119);
+			let r = Rect::with_size(0i32, 0, 160, 120);
 			let va = Point::new(20i32, 10);
 			let vb = Point::new(130i32, 100);
 

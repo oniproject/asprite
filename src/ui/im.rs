@@ -2,12 +2,18 @@ use common::*;
 use super::*;
 use std::cell::Cell;
 
+pub type WidgetId = u16;
+
 pub struct Panel<'a, R: Immediate + 'a> {
 	render: &'a mut R,
 	r: Rect<i16>,
 }
 
 impl<'a, R: Immediate + 'a> Graphics<i16, u32> for Panel<'a, R> {
+	type Canvas = R::Canvas;
+
+	fn canvas<F: FnMut(&mut Self::Canvas, u32, u32)>(&mut self, id: usize, f: F) { self.render.canvas(id, f) }
+
 	fn command(&mut self, cmd: Command<i16, u32>) { self.render.command(cmd) }
 	fn text_size(&mut self, s: &str) -> (u32, u32) { self.render.text_size(s) }
 	fn image_size(&mut self, id: usize) -> (u32, u32) { self.render.image_size(id) }
@@ -16,7 +22,7 @@ impl<'a, R: Immediate + 'a> Graphics<i16, u32> for Panel<'a, R> {
 
 impl<'a, R: Immediate + 'a> Immediate for Panel<'a, R> {
 	fn bounds(&self) -> Rect<i16> { self.r }
-	fn widget(&mut self, id: u32) -> Rect<i16> { self.render.widget(id) }
+	fn widget(&mut self, id: WidgetId) -> Rect<i16> { self.render.widget(id) }
 	fn widget_rect(&self) -> Rect<i16> { self.render.widget_rect() }
 	fn is_hot(&self) -> bool { self.render.is_hot() }
 	fn is_active(&self) -> bool { self.render.is_active() }
@@ -29,7 +35,7 @@ impl<'a, R: Immediate + 'a> Immediate for Panel<'a, R> {
 }
 
 pub trait Immediate: Sized + Graphics<i16, u32> {
-	fn widget(&mut self, id: u32) -> Rect<i16>;
+	fn widget(&mut self, id: WidgetId) -> Rect<i16>;
 	fn widget_rect(&self) -> Rect<i16>;
 
 	fn bounds(&self) -> Rect<i16>;
@@ -89,13 +95,13 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		self.text_center_left(r, LABEL_COLOR, text)
 	}
 
-	fn btn_color(&mut self, id: u32, color: u32) -> bool {
+	fn btn_color(&mut self, id: WidgetId, color: u32) -> bool {
 		let r = self.widget(id);
 		self.fill(r, color);
 		self.is_click()
 	}
 
-	fn btn_icon(&mut self, id: u32, icon: usize, active: bool) -> bool {
+	fn btn_icon(&mut self, id: WidgetId, icon: usize, active: bool) -> bool {
 		let r = self.widget(id);
 		if active {
 			self.fill(r, BTN_ACTIVE);
@@ -104,7 +110,7 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		self.is_click()
 	}
 
-	fn btn_mini<F: FnMut()>(&mut self, id: u32, label: &str, mut cb: F) {
+	fn btn_mini<F: FnMut()>(&mut self, id: WidgetId, label: &str, mut cb: F) {
 		let r = self.widget(id);
 		if self.is_hot() && self.is_active() {
 			self.fill(r, BTN_ACTIVE);
@@ -130,7 +136,7 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		}
 	}
 
-	fn btn_label_left(&mut self, id: u32, label: &str) -> bool {
+	fn btn_label_left(&mut self, id: WidgetId, label: &str) -> bool {
 		let r = self.widget(id);
 		//if let Some(bg) = self.btn_bg(None, Some(BTN_BG), Some(BTN_ACTIVE)) {
 		if let Some(bg) = self.switch(None, None, BTN_ACTIVE) {
@@ -141,7 +147,7 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		self.is_click()
 	}
 
-	fn btn_label(&mut self, id: u32, label: &str) -> bool {
+	fn btn_label(&mut self, id: WidgetId, label: &str) -> bool {
 		let r = self.widget(id);
 
 		let bg = 0x353D4B_FF;
@@ -155,7 +161,7 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		self.is_click()
 	}
 
-	fn checkbox_cell(&mut self, id: u32, value: &Cell<bool>) -> bool {
+	fn checkbox_cell(&mut self, id: WidgetId, value: &Cell<bool>) -> bool {
 		let r = self.widget(id);
 		let click = self.is_click();
 		if click {
@@ -165,7 +171,7 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		click
 	}
 
-	fn checkbox_label(&mut self, id: u32, label: &str, value: &mut bool) {
+	fn checkbox_label(&mut self, id: WidgetId, label: &str, value: &mut bool) {
 		let r = self.widget(id);
 		if self.is_click() {
 			*value = !*value;

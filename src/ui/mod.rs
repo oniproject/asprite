@@ -2,6 +2,8 @@ mod im;
 mod theme;
 mod graphics;
 
+mod widget;
+
 mod event;
 
 pub use self::im::*;
@@ -20,6 +22,8 @@ use std::path::Path;
 use std::collections::HashMap;
 
 use common::*;
+
+pub type SdlCanvas = Canvas<Window>;
 
 type Cursors = HashMap<SystemCursor, Cursor>;
 fn create_cursors() -> Cursors {
@@ -59,10 +63,10 @@ pub struct Render<'t, 'ttf_module, 'rwops> {
 	pub textures: HashMap<usize, (Texture<'t>, u32, u32)>,
 	pub last_texture_id: usize,
 
-	pub hot: u32,
-	pub active: u32,
-	//pub kbd: u32,
-	pub last: u32,
+	pub hot: WidgetId,
+	pub active: WidgetId,
+	//pub kbd: WidgetId,
+	pub last: WidgetId,
 
 	pub next_rect: Rect<i16>,
 
@@ -91,12 +95,16 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 		}
 	}
 
-	pub fn load_texture<T: Into<Option<usize>>, P: AsRef<Path>>(&mut self, id: T, filename: P) -> usize {
-		let id = id.into().unwrap_or_else(|| {
+	fn gen_id<T: Into<Option<usize>>>(&mut self, id: T) -> usize {
+		id.into().unwrap_or_else(|| {
 			let id = self.last_texture_id;
 			self.last_texture_id += 1;
 			id
-		});
+		})
+	}
+
+	pub fn load_texture<T: Into<Option<usize>>, P: AsRef<Path>>(&mut self, id: T, filename: P) -> usize {
+		let id = self.gen_id(id);
 
 		let mut texture = self.creator.load_texture(filename).unwrap();
 		texture.set_blend_mode(BlendMode::Blend);
@@ -106,11 +114,7 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 	}
 
 	pub fn create_texture<T: Into<Option<usize>>>(&mut self, id: T, w: u32, h: u32) -> usize {
-		let id = id.into().unwrap_or_else(|| {
-			let id = self.last_texture_id;
-			self.last_texture_id += 1;
-			id
-		});
+		let id = self.gen_id(id);
 
 		let mut texture = self.creator.create_texture_target(PixelFormatEnum::RGBA8888, w, h).unwrap();
 		texture.set_blend_mode(BlendMode::Blend);
@@ -119,9 +123,16 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 		id
 	}
 
-	pub fn prepare(&mut self) {
+	pub fn prepare(&mut self, bg: u32) {
 		self.hot = 0;
 		self.channel = 0;
+
+		let bg = color!(bg);
+
+		self.ctx.set_viewport(None);
+		self.ctx.set_clip_rect(None);
+		self.ctx.set_draw_color(bg);
+		self.ctx.clear();
 	}
 
 	pub fn finish(&mut self) -> bool {
@@ -131,7 +142,7 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 		if !self.mouse.0 {
 			self.active = 0;
 		} else if self.active == 0 {
-			self.active = 0xFFFFFF;
+			self.active = WidgetId::max_value();
 		}
 
 		// If no widget grabbed tab, clear focus
@@ -146,32 +157,9 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 		self.cursors[&cur].set();
 
 		self.run_commands();
+		self.ctx.present();
 
 		last_active != self.active //|| last_kbd != self.kbd
-	}
-
-	pub fn draw_image_zoom(&mut self, id: usize, p: Point<i16>, zoom: i16) {
-		let &(ref texture, w, h) = &self.textures[&id];
-		let dst = rect!(p.x, p.y, zoom * w as i16, zoom * h as i16);
-		self.ctx.copy(texture, None, dst).unwrap();
-	}
-
-	pub fn by_image<F>(&mut self, ids: &[usize], mut f: F)
-		where
-			F: FnMut(&mut Canvas<Window>, usize)
-	{
-		let textures: Vec<_> = self.textures
-			.iter_mut()
-			.filter_map(|(key, value)| {
-				if ids.contains(key) {
-					Some((&mut value.0, *key))
-				} else {
-					None
-				}
-			})
-			.collect();
-
-		self.ctx.with_multiple_texture_canvas(textures.iter(), |canvas, id| f(canvas, *id)).unwrap();
 	}
 
 	fn run_commands(&mut self) {
@@ -182,9 +170,10 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 				Command::Fill(r, color) => Self::rect_filled(&self.ctx, r, color),
 				Command::Border(r, color) => Self::rect(&self.ctx, r, color),
 
-				Command::Image(id, p) => {
+				Command::Image(id, p, zoom) => {
 					let &(ref texture, w, h) = &self.textures[&id];
-					let dst = rect!(p.x, p.y, w, h);
+					let zoom = zoom as u32;
+					let dst = rect!(p.x, p.y, w * zoom, h * zoom);
 					self.ctx.copy(texture, None, dst).unwrap();
 				}
 
@@ -245,6 +234,20 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 }
 
 impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
+	type Canvas = SdlCanvas;
+
+	fn canvas<F>(&mut self, id: usize, mut f: F)
+		where
+			F: FnMut(&mut Self::Canvas, u32, u32)
+	{
+		let texture = self.textures.get_mut(&id);
+		if let Some(texture) = texture {
+			let w = texture.1;
+			let h = texture.2;
+			self.ctx.with_texture_canvas(&mut texture.0, |canvas| f(canvas, w, h)).unwrap();
+		}
+	}
+
 	fn command(&mut self, cmd: Command<i16, u32>) {
 		self.cmd_buffer[self.channel].push(cmd);
 	}
@@ -268,7 +271,7 @@ impl<'t, 'ttf, 'rwops> Immediate for Render<'t, 'ttf, 'rwops> {
 	fn widget_rect(&self) -> Rect<i16> {
 		self.next_rect
 	}
-	fn widget(&mut self, id: u32) -> Rect<i16> {
+	fn widget(&mut self, id: WidgetId) -> Rect<i16> {
 		if self.hot == 0 && self.next_rect.contains(self.mouse.1) {
 			self.hot = id;
 			if self.active == 0 && self.mouse.0 {

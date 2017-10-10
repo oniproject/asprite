@@ -31,6 +31,16 @@ pub struct Rect<T: Signed> {
 	pub max: Point<T>,
 }
 
+impl<T: Signed> Default for Rect<T> {
+	#[inline(always)]
+	fn default() -> Self {
+		Self {
+			min: Point::new(T::zero(), T::zero()),
+			max: Point::new(T::zero(), T::zero()),
+		}
+	}
+}
+
 impl<T: Signed> Rect<T> {
 	#[inline(always)]
 	pub fn new() -> Self {
