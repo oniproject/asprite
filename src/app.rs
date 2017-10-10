@@ -55,7 +55,7 @@ impl<'a> App<'a> {
 		match event {
 		Event::MouseMotion {x, y, xrel, yrel, ..} => {
 			let p = Point::new(x as i16, y as i16);
-			render.mouse.1 = p;
+			render.mouse(Mouse::Move(p));
 			let p = Point::new(x as i32, y as i32);
 			let v = Vector::new(xrel as i32, yrel as i32);
 			self.tools.mouse_move(p, v);
@@ -112,13 +112,13 @@ impl<'a> App<'a> {
 
 		Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
 			let p = Point::new(x as i16, y as i16);
-			render.mouse = (true, p);
+			render.mouse(Mouse::Press(p));
 			let p = Point::new(x as i32, y as i32);
 			self.tools.mouse_press(p);
 		}
 		Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
 			let p = Point::new(x as i16, y as i16);
-			render.mouse = (false, p);
+			render.mouse(Mouse::Release(p));
 			let p = Point::new(x as i32, y as i32);
 			self.tools.mouse_release(p);
 		}

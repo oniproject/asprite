@@ -146,11 +146,11 @@ fn main() {
 	let creator = ctx.texture_creator();
 	let mut render = Render::new(ctx, &creator, font);
 
-	render.load_texture(ICON_TOOL_FREEHAND, "./res/tool_freehand.png");
-	render.load_texture(ICON_TOOL_FILL, "./res/tool_fill.png");
-	render.load_texture(ICON_TOOL_CIRC, "./res/tool_circ.png");
-	render.load_texture(ICON_TOOL_RECT, "./res/tool_rect.png");
-	render.load_texture(ICON_TOOL_PIP, "./res/tool_pip.png");
+	render.graph.load_texture(ICON_TOOL_FREEHAND, "./res/tool_freehand.png");
+	render.graph.load_texture(ICON_TOOL_FILL, "./res/tool_fill.png");
+	render.graph.load_texture(ICON_TOOL_CIRC, "./res/tool_circ.png");
+	render.graph.load_texture(ICON_TOOL_RECT, "./res/tool_rect.png");
+	render.graph.load_texture(ICON_TOOL_PIP, "./res/tool_pip.png");
 
 	let mut app = app::App::new(sprite);
 

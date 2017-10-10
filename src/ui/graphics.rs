@@ -1,7 +1,7 @@
 use common::*;
 
 #[derive(Clone, Debug)]
-pub enum Command<N: Signed, C: Copy> {
+pub enum Command<N: Signed, C: Copy + 'static> {
 	Line(Point<N>, Point<N>, C),
 	Border(Rect<N>, C),
 	Fill(Rect<N>, C),
@@ -10,7 +10,7 @@ pub enum Command<N: Signed, C: Copy> {
 	Image(usize, Point<N>, N),
 }
 
-pub trait Graphics<N: Signed, C: Copy> {
+pub trait Graphics<N: Signed, C: Copy + 'static> {
 	type Canvas;
 
 	fn canvas<F: FnMut(&mut Self::Canvas, u32, u32)>(&mut self, id: usize, f: F);

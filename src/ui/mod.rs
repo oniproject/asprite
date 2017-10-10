@@ -2,7 +2,7 @@ mod im;
 mod theme;
 mod graphics;
 
-mod widget;
+mod widgets;
 
 mod event;
 
@@ -54,42 +54,31 @@ pub enum Key {
 	PrevWidget,
 }
 
-pub struct Render<'t, 'ttf_module, 'rwops> {
+#[derive(Clone)]
+pub enum Mouse<N: Signed> {
+	Move(Point<N>),
+	Press(Point<N>),
+	Release(Point<N>),
+}
+
+pub struct RenderGraphics<'t, 'ttf_module, 'rwops> {
 	pub ctx: Canvas<Window>,
 	pub font: Font<'ttf_module, 'rwops>,
-
 	pub creator: &'t TextureCreator<WindowContext>,
-
 	pub textures: HashMap<usize, (Texture<'t>, u32, u32)>,
 	pub last_texture_id: usize,
-
-	pub hot: WidgetId,
-	pub active: WidgetId,
-	//pub kbd: WidgetId,
-	pub last: WidgetId,
-
-	pub next_rect: Rect<i16>,
-
-	pub key: Option<Key>,
-	pub mouse: (bool, Point<i16>),
-
-	cursors: Cursors,
 
 	channel: usize,
 	cmd_buffer: Vec<Vec<Command<i16, u32>>>,
 }
 
-impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
+impl<'t, 'ttf, 'rwops> RenderGraphics<'t, 'ttf, 'rwops> {
 	pub fn new(ctx: Canvas<Window>, creator: &'t TextureCreator<WindowContext>, font: Font<'ttf, 'rwops>) -> Self {
 		Self {
 			ctx, font, creator,
-			last: 0, hot: 0, active: 0, // kbd: 0,
-			key: None,
-			next_rect: Rect::with_coords(0, 0, 0, 0),
-			mouse: (false, Point::new(0, 0)),
+			
 			textures: HashMap::new(),
 			last_texture_id: 0,
-			cursors: create_cursors(),
 			channel: 0,
 			cmd_buffer: vec![Vec::new()],
 		}
@@ -121,45 +110,6 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 		let TextureQuery { width, height, .. } = texture.query();
 		self.textures.insert(id, (texture, width, height));
 		id
-	}
-
-	pub fn prepare(&mut self, bg: u32) {
-		self.hot = 0;
-		self.channel = 0;
-
-		let bg = color!(bg);
-
-		self.ctx.set_viewport(None);
-		self.ctx.set_clip_rect(None);
-		self.ctx.set_draw_color(bg);
-		self.ctx.clear();
-	}
-
-	pub fn finish(&mut self) -> bool {
-		let last_active = self.active;
-		//let last_kbd = self.kbd;
-
-		if !self.mouse.0 {
-			self.active = 0;
-		} else if self.active == 0 {
-			self.active = WidgetId::max_value();
-		}
-
-		// If no widget grabbed tab, clear focus
-		/*if self.key == Some(Key::NextWidget) {
-			self.kbd = 0;
-		}*/
-
-		// Clear the entered key
-		self.key = None;
-
-		let cur = if self.hot != 0 { SystemCursor::Hand } else { SystemCursor::Crosshair };
-		self.cursors[&cur].set();
-
-		self.run_commands();
-		self.ctx.present();
-
-		last_active != self.active //|| last_kbd != self.kbd
 	}
 
 	fn run_commands(&mut self) {
@@ -233,13 +183,102 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 	}
 }
 
+pub struct Render<'t, 'ttf_module, 'rwops> {
+	pub graph: RenderGraphics<'t, 'ttf_module, 'rwops>,
+
+	pub hot: WidgetId,
+	pub active: WidgetId,
+	//pub kbd: WidgetId,
+	pub last: WidgetId,
+
+	pub next_rect: Rect<i16>,
+
+	pub key: Option<Key>,
+	mouse: (bool, Point<i16>),
+
+	cursors: Cursors,
+
+	win: widgets::Window<i16, u32, RenderGraphics<'t, 'ttf_module, 'rwops>>,
+}
+
+impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
+	pub fn new(ctx: Canvas<Window>, creator: &'t TextureCreator<WindowContext>, font: Font<'ttf, 'rwops>) -> Self {
+		Self {
+			graph: RenderGraphics::new(ctx, creator, font),
+			last: 0, hot: 0, active: 0, // kbd: 0,
+			key: None,
+			next_rect: Rect::with_coords(0, 0, 0, 0),
+			mouse: (false, Point::new(0, 0)),
+			win: widgets::example(),
+			cursors: create_cursors(),
+		}
+	}
+
+	pub fn mouse(&mut self, event: Mouse<i16>) {
+		match event {
+			Mouse::Move(p) => self.mouse.1 = p,
+			Mouse::Press(p) => self.mouse = (true, p),
+			Mouse::Release(p) => self.mouse = (true, p),
+		}
+		self.win.event(event);
+	}
+
+	pub fn prepare(&mut self, bg: u32) {
+		self.hot = 0;
+		self.graph.channel = 0;
+
+		let bg = color!(bg);
+
+		self.graph.ctx.set_viewport(None);
+		self.graph.ctx.set_clip_rect(None);
+		self.graph.ctx.set_draw_color(bg);
+		self.graph.ctx.clear();
+	}
+
+	pub fn finish(&mut self) -> bool {
+		self.win.redraw.set(true);
+		self.win.paint(&mut self.graph);
+
+		let last_active = self.active;
+		//let last_kbd = self.kbd;
+
+		if !self.mouse.0 {
+			self.active = 0;
+		} else if self.active == 0 {
+			self.active = WidgetId::max_value();
+		}
+
+		// If no widget grabbed tab, clear focus
+		/*if self.key == Some(Key::NextWidget) {
+			self.kbd = 0;
+		}*/
+
+		// Clear the entered key
+		self.key = None;
+
+		let cur = if self.hot != 0 { SystemCursor::Hand } else { SystemCursor::Crosshair };
+		self.cursors[&cur].set();
+
+		self.graph.run_commands();
+		self.graph.ctx.present();
+
+		last_active != self.active //|| last_kbd != self.kbd
+	}
+
+}
 impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
 	type Canvas = SdlCanvas;
+	fn canvas<F: FnMut(&mut Self::Canvas, u32, u32)>(&mut self, id: usize, f: F) { self.graph.canvas(id, f) }
+	fn command(&mut self, cmd: Command<i16, u32>) { self.graph.command(cmd) }
+	fn text_size(&mut self, s: &str) -> (u32, u32) { self.graph.text_size(s) }
+	fn image_size(&mut self, id: usize) -> (u32, u32) { self.graph.image_size(id) }
+	fn channel(&mut self, ch: usize) { self.graph.channel(ch) }
+}
 
-	fn canvas<F>(&mut self, id: usize, mut f: F)
-		where
-			F: FnMut(&mut Self::Canvas, u32, u32)
-	{
+impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for RenderGraphics<'t, 'ttf, 'rwops> {
+	type Canvas = SdlCanvas;
+
+	fn canvas<F: FnMut(&mut Self::Canvas, u32, u32)>(&mut self, id: usize, mut f: F) {
 		let texture = self.textures.get_mut(&id);
 		if let Some(texture) = texture {
 			let w = texture.1;
@@ -264,7 +303,7 @@ impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
 
 impl<'t, 'ttf, 'rwops> Immediate for Render<'t, 'ttf, 'rwops> {
 	fn bounds(&self) -> Rect<i16> {
-		let size = self.ctx.window().size();
+		let size = self.graph.ctx.window().size();
 		Rect::with_size(0, 0, size.0 as i16, size.1 as i16)
 	}
 
