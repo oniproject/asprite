@@ -1,6 +1,6 @@
 use super::*;
 
-pub struct Freehand<N: Signed, C: Copy + PartialEq> {
+pub struct Freehand<N: SignedInt, C: Copy + PartialEq> {
 	pub perfect: bool,
 	pub line: bool,
 
@@ -24,7 +24,7 @@ impl Freehand<i32, u8> {
 	}
 }
 
-impl<N: Signed, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
+impl<N: SignedInt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Move(p) => {
@@ -76,7 +76,7 @@ impl<N: Signed, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
 	}
 }
 
-impl<N: Signed, C: Copy + Clone + Eq> Freehand<N, C> {
+impl<N: SignedInt, C: Copy + Clone + Eq> Freehand<N, C> {
 	pub fn update<Ctx: Context<N, C>>(&mut self, m: Point<N>, last: Point<N>, ctx: &mut Ctx) {
 		if self.point_exists(m.x, m.y) {
 			return;

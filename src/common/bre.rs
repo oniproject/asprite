@@ -3,7 +3,7 @@ use super::*;
 pub fn mask<N, F>(r: Rect<N>, br: Rect<N>, brush: &[bool], mut f: F)
 	where
 		F: FnMut(N, N),
-		N: Signed
+		N: SignedInt
 {
 	let w = br.dx();
 	let start = r.min - br.min;
@@ -26,7 +26,7 @@ pub fn mask<N, F>(r: Rect<N>, br: Rect<N>, brush: &[bool], mut f: F)
 pub fn blit<N, F, C>(r: Rect<N>, br: Rect<N>, brush: &[C], mut f: F)
 	where
 		F: FnMut(N, N, C),
-		N: Signed,
+		N: SignedInt,
 		C: Copy
 {
 	let w = br.dx();
@@ -48,7 +48,7 @@ pub fn blit<N, F, C>(r: Rect<N>, br: Rect<N>, brush: &[C], mut f: F)
 pub fn hline_<N, F>(x1: N, x2: N, y: N, mut pixel: F)
 	where
 		F: FnMut(Point<N>),
-		N: Signed
+		N: SignedInt
 {
 	let one = N::one();
 	for x in x1..x2+one {
@@ -59,7 +59,7 @@ pub fn hline_<N, F>(x1: N, x2: N, y: N, mut pixel: F)
 fn hline<N, F>(x1: N, x2: N, y: N, pixel: &mut F)
 	where
 		F: FnMut(Point<N>),
-		N: Signed
+		N: SignedInt
 {
 	for x in x1..x2 {
 		pixel(Point::new(x, y))
@@ -69,7 +69,7 @@ fn hline<N, F>(x1: N, x2: N, y: N, pixel: &mut F)
 fn vline<N, F>(x: N, y1: N, y2: N, pixel: &mut F)
 	where
 		F: FnMut(Point<N>),
-		N: Signed
+		N: SignedInt
 {
 	for y in y1..y2 {
 		pixel(Point::new(x, y))
@@ -79,7 +79,7 @@ fn vline<N, F>(x: N, y1: N, y2: N, pixel: &mut F)
 pub fn draw_rect<N, F>(r: Rect<N>, mut pixel: F)
 	where
 		F: FnMut(Point<N>),
-		N: Signed
+		N: SignedInt
 {
 	hline(r.min.x, r.max.x, r.min.y, &mut pixel);
 	hline(r.min.x, r.max.x, r.max.y, &mut pixel);
@@ -90,7 +90,7 @@ pub fn draw_rect<N, F>(r: Rect<N>, mut pixel: F)
 pub fn fill_rect<N, F>(r: Rect<N>, mut pixel: F)
 	where
 		F: FnMut(Point<N>),
-		N: Signed
+		N: SignedInt
 {
 	for y in r.min.y..r.max.y {
 		for x in r.min.x..r.max.x {
@@ -102,7 +102,7 @@ pub fn fill_rect<N, F>(r: Rect<N>, mut pixel: F)
 pub fn draw_line<N, F>(start: Point<N>, end: Point<N>, mut pixel: F)
 	where
 		F: FnMut(Point<N>),
-		N: Signed
+		N: SignedInt
 {
 	let one = N::one();
 	let two = N::one() + N::one();
@@ -150,7 +150,7 @@ pub fn draw_line<N, F>(start: Point<N>, end: Point<N>, mut pixel: F)
 
 pub fn draw_ellipse<N, F>(r: Rect<N>, mut seg: F)
 	where
-		N: Signed,
+		N: SignedInt,
 		F: FnMut(Point<N>, Point<N>),
 {
 	let (mut x0, mut y0, mut x1, mut y1) = (
@@ -279,7 +279,7 @@ impl Octant {
 	/// adapted from http://codereview.stackexchange.com/a/95551
 	#[inline]
 	fn from_points<T>(start: Point<T>, end: Point<T>) -> Octant
-		where T: Signed
+		where T: SignedInt
 	{
 		let mut d = end - start;
 
@@ -307,7 +307,7 @@ impl Octant {
 
 	#[inline]
 	fn to_octant0<T>(&self, p: Point<T>) -> Point<T>
-		where T: Signed
+		where T: SignedInt
 	{
 		match self.0 {
 			0 => Point::new(p.x, p.y),
@@ -324,7 +324,7 @@ impl Octant {
 
 	#[inline]
 	fn from_octant0<T>(&self, p: Point<T>) -> Point<T>
-		where T: Signed
+		where T: SignedInt
 	{
 		match self.0 {
 			0 => Point::new(p.x, p.y),
@@ -341,7 +341,7 @@ impl Octant {
 }
 
 impl<T> Bresenham<T>
-	where T: Signed
+	where T: SignedInt
 {
 	/// Creates a new iterator.Yields intermediate points between `start`
 	/// and `end`. Does include `start` but not `end`.
@@ -367,7 +367,7 @@ impl<T> Bresenham<T>
 }
 
 impl<T> Iterator for Bresenham<T>
-	where T: Signed
+	where T: SignedInt
 {
 	type Item = Point<T>;
 

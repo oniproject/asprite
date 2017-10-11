@@ -6,7 +6,7 @@ use common::*;
 pub trait Canvas<Color, N>
 	where
 		Color: Copy + Clone + Eq,
-		N: Signed,
+		N: SignedInt,
 {
 	unsafe fn pixel_unchecked(&mut self, x: N, y: N, color: Color);
 	fn update(&mut self, r: Rect<N>);

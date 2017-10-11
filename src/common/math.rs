@@ -9,29 +9,48 @@ use na::{Point2, Vector2};
 pub type Point<N> = Point2<N>;
 pub type Vector<N> = Vector2<N>;
 
-pub trait Signed:
+pub trait Num:
 	num_traits::sign::Signed +
+	num_traits::NumCast +
 	num_traits::NumAssign +
-	num_traits::int::PrimInt +
-	Ord +
 	PartialOrd<Self> +
 	Copy +
-	Step +
 	Debug + 'static
 {}
 
-impl Signed for i16 {}
-impl Signed for i32 {}
-impl Signed for i64 {}
+pub trait Float:
+	Num + num_traits::float::Float
+{
+	#[inline(always)]
+	fn lerp(v0: Self, v1: Self, t: Self) -> Self {
+		(Self::one() - t) * v0 + t * v1
+	}
+}
 
+pub trait SignedInt:
+	Num + num_traits::int::PrimInt + Ord + Step
+{}
+
+impl Num for f32 {}
+impl Num for f64 {}
+impl Num for i16 {}
+impl Num for i32 {}
+impl Num for i64 {}
+
+impl Float for f32 {}
+impl Float for f64 {}
+
+impl SignedInt for i16 {}
+impl SignedInt for i32 {}
+impl SignedInt for i64 {}
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
-pub struct Rect<T: Signed> {
+pub struct Rect<T: Num> {
 	pub min: Point<T>,
 	pub max: Point<T>,
 }
 
-impl<T: Signed> Default for Rect<T> {
+impl<T: SignedInt> Default for Rect<T> {
 	#[inline(always)]
 	fn default() -> Self {
 		Self {
@@ -41,7 +60,7 @@ impl<T: Signed> Default for Rect<T> {
 	}
 }
 
-impl<T: Signed> Rect<T> {
+impl<T: Num> Rect<T> {
 	#[inline(always)]
 	pub fn new() -> Self {
 		Self {
@@ -211,11 +230,29 @@ impl<T: Signed> Rect<T> {
 	}
 
 	#[inline(always)]
+	fn min(a: T, b: T) -> T {
+		if a < b {
+			a
+		} else {
+			b
+		}
+	}
+
+	#[inline(always)]
+	fn max(a: T, b: T) -> T {
+		if a > b {
+			a
+		} else {
+			b
+		}
+	}
+
+	#[inline(always)]
 	pub fn intersect(mut self, s: Self) -> Option<Self> {
-		self.min.x = self.min.x.max(s.min.x);
-		self.min.y = self.min.y.max(s.min.y);
-		self.max.x = self.max.x.min(s.max.x);
-		self.max.y = self.max.y.min(s.max.y);
+		self.min.x = Self::max(self.min.x, s.min.x);
+		self.min.y = Self::max(self.min.y, s.min.y);
+		self.max.x = Self::min(self.max.x, s.max.x);
+		self.max.y = Self::min(self.max.y, s.max.y);
 		if self.empty() {
 			None
 		} else {
@@ -228,30 +265,37 @@ impl<T: Signed> Rect<T> {
 		if self.empty() || s.empty() {
 			None
 		} else {
-			self.min.x = self.min.x.min(s.min.x);
-			self.min.y = self.min.y.min(s.min.y);
-			self.max.x = self.max.x.max(s.max.x);
-			self.max.y = self.max.y.max(s.max.y);
+			self.min.x = Self::min(self.min.x, s.min.x);
+			self.min.y = Self::min(self.min.y, s.min.y);
+			self.max.x = Self::max(self.max.x, s.max.x);
+			self.max.y = Self::max(self.max.y, s.max.y);
 			Some(self)
 		}
 	}
 
 	#[inline(always)]
 	pub fn union_point(mut self, p: Point<T>) -> Self {
-		self.min.x = self.min.x.min(p.x);
-		self.min.y = self.min.y.min(p.y);
-		self.max.x = self.max.x.max(p.x);
-		self.max.y = self.max.y.max(p.y);
+		self.min.x = Self::min(self.min.x, p.x);
+		self.min.y = Self::min(self.min.y, p.y);
+		self.max.x = Self::max(self.max.x, p.x);
+		self.max.y = Self::max(self.max.y, p.y);
 		self
 	}
 
 	#[inline(always)]
 	pub fn union_xy(mut self, x: T, y: T) -> Self {
-		self.min.x = self.min.x.min(x);
-		self.min.y = self.min.y.min(y);
-		self.max.x = self.max.x.max(x);
-		self.max.y = self.max.y.max(y);
+		self.min.x = Self::min(self.min.x, x);
+		self.min.y = Self::min(self.min.y, y);
+		self.max.x = Self::max(self.max.x, x);
+		self.max.y = Self::max(self.max.y, y);
 		self
+	}
+
+	#[inline(always)]
+	pub fn translate(&self, p: Point<T>) -> Self {
+		let min = Point::from_coordinates(self.min.coords + p.coords);
+		let max = Point::from_coordinates(self.max.coords + p.coords);
+		Self { min, max }
 	}
 
 	#[inline(always)]
@@ -279,31 +323,31 @@ impl<T: Signed> Rect<T> {
 			min, max
 		}
 	}
+
+	#[inline(always)]
+	pub fn align<F: Float>(&self, x: F, y: F, size: Point<T>) -> Point<T> {
+		let (tw, th) = (size.x, size.y);
+		let (rw, rh) = (self.dx(), self.dy());
+
+		let dw = F::from(rw - tw).unwrap();
+		let dh = F::from(rh - th).unwrap();
+
+		let x = self.min.x + T::from(dw * x).unwrap();
+		let y = self.min.y + T::from(dh * y).unwrap();
+
+		Point::new(x, y)
+	}
 }
 
-pub fn align64<N: Signed>(r: Rect<N>, x: f64, y: f64, size: Point<N>) -> Point<N> {
-	let (tw, th) = (size.x, size.y);
-	let (rw, rh) = (r.dx(), r.dy());
-
-	let dw = (rw - tw).to_f64().unwrap();
-	let dh = (rh - th).to_f64().unwrap();
-
-	let x = r.min.x + N::from(dw * x).unwrap();
-	let y = r.min.y + N::from(dh * y).unwrap();
-
-	Point::new(x, y)
-}
-
-pub fn align32<N: Signed>(r: Rect<N>, x: f32, y: f32, size: Point<N>) -> Point<N> {
-	let (tw, th) = (size.x, size.y);
-	let (tw, th) = (N::from(tw).unwrap(), N::from(th).unwrap());
-	let (rw, rh) = (r.dx(), r.dy());
-
-	let dw = (rw - tw).to_f32().unwrap();
-	let dh = (rh - th).to_f32().unwrap();
-
-	let x = r.min.x + N::from(dw * x).unwrap();
-	let y = r.min.y + N::from(dh * y).unwrap();
-
-	Point::new(x, y)
+impl<F: Float> Rect<F> {
+	#[inline(always)]
+	pub fn transform(&self, anchor: Self, offset: Self) -> Self {
+		let min_x = F::lerp(self.min.x, self.max.x, anchor.min.x) + offset.min.x;
+		let min_y = F::lerp(self.min.y, self.max.y, anchor.min.y) + offset.min.y;
+		let max_x = F::lerp(self.min.x, self.max.x, anchor.max.x) + offset.max.x;
+		let max_y = F::lerp(self.min.y, self.max.y, anchor.max.y) + offset.max.y;
+		let min = Point::new(min_x, min_y);
+		let max = Point::new(max_x, max_y);
+		Rect { min, max }
+	}
 }

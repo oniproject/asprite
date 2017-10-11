@@ -10,14 +10,18 @@ pub struct Panel<'a, R: Immediate + 'a> {
 }
 
 impl<'a, R: Immediate + 'a> Graphics<i16, u32> for Panel<'a, R> {
-	type Canvas = R::Canvas;
+	type RenderTarget = R::RenderTarget;
 
-	fn canvas<F: FnMut(&mut Self::Canvas, u32, u32)>(&mut self, id: usize, f: F) { self.render.canvas(id, f) }
+	fn canvas<F: FnMut(&mut Self::RenderTarget, u32, u32)>(&mut self, id: usize, f: F) { self.render.canvas(id, f) }
 
 	fn command(&mut self, cmd: Command<i16, u32>) { self.render.command(cmd) }
 	fn text_size(&mut self, s: &str) -> (u32, u32) { self.render.text_size(s) }
 	fn image_size(&mut self, id: usize) -> (u32, u32) { self.render.image_size(id) }
 	fn channel(&mut self, ch: usize) { self.render.channel(ch) }
+
+	fn create_texture<T: Into<Option<usize>>>(&mut self, id: T, w: u32, h: u32) -> usize {
+		self.render.create_texture(id, w, h)
+	}
 }
 
 impl<'a, R: Immediate + 'a> Immediate for Panel<'a, R> {

@@ -7,7 +7,7 @@ pub enum PrimitiveMode {
 	Ellipse,
 }
 
-pub struct Primitive<N: Signed, C: Copy> {
+pub struct Primitive<N: SignedInt, C: Copy> {
 	pub start: Point<N>,
 	pub last: Point<N>,
 	pub color: C,
@@ -31,7 +31,7 @@ impl Primitive<i32, u8> {
 	}
 }
 
-impl<N: Signed, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N, C> {
+impl<N: SignedInt, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Move(p) => {

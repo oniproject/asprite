@@ -4,37 +4,8 @@ use std::rc::Rc;
 use common::*;
 use super::*;
 
-/*
-pub struct Container<N: Signed, C: Copy + 'static, G: Graphics<N, C>> {
-	pub widgets: Vec<Rc<Widget<N, C, G>>>,
-	pub rect: Cell<Rect<N>>,
-}
-
-impl<N: Signed, C: Copy + 'static, G: Graphics<N, C>> Bounds<N> for Container<N, C, G> {
-	fn bounds(&self) -> &Cell<Rect<N>> {
-		&self.rect
-	}
-}
-
-impl<N, C, Canvas> Container<N, C, G>
-	where N: Signed, C: Copy + 'static
-{
-	fn paint(&self, ctx: &mut Graphics<N, C, Canvas=Canvas>, _focused: bool) {
-		/*
-		let rect = self.rect.get();
-		let text = self.label.borrow();
-		ctx.text_center(rect, self.color, &text);
-		*/
-	}
-
-	fn event(&self, _event: Event<N>, focused: bool, _redraw: &Cell<bool>) -> bool {
-		focused
-	}
-}
-*/
-
-pub struct Window<N: Signed, C: Copy + 'static, G: Graphics<N, C>> {
-	pub widgets: Vec<Rc<Widget<N, C, G>>>,
+pub struct Window<N: SignedInt, C: Copy + 'static> {
+	pub widgets: Vec<Rc<Widget<N, C>>>,
 	pub focus: Cell<usize>,
 	pub rect: Cell<Rect<N>>,
 	pub redraw: Cell<bool>,
@@ -43,8 +14,8 @@ pub struct Window<N: Signed, C: Copy + 'static, G: Graphics<N, C>> {
 	pub bg: C,
 }
 
-impl<N: Signed, C: Copy + 'static, G: Graphics<N, C>> Window<N, C, G> {
-	pub fn add(&mut self, w: Rc<Widget<N, C, G>>) {
+impl<N: SignedInt, C: Copy + 'static> Window<N, C> {
+	pub fn add(&mut self, w: Rc<Widget<N, C>>) {
 		self.widgets.push(w);
 	}
 
@@ -52,16 +23,17 @@ impl<N: Signed, C: Copy + 'static, G: Graphics<N, C>> Window<N, C, G> {
 		&self.rect
 	}
 
-	pub fn paint(&self, ctx: &mut G) {
+	pub fn paint(&self, ctx: &mut Graphics<N, C>) {
 		if !self.redraw.get() {
 			return;
 		}
 		self.redraw.set(false);
-		ctx.render_frame(self.rect.get(), self.bg, None);
+		ctx.render_rect(self.rect.get(), self.bg);
 
+		let origin = self.rect.get().min;
 		let focus = self.focus.get();
 		for (i, w) in self.widgets.iter().enumerate() {
-			w.paint(ctx, focus == i);
+			w.paint(ctx, origin, focus == i);
 		}
 	}
 
@@ -83,8 +55,9 @@ impl<N: Signed, C: Copy + 'static, G: Graphics<N, C>> Window<N, C, G> {
 			right: false,
 			middle: false,
 		};
+		let origin = self.rect.get().min;
 		for (i, w) in self.widgets.iter().enumerate() {
-			if w.event(event, self.focus.get() == i, &self.redraw) {
+			if w.event(event, origin, self.focus.get() == i, &self.redraw) {
 				if self.focus.get() != i {
 					self.focus.set(i);
 					self.redraw.set(true);

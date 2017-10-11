@@ -12,7 +12,7 @@ pub use self::bucket::Bucket;
 pub use self::eye_dropper::EyeDropper;
 
 #[derive(Clone, Debug)]
-pub enum Input<N: Signed> {
+pub enum Input<N: SignedInt> {
 	Press(Point<N>),
 	Release(Point<N>),
 	Move(Point<N>),
@@ -20,7 +20,7 @@ pub enum Input<N: Signed> {
 	Cancel, // press ESC
 }
 
-pub trait Context<N: Signed, C: Copy + Clone + Eq>: Canvas<C, N> {
+pub trait Context<N: SignedInt, C: Copy + Clone + Eq>: Canvas<C, N> {
 	fn start(&mut self) -> C;
 	fn commit(&mut self);
 	fn rollback(&mut self);
@@ -29,6 +29,6 @@ pub trait Context<N: Signed, C: Copy + Clone + Eq>: Canvas<C, N> {
 	fn paint_brush(&mut self, p: Point<N>, C);
 }
 
-pub trait Tool<N: Signed, C: Copy + Clone + Eq> {
+pub trait Tool<N: SignedInt, C: Copy + Clone + Eq> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx);
 }

@@ -1,7 +1,7 @@
 use common::*;
 
 #[derive(Clone, Debug)]
-pub enum Command<N: Signed, C: Copy + 'static> {
+pub enum Command<N: SignedInt, C: Copy + 'static> {
 	Line(Point<N>, Point<N>, C),
 	Border(Rect<N>, C),
 	Fill(Rect<N>, C),
@@ -10,15 +10,15 @@ pub enum Command<N: Signed, C: Copy + 'static> {
 	Image(usize, Point<N>, N),
 }
 
-pub trait Graphics<N: Signed, C: Copy + 'static> {
-	type Canvas;
+pub trait Graphics<N: SignedInt, C: Copy + 'static> {
+	type RenderTarget;
 
-	fn canvas<F: FnMut(&mut Self::Canvas, u32, u32)>(&mut self, id: usize, f: F);
+	fn canvas<F: FnMut(&mut Self::RenderTarget, u32, u32)>(&mut self, id: usize, f: F);
+	fn create_texture<T: Into<Option<usize>>>(&mut self, id: T, w: u32, h: u32) -> usize;
 
 	fn command(&mut self, cmd: Command<N, C>);
 	fn text_size(&mut self, s: &str) -> (u32, u32);
 	fn image_size(&mut self, id: usize) -> (u32, u32);
-
 	fn channel(&mut self, ch: usize);
 
 	fn line(&mut self, a: Point<N>, b: Point<N>, color: C) {
@@ -55,7 +55,7 @@ pub trait Graphics<N: Signed, C: Copy + 'static> {
 	fn image_align(&mut self, m: usize, r: Rect<N>, x: f32, y: f32) {
 		let (tw, th) = self.image_size(m);
 		let size = Point::new(N::from(tw).unwrap(), N::from(th).unwrap());
-		let p = align32(r, x, y, size);
+		let p = r.align(x, y, size);
 		self.image(m, p);
 	}
 
@@ -78,7 +78,7 @@ pub trait Graphics<N: Signed, C: Copy + 'static> {
 	fn text_align(&mut self, r: Rect<N>, x: f32, y: f32, color: C, s: &str) {
 		let (tw, th) = self.text_size(s);
 		let size = Point::new(N::from(tw).unwrap(), N::from(th).unwrap());
-		let p = align32(r, x, y, size);
+		let p = r.align(x, y, size);
 		self.text(p, color, s);
 	}
 

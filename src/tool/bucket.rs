@@ -1,6 +1,6 @@
 use super::*;
 
-pub struct Bucket<N: Signed, C: Copy> {
+pub struct Bucket<N: SignedInt, C: Copy> {
 	pub start: Point<N>,
 	pub color: C,
 }
@@ -14,7 +14,7 @@ impl Bucket<i32, u8> {
 	}
 }
 
-impl<N: Signed, C: Copy + Clone + Eq> Tool<N, C> for Bucket<N, C> {
+impl<N: SignedInt, C: Copy + Clone + Eq> Tool<N, C> for Bucket<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Press(p) => {

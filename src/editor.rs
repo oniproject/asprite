@@ -168,8 +168,8 @@ impl<'a> Tools<'a> {
 			let m = self.editor.sprite();
 			let m = m.as_receiver();
 			let (w, h) = (m.width as u32, m.height as u32);
-			render.graph.create_texture(EDITOR_SPRITE_ID, w, h);
-			render.graph.create_texture(EDITOR_PREVIEW_ID, w, h);
+			render.create_texture(EDITOR_SPRITE_ID, w, h);
+			render.create_texture(EDITOR_PREVIEW_ID, w, h);
 		}
 
 		let redraw = self.editor.redraw;

@@ -11,37 +11,62 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use common::*;
-use super::{Graphics, Mouse};
+use super::Mouse;
 
 pub use self::layout::*;
 pub use self::button::Button;
 pub use self::label::Label;
 pub use self::window::Window;
 
-pub fn example<G: Graphics<i16, u32>>() -> window::Window<i16, u32, G> {
+pub trait Graphics<N: SignedInt, C: Copy + 'static> {
+	fn render_text_center(&mut self, r: Rect<N>, color: C, s: &str);
+	fn render_rect(&mut self, r: Rect<N>, color: C);
+	fn render_border(&mut self, r: Rect<N>, color: C);
+}
+
+pub fn example() -> window::Window<i16, u32> {
 	let r = Rect::with_size(800, 100, 420, 500);
 	let mut win = Window::new(r);
 
+	let r = Rect::with_size(0, 0, 420, 500);
+	let mut list = Flow::vertical(r);
 	for i in 0..5 {
 		let btn = Button::new(format!("fuck #{}", i), move |_| {
 			println!("fuck u #{}", i);
 		});
 		btn.wh(60, 20);
-		win.add(Rc::new(btn));
+		list.add(Rc::new(btn));
 	}
 
 	for i in 0..5 {
 		let text = Label::new(format!("fuck #{}", i));
 		text.wh(60, 20);
-		win.add(Rc::new(text));
+		list.add(Rc::new(text));
 	}
 
-	layout_vertical(win.rect.get(), &win.widgets);
+	list.measure(None, None);
+	list.layout();
+
+	win.add(Rc::new(list));
 
 	win
 }
 
-pub trait Bounds<N: Signed> {
+pub trait Layout {
+	fn layout(&self) {}
+	fn layout_data(&self) -> Option<&Any> {
+		None
+	}
+}
+
+pub trait Measured<N: SignedInt> {
+	fn measured_size(&self) -> &Cell<Point<N>>;
+	fn measure(&self, _w: Option<N>, _h: Option<N>) {
+		self.measured_size().set(Point::new(N::zero(), N::zero()))
+	}
+}
+
+pub trait Bounds<N: SignedInt> {
 	fn bounds(&self) -> &Cell<Rect<N>>;
 
 	fn wh(&self, w: N, h: N) {
@@ -60,13 +85,13 @@ pub trait Bounds<N: Signed> {
 	} 
 }
 
-pub trait Widget<N: Signed, C: Copy + 'static, G: Graphics<N, C>>: Bounds<N> + Any {
-	fn paint(&self, ctx: &mut G, focused: bool);
-	fn event(&self, event: Event<N>, focused: bool, redraw: &Cell<bool>) -> bool;
+pub trait Widget<N: SignedInt, C: Copy + 'static>: Bounds<N> + Measured<N> + Layout + Any {
+	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool);
+	fn event(&self, event: Event<N>, origin: Point<N>, focused: bool, redraw: &Cell<bool>) -> bool;
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Event<N: Signed> {
+pub enum Event<N: SignedInt> {
 	Init,
 	Mouse {
 		point: Point<N>,

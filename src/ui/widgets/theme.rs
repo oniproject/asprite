@@ -32,7 +32,7 @@ pub static TEXT_BORDER: Color = BORDER_GREY;
 pub static TEXT_FOREGROUND: Color = BLACK;
 pub static TEXT_SELECTION: Color = SELECT_BLUE;
 
-impl<N: Signed, G: Graphics<N, u32>> Window<N, u32, G> {
+impl<N: SignedInt> Window<N, u32> {
 	pub fn new(rect: Rect<N>) -> Self {
 		Self {
 			widgets: Vec::new(),
@@ -46,7 +46,7 @@ impl<N: Signed, G: Graphics<N, u32>> Window<N, u32, G> {
 	}
 }
 
-impl<N: Signed> Button<N, u32> {
+impl<N: SignedInt> Button<N, u32> {
 	pub fn new<F: Fn(&Self) + 'static>(label: String, callback: F) -> Self {
 		Self {
 			rect: Cell::new(Rect::default()),
@@ -56,16 +56,26 @@ impl<N: Signed> Button<N, u32> {
 			label: RefCell::new(label),
 			callback: RefCell::new(Rc::new(callback)),
 			pressed: Cell::new(false),
+			measured: Cell::new(Point::new(N::zero(), N::zero())),
+
+			flow: FlowData {
+				along_weight: N::zero(),
+				expand_along: false,
+				shrink_along: false,
+				expand_across: true,
+				shrink_across: true,
+			},
 		}
 	}
 }
 
-impl<N: Signed> Label<N, u32> {
+impl<N: SignedInt> Label<N, u32> {
 	pub fn new(label: String) -> Self {
 		Self {
 			rect: Cell::new(Rect::default()),
 			color: LABEL_COLOR,
 			label: RefCell::new(label),
+			measured: Cell::new(Point::new(N::zero(), N::zero())),
 		}
 	}
 }
