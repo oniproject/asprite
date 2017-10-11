@@ -74,7 +74,7 @@ pub struct Render<'t, 'ttf_module, 'rwops> {
 
 	cursors: Cursors,
 
-	win: widgets::Window<i16, u32>,
+	win: widgets::Root<i16, u32>,
 }
 
 impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {

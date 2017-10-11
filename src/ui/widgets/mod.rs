@@ -16,7 +16,7 @@ use super::Mouse;
 pub use self::layout::*;
 pub use self::button::Button;
 pub use self::label::Label;
-pub use self::window::Window;
+pub use self::window::Root;
 
 pub trait Graphics<N: SignedInt, C: Copy + 'static> {
 	fn render_text_center(&mut self, r: Rect<N>, color: C, s: &str);
@@ -24,32 +24,30 @@ pub trait Graphics<N: SignedInt, C: Copy + 'static> {
 	fn render_border(&mut self, r: Rect<N>, color: C);
 }
 
-pub fn example() -> window::Window<i16, u32> {
+pub fn example() -> Root<i16, u32> {
 	let r = Rect::with_size(800, 100, 420, 500);
-	let mut win = Window::new(r);
+	let mut root = Root::new(r);
 
 	let r = Rect::with_size(0, 0, 420, 500);
 	let mut list = Flow::vertical(r);
 	for i in 0..5 {
-		let btn = Button::new(format!("fuck #{}", i), move |_| {
+		let btn = Rc::new(Button::new(format!("fuck #{}", i), move |_| {
 			println!("fuck u #{}", i);
-		});
+		}));
 		btn.wh(60, 20);
-		list.add(Rc::new(btn));
+		list.add(btn);
 	}
 
 	for i in 0..5 {
-		let text = Label::new(format!("fuck #{}", i));
+		let text = Rc::new(Label::new(format!("fuck #{}", i)));
 		text.wh(60, 20);
-		list.add(Rc::new(text));
+		list.add(text);
 	}
 
-	list.measure(None, None);
-	list.layout();
-
-	win.add(Rc::new(list));
-
-	win
+	root.add(Rc::new(list));
+	root.measure();
+	root.layout();
+	root
 }
 
 pub trait Layout {

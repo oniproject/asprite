@@ -73,7 +73,7 @@ impl<N, C> Widget<N, C> for Button<N, C>
 							redraw.set(true);
 						}
 					}
-				} else if !left && self.pressed.check_set(false) {
+				} else if self.pressed.check_set(false) {
 					redraw.set(true);
 				}
 				if click {

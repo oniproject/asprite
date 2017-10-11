@@ -110,13 +110,13 @@ impl<N: SignedInt, C: Copy + 'static> Layout for Flow<N, C> {
 			extra -= match axis {
 				Axis::Horizontal => size.x,
 				Axis::Vertical   => size.y,
-			}
+			};
 		}
-
-		let mut total_weight = zero;
 
 		let expand = extra > zero && total_expand_weight != zero;
 		let shrink = extra < zero && total_shrink_weight != zero;
+
+		let mut total_weight = zero;
 		if expand {
 			total_weight = total_expand_weight;
 		}
@@ -129,7 +129,7 @@ impl<N: SignedInt, C: Copy + 'static> Layout for Flow<N, C> {
 			let mut q = Point::from_coordinates(p.coords + c.measured_size().get().coords);
 			let d = c.layout_data().and_then(|p| p.downcast_ref::<FlowData<N>>());
 			if let Some(d) = d {
-				if d.along_weight > zero && (expand && d.expand_along) || (shrink && d.shrink_along) {
+				if d.along_weight > zero && (expand && d.expand_along || shrink && d.shrink_along) {
 					let delta = extra * d.along_weight / total_weight;
 					extra -= delta;
 					total_weight -= d.along_weight;
@@ -150,11 +150,9 @@ impl<N: SignedInt, C: Copy + 'static> Layout for Flow<N, C> {
 				}
 			}
 
-			c.bounds().set(Rect {
-				min: p,
-				max: q,
-			});
+			c.bounds().set(Rect { min: p, max: q });
 			c.layout();
+
 			match axis {
 				Axis::Horizontal => p.x = q.x,
 				Axis::Vertical   => p.y = q.y,

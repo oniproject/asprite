@@ -32,9 +32,9 @@ pub static TEXT_BORDER: Color = BORDER_GREY;
 pub static TEXT_FOREGROUND: Color = BLACK;
 pub static TEXT_SELECTION: Color = SELECT_BLUE;
 
-impl<N: SignedInt> Window<N, u32> {
+impl<N: SignedInt> Root<N, u32> {
 	pub fn new(rect: Rect<N>) -> Self {
-		Self {
+		Root {
 			widgets: Vec::new(),
 			focus: Cell::new(usize::max_value()),
 			rect: Cell::new(rect),

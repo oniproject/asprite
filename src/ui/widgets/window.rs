@@ -4,7 +4,7 @@ use std::rc::Rc;
 use common::*;
 use super::*;
 
-pub struct Window<N: SignedInt, C: Copy + 'static> {
+pub struct Root<N: SignedInt, C: Copy + 'static> {
 	pub widgets: Vec<Rc<Widget<N, C>>>,
 	pub focus: Cell<usize>,
 	pub rect: Cell<Rect<N>>,
@@ -14,13 +14,25 @@ pub struct Window<N: SignedInt, C: Copy + 'static> {
 	pub bg: C,
 }
 
-impl<N: SignedInt, C: Copy + 'static> Window<N, C> {
+impl<N: SignedInt, C: Copy + 'static> Root<N, C> {
 	pub fn add(&mut self, w: Rc<Widget<N, C>>) {
 		self.widgets.push(w);
 	}
 
 	pub fn bounds(&self) -> &Cell<Rect<N>> {
 		&self.rect
+	}
+
+	pub fn measure(&self) {
+		for c in &self.widgets {
+			c.measure(None, None);
+		}
+	}
+
+	pub fn layout(&self) {
+		for c in &self.widgets {
+			c.layout();
+		}
 	}
 
 	pub fn paint(&self, ctx: &mut Graphics<N, C>) {
