@@ -1,7 +1,6 @@
 use std::cell::{Ref, RefMut, RefCell, Cell};
 use std::rc::Rc;
 
-use common::*;
 use super::*;
 
 pub struct Root<N: SignedInt, C: Copy + 'static> {

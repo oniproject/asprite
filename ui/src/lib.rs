@@ -1,24 +1,40 @@
 #![allow(dead_code)]
+#![feature(step_trait)]
 
-pub use self::layout::{Flow, FlowData};
+extern crate num_traits;
+extern crate nalgebra as na;
+
+pub use self::flow::{Flow, FlowData};
 pub use self::button::Button;
 pub use self::label::Label;
-pub use self::window::Root;
+pub use self::root::Root;
+pub use self::graphics::{Graphics, Command, TextureManager};
+pub use self::math::*;
 
+use self::event::Event;
+
+pub mod math;
+pub mod graphics;
+
+mod event;
 mod theme;
 mod check_set;
-mod window;
+mod root;
 mod button;
 mod label;
-mod layout;
+mod flow;
 
 use std::any::Any;
 use std::cell::{Ref, RefMut, Cell};
 use std::rc::Rc;
 use std::ops::Deref;
 
-use common::*;
-use super::{Mouse, Graphics};
+#[derive(Clone)]
+pub enum Mouse<N: SignedInt> {
+	Move(Point<N>),
+	Press(Point<N>),
+	Release(Point<N>),
+}
 
 pub fn example() -> Root<i16, u32> {
 	let r = Rect::with_size(800, 100, 420, 500);
@@ -46,6 +62,31 @@ pub fn example() -> Root<i16, u32> {
 	root.measure();
 	root.layout();
 	root
+}
+
+pub trait Widget<N: Num, C: Copy + 'static>: Any {
+	fn bounds(&self) -> &Cell<Rect<N>>;
+	fn measured_size(&self) -> &Cell<Point<N>>;
+	fn layout(&self) {}
+	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool);
+	fn event(&self, _event: Event<N>, _origin: Point<N>, focused: bool, _redraw: &Cell<bool>) -> bool {
+		focused
+	}
+
+	fn layout_data(&self) -> Option<Ref<Any>> { None }
+
+	fn measure(&self, _w: Option<N>, _h: Option<N>) {
+		self.measured_size().set(Point::new(N::zero(), N::zero()))
+	}
+
+	fn wh(&self, w: N, h: N) {
+		let r = self.bounds().get();
+		self.bounds().set(r.wh(w, h));
+	} 
+	fn xy(&self, x: N, y: N) {
+		let r = self.bounds().get();
+		self.bounds().set(r.xy(x, y));
+	} 
 }
 
 pub trait Container {
@@ -117,59 +158,3 @@ pub trait Shell {
 	}
 }
 
-pub trait Widget<N: Num, C: Copy + 'static>: Any {
-	fn bounds(&self) -> &Cell<Rect<N>>;
-	fn measured_size(&self) -> &Cell<Point<N>>;
-	fn layout(&self) {}
-	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool);
-	fn event(&self, _event: Event<N>, _origin: Point<N>, focused: bool, _redraw: &Cell<bool>) -> bool {
-		focused
-	}
-
-	fn layout_data(&self) -> Option<&Any> { None }
-
-	fn measure(&self, _w: Option<N>, _h: Option<N>) {
-		self.measured_size().set(Point::new(N::zero(), N::zero()))
-	}
-
-	fn wh(&self, w: N, h: N) {
-		let r = self.bounds().get();
-		self.bounds().set(r.wh(w, h));
-	} 
-	fn xy(&self, x: N, y: N) {
-		let r = self.bounds().get();
-		self.bounds().set(r.xy(x, y));
-	} 
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum Event<N: Num> {
-	Init,
-	Mouse {
-		point: Point<N>,
-		left: bool,
-		middle: bool,
-		right: bool,
-	},
-	Scroll {
-		x: N,
-		y: N,
-	},
-	Text {
-		c: char,
-	},
-	Enter,
-	Backspace,
-	Delete,
-	Home,
-	End,
-	UpArrow,
-	DownArrow,
-	LeftArrow,
-	RightArrow,
-	Resize {
-		width: u32,
-		height: u32,
-	},
-	Unknown,
-}

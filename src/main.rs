@@ -3,6 +3,7 @@
 #![feature(impl_trait)]
 #![feature(conservative_impl_trait)]
 
+extern crate ui;
 extern crate image;
 extern crate either;
 extern crate rand;
@@ -36,7 +37,7 @@ macro_rules! color(
 
 mod common;
 mod tool;
-mod ui;
+mod gui;
 mod mask;
 mod editor;
 mod cmd;
@@ -46,7 +47,7 @@ mod grid;
 mod app;
 
 use common::*;
-use ui::*;
+use gui::*;
 
 fn create_pal(pal: &mut Palette<u32>) {
 	const GB0: u32 = 0xCADC9F_FF;

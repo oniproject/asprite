@@ -1,34 +1,29 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use common::*;
 use super::*;
 use super::check_set::*;
 
 pub struct Button<N: SignedInt, C: Copy + 'static> {
 	pub rect: Cell<Rect<N>>,
 	pub measured: Cell<Point<N>>,
+	pub layout: RefCell<FlowData<N>>,
+
 	pub fg: (C, C),
 	pub bg: (C, C),
 	pub border: Option<(C, C)>,
 	pub label: RefCell<String>,
 	pub callback: RefCell<Rc<Fn(&Button<N, C>)>>,
 	pub pressed: Cell<bool>,
-	pub flow: FlowData<N>,
 }
 
 impl<N, C> Widget<N, C> for Button<N, C>
 	where N: SignedInt, C: Copy + 'static
 {
-	fn bounds(&self) -> &Cell<Rect<N>> {
-		&self.rect
-	}
-	fn layout_data(&self) -> Option<&Any> {
-		Some(&self.flow)
-	}
-	fn measured_size(&self) -> &Cell<Point<N>> {
-		&self.measured
-	}
+	fn bounds(&self) -> &Cell<Rect<N>> { &self.rect }
+	fn layout_data(&self) -> Option<Ref<Any>> { Some(self.layout.borrow()) }
+	fn measured_size(&self) -> &Cell<Point<N>> { &self.measured }
+
 	fn measure(&self, _w: Option<N>, _h: Option<N>) {
 		let rect = self.bounds().get();
 		self.measured.set(Point::new(rect.dx(), rect.dy()))

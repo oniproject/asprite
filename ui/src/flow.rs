@@ -1,4 +1,3 @@
-use common::*;
 use super::*;
 use std::cell::{Ref, RefMut, RefCell, Cell};
 use std::rc::Rc;
@@ -19,9 +18,10 @@ pub struct FlowData<N> {
 
 pub struct Flow<N: SignedInt, C: Copy + 'static> {
 	pub widgets: RefCell<Vec<Rc<Widget<N, C>>>>,
+	pub axis: Cell<Axis>,
+
 	pub rect: Cell<Rect<N>>,
 	pub measured: Cell<Point<N>>,
-	pub axis: Cell<Axis>,
 }
 
 impl<N: SignedInt, C: Copy + 'static> Flow<N, C> {
@@ -68,9 +68,8 @@ impl<N: SignedInt, C: Copy + 'static> Container for Flow<N, C> {
 impl<N, C> Widget<N, C> for Flow<N, C>
 	where N: SignedInt, C: Copy + 'static
 {
-	fn bounds(&self) -> &Cell<Rect<N>> {
-		&self.rect
-	}
+	fn bounds(&self) -> &Cell<Rect<N>> { &self.rect }
+	fn measured_size(&self) -> &Cell<Point<N>> { &self.measured }
 
 	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool) {
 		self.container_paint(ctx, origin, focused)
@@ -79,9 +78,6 @@ impl<N, C> Widget<N, C> for Flow<N, C>
 		self.container_event(event, origin, focused, redraw)
 	}
 
-	fn measured_size(&self) -> &Cell<Point<N>> {
-		&self.measured
-	}
 	fn measure(&self, mut width: Option<N>, mut height: Option<N>) {
 		let axis = self.axis.get();
 
@@ -126,21 +122,23 @@ impl<N, C> Widget<N, C> for Flow<N, C>
 		let widgets = self.widgets.borrow();
 
 		for c in widgets.iter() {
-			let d = c.layout_data().and_then(|p| p.downcast_ref::<FlowData<N>>());
-			if let Some(c) = d {
-				let aw = c.along_weight;
+			let mut con = false;
+			downcast(c.layout_data(), |d: &FlowData<N>| {
+				let aw = d.along_weight;
 				if aw > zero {
-					if aw == zero {
-						continue;
-					}
-					if c.expand_along {
+					con = aw == zero;
+					if d.expand_along {
 						total_expand_weight += aw;
 					}
-					if c.shrink_along {
+					if d.shrink_along {
 						total_shrink_weight += aw;
 					}
 				}
+			});
+			if con {
+				continue;
 			}
+
 			let size = c.measured_size().get();
 			extra -= match axis {
 				Axis::Horizontal => size.x,
@@ -162,8 +160,7 @@ impl<N, C> Widget<N, C> for Flow<N, C>
 		let mut p = Point::new(zero, zero);
 		for c in widgets.iter() {
 			let mut q = Point::from_coordinates(p.coords + c.measured_size().get().coords);
-			let d = c.layout_data().and_then(|p| p.downcast_ref::<FlowData<N>>());
-			if let Some(d) = d {
+			downcast(c.layout_data(), |d: &FlowData<N>| {
 				if d.along_weight > zero && (expand && d.expand_along || shrink && d.shrink_along) {
 					let delta = extra * d.along_weight / total_weight;
 					extra -= delta;
@@ -183,7 +180,7 @@ impl<N, C> Widget<N, C> for Flow<N, C>
 					Axis::Horizontal => q.y = stretch_across(q.y, rect.dy(), d.expand_across, d.shrink_across),
 					Axis::Vertical   => q.x = stretch_across(q.x, rect.dx(), d.expand_across, d.shrink_across),
 				}
-			}
+			});
 
 			c.bounds().set(Rect { min: p, max: q });
 			c.layout();
@@ -193,6 +190,18 @@ impl<N, C> Widget<N, C> for Flow<N, C>
 				Axis::Vertical   => p.y = q.y,
 			}
 		}
+	}
+}
+
+fn downcast<T: 'static, F: FnOnce(&T)>(d: Option<Ref<Any>>, f: F) {
+	match d {
+		Some(d) => {
+			match d.downcast_ref::<T>() {
+				Some(d) => f(d),
+				None => (),
+			}
+		}
+		None => {}
 	}
 }
 

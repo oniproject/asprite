@@ -1,5 +1,4 @@
 use super::*;
-use common::*;
 
 use std::cell::{Cell, RefCell};
 
@@ -49,22 +48,22 @@ impl<N: SignedInt> Root<N, u32> {
 impl<N: SignedInt> Button<N, u32> {
 	pub fn new<F: Fn(&Self) + 'static>(label: String, callback: F) -> Rc<Self> {
 		Rc::new(Self {
-			rect: Cell::new(Rect::default()),
 			bg: (BUTTON_BACKGROUND, BUTTON_BG_SELECTION),
 			fg: (BUTTON_FOREGROUND, BUTTON_FG_SELECTION),
 			border: Some((BUTTON_BORDER, BUTTON_BORDER)),
 			label: RefCell::new(label),
 			callback: RefCell::new(Rc::new(callback)),
 			pressed: Cell::new(false),
-			measured: Cell::new(Point::new(N::zero(), N::zero())),
 
-			flow: FlowData {
+			rect: Cell::new(Rect::default()),
+			measured: Cell::new(Point::new(N::zero(), N::zero())),
+			layout: RefCell::new(FlowData {
 				along_weight: N::zero(),
 				expand_along: false,
 				shrink_along: false,
 				expand_across: true,
 				shrink_across: true,
-			},
+			}),
 		})
 	}
 }
@@ -73,9 +72,10 @@ impl<N: SignedInt> Label<N, u32> {
 	pub fn new(label: String) -> Rc<Self> {
 		Rc::new(Self {
 			rect: Cell::new(Rect::default()),
+			measured: Cell::new(Point::new(N::zero(), N::zero())),
+
 			color: LABEL_COLOR,
 			label: RefCell::new(label),
-			measured: Cell::new(Point::new(N::zero(), N::zero())),
 		})
 	}
 }

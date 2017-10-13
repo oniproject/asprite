@@ -1,11 +1,10 @@
 use std::cell::{Cell, RefCell};
-
-use common::*;
 use super::*;
 
 pub struct Label<N: SignedInt, C: Copy> {
 	pub rect: Cell<Rect<N>>,
 	pub measured: Cell<Point<N>>,
+
 	pub color: C,
 	pub label: RefCell<String>,
 }
@@ -13,12 +12,9 @@ pub struct Label<N: SignedInt, C: Copy> {
 impl<N, C> Widget<N, C> for Label<N, C>
 	where N: SignedInt, C: Copy + 'static
 {
-	fn bounds(&self) -> &Cell<Rect<N>> {
-		&self.rect
-	}
-	fn measured_size(&self) -> &Cell<Point<N>> {
-		&self.measured
-	}
+	fn bounds(&self) -> &Cell<Rect<N>> { &self.rect }
+	fn measured_size(&self) -> &Cell<Point<N>> { &self.measured }
+
 	fn measure(&self, _w: Option<N>, _h: Option<N>) {
 		let rect = self.bounds().get();
 		self.measured.set(Point::new(rect.dx(), rect.dy()))

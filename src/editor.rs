@@ -2,8 +2,8 @@ use common::*;
 use tool::*;
 
 use cmd::*;
-use ui;
-use ui::*;
+use gui;
+use gui::*;
 
 use grid::*;
 
@@ -160,7 +160,7 @@ impl<'a> Tools<'a> {
 		self.created = false;
 	}
 
-	pub fn paint(&mut self, render: &mut ui::Render) {
+	pub fn paint(&mut self, render: &mut gui::Render) {
 		let red = 0xFF4136_FFu32;
 
 		if !self.created {

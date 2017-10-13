@@ -6,8 +6,8 @@ use sdl2::mouse::MouseButton;
 
 use common::*;
 use tool::*;
-use ui;
-use ui::*;
+use gui;
+use gui::*;
 use editor::*;
 use sprite::*;
 use cmd::*;
@@ -43,14 +43,14 @@ impl<'a> App<'a> {
 		}
 	}
 
-	pub fn paint(&mut self, render: &mut ui::Render) {
+	pub fn paint(&mut self, render: &mut gui::Render) {
 		render.prepare(WINDOW_BG);
 		self.tools.paint(render);
 		self.ui(render);
 		self.update = render.finish();
 	}
 
-	pub fn event(&mut self, event: sdl2::event::Event, render: &mut ui::Render) {
+	pub fn event(&mut self, event: sdl2::event::Event, render: &mut gui::Render) {
 		self.update = true;
 		match event {
 		Event::MouseMotion {x, y, xrel, yrel, ..} => {
@@ -96,8 +96,8 @@ impl<'a> App<'a> {
 				Keycode::U => self.tools.undo(),
 				Keycode::R => self.tools.redo(),
 
-				Keycode::Tab if shift => render.key = Some(ui::Key::PrevWidget),
-				Keycode::Tab if !shift => render.key = Some(ui::Key::NextWidget),
+				Keycode::Tab if shift => render.key = Some(gui::Key::PrevWidget),
+				Keycode::Tab if !shift => render.key = Some(gui::Key::NextWidget),
 
 				_ => (),
 			}

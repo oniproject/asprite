@@ -1,5 +1,5 @@
 use std::path::Path;
-use common::*;
+use super::*;
 
 #[derive(Clone, Debug)]
 pub enum Command<N: Num, C: Copy + 'static> {

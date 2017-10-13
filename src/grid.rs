@@ -1,5 +1,5 @@
 use common::*;
-use ui::*;
+use gui::*;
 
 #[derive(Clone, Copy)]
 pub struct Grid {

@@ -1,18 +1,9 @@
 [root]
-name = "asprite"
+name = "ui"
 version = "0.1.0"
 dependencies = [
- "color_quant 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "either 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "gif 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "image 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "nalgebra 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "nfd 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
- "redo 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sdl2 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "undo 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -34,6 +25,24 @@ dependencies = [
 name = "approx"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "asprite"
+version = "0.1.0"
+dependencies = [
+ "color_quant 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "either 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gif 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "image 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nalgebra 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nfd 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num-traits 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
+ "redo 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sdl2 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ui 0.1.0",
+ "undo 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "bitflags"

@@ -3,7 +3,14 @@ name = "asprite"
 version = "0.1.0"
 authors = ["Lain-dono <lain.dono@gmail.com>"]
 
+[workspace]
+members = [
+	"ui"
+]
+
 [dependencies]
+ui = { path = "ui/" }
+
 nalgebra = "0.13.0"
 num-traits = "0.1"
 undo = "0.14"
@@ -14,7 +21,6 @@ rand = "0.3"
 nfd = "0.0.4"
 either = "1"
 color_quant = "1"
-
 
 [dependencies.sdl2]
 version = "0.30"

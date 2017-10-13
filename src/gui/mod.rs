@@ -1,7 +1,5 @@
 mod im;
 mod theme;
-mod graphics;
-mod widgets;
 mod event;
 mod render_graphics;
 
@@ -9,7 +7,7 @@ pub use self::render_graphics::*;
 
 pub use self::im::*;
 pub use self::theme::*;
-pub use self::graphics::*;
+pub use ui::*;
 
 use sdl2::video::{Window, WindowContext};
 use sdl2::render::{Canvas, TextureCreator};
@@ -18,8 +16,6 @@ use sdl2::mouse::{Cursor, SystemCursor};
 pub use sdl2::gfx::primitives::DrawRenderer;
 
 use std::collections::HashMap;
-
-use common::*;
 
 pub type SdlCanvas = Canvas<Window>;
 
@@ -52,13 +48,6 @@ pub enum Key {
 	PrevWidget,
 }
 
-#[derive(Clone)]
-pub enum Mouse<N: SignedInt> {
-	Move(Point<N>),
-	Press(Point<N>),
-	Release(Point<N>),
-}
-
 pub struct Render<'t, 'ttf_module, 'rwops> {
 	pub graph: RenderGraphics<'t, 'ttf_module, 'rwops, i16, u32>,
 
@@ -74,7 +63,7 @@ pub struct Render<'t, 'ttf_module, 'rwops> {
 
 	cursors: Cursors,
 
-	win: widgets::Root<i16, u32>,
+	win: Root<i16, u32>,
 }
 
 impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
@@ -85,7 +74,7 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 			key: None,
 			next_rect: Rect::with_coords(0, 0, 0, 0),
 			mouse: (false, Point::new(0, 0)),
-			win: widgets::example(),
+			win: example(),
 			cursors: create_cursors(),
 		}
 	}
