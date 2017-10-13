@@ -31,7 +31,7 @@ pub static TEXT_BORDER: Color = BORDER_GREY;
 pub static TEXT_FOREGROUND: Color = BLACK;
 pub static TEXT_SELECTION: Color = SELECT_BLUE;
 
-impl<N: SignedInt> Root<N, u32> {
+impl<N: Num> Root<N, u32> {
 	pub fn new(rect: Rect<N>) -> Self {
 		Self {
 			widgets: RefCell::new(Vec::new()),
@@ -45,7 +45,7 @@ impl<N: SignedInt> Root<N, u32> {
 	}
 }
 
-impl<N: SignedInt> Button<N, u32> {
+impl<N: Num> Button<N, u32> {
 	pub fn new<F: Fn(&Self) + 'static>(label: String, callback: F) -> Rc<Self> {
 		Rc::new(Self {
 			bg: (BUTTON_BACKGROUND, BUTTON_BG_SELECTION),
@@ -68,7 +68,7 @@ impl<N: SignedInt> Button<N, u32> {
 	}
 }
 
-impl<N: SignedInt> Label<N, u32> {
+impl<N: Num> Label<N, u32> {
 	pub fn new(label: String) -> Rc<Self> {
 		Rc::new(Self {
 			rect: Cell::new(Rect::default()),

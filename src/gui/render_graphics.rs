@@ -8,11 +8,14 @@ pub use sdl2::gfx::primitives::DrawRenderer;
 use std::path::Path;
 use std::collections::HashMap;
 
+use ui::{Graphics, TextureManager, Command};
+
 use common::*;
-use super::*;
+
+pub type SdlCanvas = Canvas<Window>;
 
 pub struct RenderGraphics<'t, 'ttf_module, 'rwops, N: SignedInt, C: Copy + 'static> {
-	pub ctx: Canvas<Window>,
+	pub ctx: SdlCanvas,
 	pub font: Font<'ttf_module, 'rwops>,
 	pub creator: &'t TextureCreator<WindowContext>,
 	pub textures: HashMap<usize, (Texture<'t>, u32, u32)>,

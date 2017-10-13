@@ -11,14 +11,14 @@ use std::rc::Rc;
 use super::*;
 use super::check_set::*;
 
-pub struct Im<N: SignedInt, C: Copy + 'static> {
+pub struct Im<N: Num, C: Copy + 'static> {
 	pub rect: Cell<Rect<N>>,
 	pub measured: Cell<Point<N>>,
 	pub callback: RefCell<Rc<Fn(&Button<N, C>)>>,
 }
 
 impl<N, C> Widget<N, C> for Button<N, C>
-	where N: SignedInt, C: Copy + 'static
+	where N: Num, C: Copy + 'static
 {
 	fn bounds(&self) -> &Cell<Rect<N>> {
 		&self.rect

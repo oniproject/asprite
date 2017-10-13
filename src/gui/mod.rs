@@ -17,8 +17,6 @@ pub use sdl2::gfx::primitives::DrawRenderer;
 
 use std::collections::HashMap;
 
-pub type SdlCanvas = Canvas<Window>;
-
 type Cursors = HashMap<SystemCursor, Cursor>;
 fn create_cursors() -> Cursors {
 	let cursors = [

@@ -4,7 +4,7 @@ use std::rc::Rc;
 use super::*;
 use super::check_set::*;
 
-pub struct Button<N: SignedInt, C: Copy + 'static> {
+pub struct Button<N: Num, C: Copy + 'static> {
 	pub rect: Cell<Rect<N>>,
 	pub measured: Cell<Point<N>>,
 	pub layout: RefCell<FlowData<N>>,
@@ -18,7 +18,7 @@ pub struct Button<N: SignedInt, C: Copy + 'static> {
 }
 
 impl<N, C> Widget<N, C> for Button<N, C>
-	where N: SignedInt, C: Copy + 'static
+	where N: Num, C: Copy + 'static
 {
 	fn bounds(&self) -> &Cell<Rect<N>> { &self.rect }
 	fn layout_data(&self) -> Option<Ref<Any>> { Some(self.layout.borrow()) }

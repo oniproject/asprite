@@ -30,7 +30,7 @@ use std::rc::Rc;
 use std::ops::Deref;
 
 #[derive(Clone)]
-pub enum Mouse<N: SignedInt> {
+pub enum Mouse<N: Num> {
 	Move(Point<N>),
 	Press(Point<N>),
 	Release(Point<N>),

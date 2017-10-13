@@ -46,7 +46,7 @@ pub trait Graphics<N: Num, C: Copy + 'static> {
 	}
 
 	fn image(&mut self, m: usize, p: Point<N>) {
-		self.command(Command::Image(m, p, N::one()));
+		self.image_zoomed(m, p, N::one());
 	}
 	fn image_zoomed(&mut self, m: usize, p: Point<N>, zoom: N) {
 		self.command(Command::Image(m, p, zoom));

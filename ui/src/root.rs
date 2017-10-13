@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 
-pub struct Root<N: SignedInt, C: Copy + 'static> {
+pub struct Root<N: Num, C: Copy + 'static> {
 	pub widgets: RefCell<Vec<Rc<Widget<N, C>>>>,
 	pub focus: Cell<usize>,
 	pub rect: Cell<Rect<N>>,
@@ -13,7 +13,7 @@ pub struct Root<N: SignedInt, C: Copy + 'static> {
 	pub bg: Cell<C>,
 }
 
-impl<N: SignedInt, C: Copy + 'static> Container for Root<N, C> {
+impl<N: Num, C: Copy + 'static> Container for Root<N, C> {
 	type Storage = Vec<Rc<Widget<N, C>>>;
 	type Item = Rc<Widget<N, C>>;
 
@@ -37,7 +37,7 @@ impl<N: SignedInt, C: Copy + 'static> Container for Root<N, C> {
 	}
 }
 
-impl<N: SignedInt, C: Copy + 'static> Root<N, C> {
+impl<N: Num, C: Copy + 'static> Root<N, C> {
 	pub fn bounds(&self) -> &Cell<Rect<N>> {
 		&self.rect
 	}

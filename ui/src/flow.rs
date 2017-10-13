@@ -16,7 +16,7 @@ pub struct FlowData<N> {
 	pub shrink_across: bool,
 }
 
-pub struct Flow<N: SignedInt, C: Copy + 'static> {
+pub struct Flow<N: Num, C: Copy + 'static> {
 	pub widgets: RefCell<Vec<Rc<Widget<N, C>>>>,
 	pub axis: Cell<Axis>,
 
@@ -24,7 +24,7 @@ pub struct Flow<N: SignedInt, C: Copy + 'static> {
 	pub measured: Cell<Point<N>>,
 }
 
-impl<N: SignedInt, C: Copy + 'static> Flow<N, C> {
+impl<N: Num, C: Copy + 'static> Flow<N, C> {
 	pub fn new(axis: Axis, rect: Rect<N>) -> Rc<Self> {
 		Rc::new(Self {
 			widgets: RefCell::new(Vec::new()),
@@ -41,7 +41,7 @@ impl<N: SignedInt, C: Copy + 'static> Flow<N, C> {
 	}
 }
 
-impl<N: SignedInt, C: Copy + 'static> Container for Flow<N, C> {
+impl<N: Num, C: Copy + 'static> Container for Flow<N, C> {
 	type Storage = Vec<Rc<Widget<N, C>>>;
 	type Item = Rc<Widget<N, C>>;
 
@@ -66,7 +66,7 @@ impl<N: SignedInt, C: Copy + 'static> Container for Flow<N, C> {
 }
 
 impl<N, C> Widget<N, C> for Flow<N, C>
-	where N: SignedInt, C: Copy + 'static
+	where N: Num, C: Copy + 'static
 {
 	fn bounds(&self) -> &Cell<Rect<N>> { &self.rect }
 	fn measured_size(&self) -> &Cell<Point<N>> { &self.measured }

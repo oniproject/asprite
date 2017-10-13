@@ -16,7 +16,17 @@ pub trait Num:
 	PartialOrd<Self> +
 	Copy +
 	Debug + 'static
-{}
+{
+	#[inline(always)]
+	fn min(self, b: Self) -> Self {
+		if self < b { self } else { b }
+	}
+
+	#[inline(always)]
+	fn max(self, b: Self) -> Self {
+		if self > b { self } else { b }
+	}
+}
 
 pub trait Float:
 	Num + num_traits::float::Float
@@ -50,7 +60,7 @@ pub struct Rect<T: Num> {
 	pub max: Point<T>,
 }
 
-impl<T: SignedInt> Default for Rect<T> {
+impl<T: Num> Default for Rect<T> {
 	#[inline(always)]
 	fn default() -> Self {
 		Self {

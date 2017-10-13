@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use super::*;
 
-pub struct Label<N: SignedInt, C: Copy> {
+pub struct Label<N: Num, C: Copy> {
 	pub rect: Cell<Rect<N>>,
 	pub measured: Cell<Point<N>>,
 
@@ -10,7 +10,7 @@ pub struct Label<N: SignedInt, C: Copy> {
 }
 
 impl<N, C> Widget<N, C> for Label<N, C>
-	where N: SignedInt, C: Copy + 'static
+	where N: Num, C: Copy + 'static
 {
 	fn bounds(&self) -> &Cell<Rect<N>> { &self.rect }
 	fn measured_size(&self) -> &Cell<Point<N>> { &self.measured }
