@@ -1,36 +1,58 @@
-use std::cell::Cell;
+use std::cell::{Ref, RefMut, RefCell, Cell};
 use std::rc::Rc;
 
 use common::*;
 use super::*;
 
 pub struct Root<N: SignedInt, C: Copy + 'static> {
-	pub widgets: Vec<Rc<Widget<N, C>>>,
+	pub widgets: RefCell<Vec<Rc<Widget<N, C>>>>,
 	pub focus: Cell<usize>,
 	pub rect: Cell<Rect<N>>,
 	pub redraw: Cell<bool>,
 	pub mouse_pos: Cell<Point<N>>,
 	pub mouse_left: Cell<bool>,
-	pub bg: C,
+	pub bg: Cell<C>,
+}
+
+impl<N: SignedInt, C: Copy + 'static> Container for Root<N, C> {
+	type Storage = Vec<Rc<Widget<N, C>>>;
+	type Item = Rc<Widget<N, C>>;
+
+	fn children(&self) -> Ref<Self::Storage> {
+		self.widgets.borrow()
+	}
+	fn children_mut(&self) -> RefMut<Self::Storage> {
+		self.widgets.borrow_mut()
+	}
+	fn add(&self, w: Self::Item) {
+		let mut widgets = self.children_mut();
+		widgets.push(w);
+	}
+	fn insert(&self, index: usize, w: Self::Item) {
+		let mut widgets = self.widgets.borrow_mut();
+		widgets.insert(index, w);
+	}
+	fn remove(&self, index: usize) -> Self::Item {
+		let mut widgets = self.widgets.borrow_mut();
+		widgets.remove(index)
+	}
 }
 
 impl<N: SignedInt, C: Copy + 'static> Root<N, C> {
-	pub fn add(&mut self, w: Rc<Widget<N, C>>) {
-		self.widgets.push(w);
-	}
-
 	pub fn bounds(&self) -> &Cell<Rect<N>> {
 		&self.rect
 	}
 
 	pub fn measure(&self) {
-		for c in &self.widgets {
+		let widgets = self.widgets.borrow();
+		for c in widgets.iter() {
 			c.measure(None, None);
 		}
 	}
 
 	pub fn layout(&self) {
-		for c in &self.widgets {
+		let widgets = self.widgets.borrow();
+		for c in widgets.iter() {
 			c.layout();
 		}
 	}
@@ -40,11 +62,12 @@ impl<N: SignedInt, C: Copy + 'static> Root<N, C> {
 			return;
 		}
 		self.redraw.set(false);
-		ctx.render_rect(self.rect.get(), self.bg);
+		ctx.fill(self.rect.get(), self.bg.get());
 
 		let origin = self.rect.get().min;
 		let focus = self.focus.get();
-		for (i, w) in self.widgets.iter().enumerate() {
+		let widgets = self.widgets.borrow();
+		for (i, w) in widgets.iter().enumerate() {
 			w.paint(ctx, origin, focus == i);
 		}
 	}
@@ -68,7 +91,8 @@ impl<N: SignedInt, C: Copy + 'static> Root<N, C> {
 			middle: false,
 		};
 		let origin = self.rect.get().min;
-		for (i, w) in self.widgets.iter().enumerate() {
+		let widgets = self.widgets.borrow();
+		for (i, w) in widgets.iter().enumerate() {
 			if w.event(event, origin, self.focus.get() == i, &self.redraw) {
 				if self.focus.get() != i {
 					self.focus.set(i);

@@ -1,7 +1,8 @@
+use std::path::Path;
 use common::*;
 
 #[derive(Clone, Debug)]
-pub enum Command<N: SignedInt, C: Copy + 'static> {
+pub enum Command<N: Num, C: Copy + 'static> {
 	Line(Point<N>, Point<N>, C),
 	Border(Rect<N>, C),
 	Fill(Rect<N>, C),
@@ -10,12 +11,14 @@ pub enum Command<N: SignedInt, C: Copy + 'static> {
 	Image(usize, Point<N>, N),
 }
 
-pub trait Graphics<N: SignedInt, C: Copy + 'static> {
+pub trait TextureManager {
 	type RenderTarget;
-
 	fn canvas<F: FnMut(&mut Self::RenderTarget, u32, u32)>(&mut self, id: usize, f: F);
 	fn create_texture<T: Into<Option<usize>>>(&mut self, id: T, w: u32, h: u32) -> usize;
+	fn load_texture<T: Into<Option<usize>>, P: AsRef<Path>>(&mut self, id: T, filename: P) -> usize;
+}
 
+pub trait Graphics<N: Num, C: Copy + 'static> {
 	fn command(&mut self, cmd: Command<N, C>);
 	fn text_size(&mut self, s: &str) -> (u32, u32);
 	fn image_size(&mut self, id: usize) -> (u32, u32);
@@ -80,18 +83,5 @@ pub trait Graphics<N: SignedInt, C: Copy + 'static> {
 		let size = Point::new(N::from(tw).unwrap(), N::from(th).unwrap());
 		let p = r.align(x, y, size);
 		self.text(p, color, s);
-	}
-
-	fn render_frame<A, B>(&mut self, r: Rect<N>, bg: A, border: B)
-		where
-			A: Into<Option<C>>,
-			B: Into<Option<C>>,
-	{
-		if let Some(bg) = bg.into() {
-			self.fill(r, bg);
-		}
-		if let Some(border) = border.into() {
-			self.border(r, border);
-		}
 	}
 }

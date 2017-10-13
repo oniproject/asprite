@@ -1,5 +1,7 @@
 #![feature(step_trait)]
 #![feature(const_fn)]
+#![feature(impl_trait)]
+#![feature(conservative_impl_trait)]
 
 extern crate image;
 extern crate either;

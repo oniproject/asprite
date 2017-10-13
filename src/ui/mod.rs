@@ -94,7 +94,7 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 		match event {
 			Mouse::Move(p) => self.mouse.1 = p,
 			Mouse::Press(p) => self.mouse = (true, p),
-			Mouse::Release(p) => self.mouse = (true, p),
+			Mouse::Release(p) => self.mouse = (false, p),
 		}
 		self.win.event(event);
 	}
@@ -143,15 +143,10 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 
 }
 impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
-	type RenderTarget = SdlCanvas;
-	fn canvas<F: FnMut(&mut Self::RenderTarget, u32, u32)>(&mut self, id: usize, f: F) { self.graph.canvas(id, f) }
 	fn command(&mut self, cmd: Command<i16, u32>) { self.graph.command(cmd) }
 	fn text_size(&mut self, s: &str) -> (u32, u32) { self.graph.text_size(s) }
 	fn image_size(&mut self, id: usize) -> (u32, u32) { self.graph.image_size(id) }
 	fn channel(&mut self, ch: usize) { self.graph.channel(ch) }
-	fn create_texture<T: Into<Option<usize>>>(&mut self, id: T, w: u32, h: u32) -> usize {
-		self.graph.create_texture(id, w, h)
-	}
 }
 
 impl<'t, 'ttf, 'rwops> Immediate for Render<'t, 'ttf, 'rwops> {

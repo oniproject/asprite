@@ -1,6 +1,6 @@
 use common::*;
 use super::*;
-use std::cell::Cell;
+use std::cell::{Ref, RefMut, RefCell, Cell};
 use std::rc::Rc;
 
 #[derive(Copy, Clone, Debug)]
@@ -18,13 +18,67 @@ pub struct FlowData<N> {
 }
 
 pub struct Flow<N: SignedInt, C: Copy + 'static> {
-	pub widgets: Vec<Rc<Widget<N, C>>>,
+	pub widgets: RefCell<Vec<Rc<Widget<N, C>>>>,
 	pub rect: Cell<Rect<N>>,
 	pub measured: Cell<Point<N>>,
 	pub axis: Cell<Axis>,
 }
 
-impl<N: SignedInt, C: Copy + 'static> Measured<N> for Flow<N, C> {
+impl<N: SignedInt, C: Copy + 'static> Flow<N, C> {
+	pub fn new(axis: Axis, rect: Rect<N>) -> Rc<Self> {
+		Rc::new(Self {
+			widgets: RefCell::new(Vec::new()),
+			rect: Cell::new(rect),
+			axis: Cell::new(axis),
+			measured: Cell::new(Point::new(N::zero(), N::zero())),
+		})
+	}
+	pub fn vertical() -> Rc<Self> {
+		Self::new(Axis::Vertical, Rect::new())
+	}
+	pub fn horizontal() -> Rc<Self> {
+		Self::new(Axis::Horizontal, Rect::new())
+	}
+}
+
+impl<N: SignedInt, C: Copy + 'static> Container for Flow<N, C> {
+	type Storage = Vec<Rc<Widget<N, C>>>;
+	type Item = Rc<Widget<N, C>>;
+
+	fn children(&self) -> Ref<Self::Storage> {
+		self.widgets.borrow()
+	}
+	fn children_mut(&self) -> RefMut<Self::Storage> {
+		self.widgets.borrow_mut()
+	}
+	fn add(&self, w: Self::Item) {
+		let mut widgets = self.children_mut();
+		widgets.push(w);
+	}
+	fn insert(&self, index: usize, w: Self::Item) {
+		let mut widgets = self.widgets.borrow_mut();
+		widgets.insert(index, w);
+	}
+	fn remove(&self, index: usize) -> Self::Item {
+		let mut widgets = self.widgets.borrow_mut();
+		widgets.remove(index)
+	}
+}
+
+impl<N, C> Widget<N, C> for Flow<N, C>
+	where N: SignedInt, C: Copy + 'static
+{
+	fn bounds(&self) -> &Cell<Rect<N>> {
+		&self.rect
+	}
+
+	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool) {
+		self.container_paint(ctx, origin, focused)
+	}
+	fn event(&self, event: Event<N>, origin: Point<N>, focused: bool, redraw: &Cell<bool>) -> bool {
+		self.container_event(event, origin, focused, redraw)
+	}
+
 	fn measured_size(&self) -> &Cell<Point<N>> {
 		&self.measured
 	}
@@ -38,7 +92,8 @@ impl<N: SignedInt, C: Copy + 'static> Measured<N> for Flow<N, C> {
 
 		let mut size = Point::new(N::zero(), N::zero());
 
-		for w in &self.widgets {
+		let widgets = self.widgets.borrow();
+		for w in widgets.iter() {
 			w.measure(width, height);
 			let ms = w.measured_size().get();
 			match axis {
@@ -54,29 +109,7 @@ impl<N: SignedInt, C: Copy + 'static> Measured<N> for Flow<N, C> {
 		}
 		self.measured.set(size);
 	}
-}
 
-impl<N: SignedInt, C: Copy + 'static> Flow<N, C> {
-	pub fn new(axis: Axis, rect: Rect<N>) -> Self {
-		Self {
-			widgets: Vec::new(),
-			rect: Cell::new(rect),
-			axis: Cell::new(axis),
-			measured: Cell::new(Point::new(N::zero(), N::zero())),
-		}
-	}
-	pub fn vertical(rect: Rect<N>) -> Self {
-		Self::new(Axis::Vertical, rect)
-	}
-	pub fn horizontal(rect: Rect<N>) -> Self {
-		Self::new(Axis::Horizontal, rect)
-	}
-	pub fn add(&mut self, w: Rc<Widget<N, C>>) {
-		self.widgets.push(w);
-	}
-}
-
-impl<N: SignedInt, C: Copy + 'static> Layout for Flow<N, C> {
 	fn layout(&self) {
 		let rect = self.rect.get();
 		let axis = self.axis.get();
@@ -90,7 +123,9 @@ impl<N: SignedInt, C: Copy + 'static> Layout for Flow<N, C> {
 		let mut total_expand_weight = zero;
 		let mut total_shrink_weight = zero;
 
-		for c in &self.widgets {
+		let widgets = self.widgets.borrow();
+
+		for c in widgets.iter() {
 			let d = c.layout_data().and_then(|p| p.downcast_ref::<FlowData<N>>());
 			if let Some(c) = d {
 				let aw = c.along_weight;
@@ -125,7 +160,7 @@ impl<N: SignedInt, C: Copy + 'static> Layout for Flow<N, C> {
 		}
 
 		let mut p = Point::new(zero, zero);
-		for c in &self.widgets {
+		for c in widgets.iter() {
 			let mut q = Point::from_coordinates(p.coords + c.measured_size().get().coords);
 			let d = c.layout_data().and_then(|p| p.downcast_ref::<FlowData<N>>());
 			if let Some(d) = d {
@@ -161,35 +196,10 @@ impl<N: SignedInt, C: Copy + 'static> Layout for Flow<N, C> {
 	}
 }
 
-
 fn stretch_across<N: Num>(child: N, parent: N, expand: bool, shrink: bool) -> N{
 	if (expand && child < parent) || (shrink && child > parent) {
 		parent
 	} else {
 		child
-	}
-}
-
-impl<N: SignedInt, C: Copy + 'static> Bounds<N> for Flow<N, C> {
-	fn bounds(&self) -> &Cell<Rect<N>> {
-		&self.rect
-	}
-}
-
-impl<N, C> Widget<N, C> for Flow<N, C>
-	where N: SignedInt, C: Copy + 'static
-{
-	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool) {
-		let origin = Point::from_coordinates(self.rect.get().min.coords + origin.coords);
-		for w in self.widgets.iter() {
-			w.paint(ctx, origin, focused && false);
-		}
-	}
-	fn event(&self, event: Event<N>, origin: Point<N>, focused: bool, redraw: &Cell<bool>) -> bool {
-		let origin = Point::from_coordinates(self.rect.get().min.coords + origin.coords);
-		for w in self.widgets.iter() {
-			w.event(event, origin, false, redraw);
-		}
-		focused
 	}
 }

@@ -160,7 +160,7 @@ impl<'a> Tools<'a> {
 		self.created = false;
 	}
 
-	pub fn draw(&mut self, render: &mut ui::Render) {
+	pub fn paint(&mut self, render: &mut ui::Render) {
 		let red = 0xFF4136_FFu32;
 
 		if !self.created {
@@ -168,15 +168,15 @@ impl<'a> Tools<'a> {
 			let m = self.editor.sprite();
 			let m = m.as_receiver();
 			let (w, h) = (m.width as u32, m.height as u32);
-			render.create_texture(EDITOR_SPRITE_ID, w, h);
-			render.create_texture(EDITOR_PREVIEW_ID, w, h);
+			render.graph.create_texture(EDITOR_SPRITE_ID, w, h);
+			render.graph.create_texture(EDITOR_PREVIEW_ID, w, h);
 		}
 
 		let redraw = self.editor.redraw;
 		self.editor.redraw = None;
 
 		if let Some(r) = redraw {
-			render.canvas(EDITOR_SPRITE_ID, |canvas, _, _| {
+			render.graph.canvas(EDITOR_SPRITE_ID, |canvas, _, _| {
 				let r = r.normalize();
 				let clear_rect = rect!(r.min.x, r.min.y, r.dx(), r.dy());
 				//canvas.set_clip_rect(r);
@@ -204,7 +204,7 @@ impl<'a> Tools<'a> {
 			});
 		}
 
-		render.canvas(EDITOR_PREVIEW_ID, |canvas, _, _| {
+		render.graph.canvas(EDITOR_PREVIEW_ID, |canvas, _, _| {
 			canvas.set_draw_color(color!(TRANSPARENT));
 			canvas.clear();
 

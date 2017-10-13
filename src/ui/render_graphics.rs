@@ -44,16 +44,6 @@ impl<'t, 'ttf, 'rwops> RenderGraphics<'t, 'ttf, 'rwops, i16, u32> {
 		}
 	}
 
-	pub fn load_texture<T: Into<Option<usize>>, P: AsRef<Path>>(&mut self, id: T, filename: P) -> usize {
-		let id = self.gen_id(id);
-
-		let mut texture = self.creator.load_texture(filename).unwrap();
-		texture.set_blend_mode(BlendMode::Blend);
-		let TextureQuery { width, height, .. } = texture.query();
-		self.textures.insert(id, (texture, width, height));
-		id
-	}
-
 	pub fn run_commands(&mut self) {
 		for buf in &mut self.cmd_buffer {
 			for cmd in buf.drain(..) {
@@ -125,30 +115,7 @@ impl<'t, 'ttf, 'rwops> RenderGraphics<'t, 'ttf, 'rwops, i16, u32> {
 	}
 }
 
-impl<'t, 'ttf, 'rwops, N: SignedInt, C: Copy + 'static> widgets::Graphics<N, C> for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
-	fn render_text_center(&mut self, r: Rect<N>, color: C, s: &str) {
-		self.text_center(r, color, s);
-	}
-	fn render_rect(&mut self, r: Rect<N>, color: C) {
-		self.fill(r, color);
-	}
-	fn render_border(&mut self, r: Rect<N>, color: C) {
-		self.border(r, color);
-	}
-}
-
 impl<'t, 'ttf, 'rwops, N: SignedInt, C: Copy + 'static> Graphics<N, C> for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
-	type RenderTarget = SdlCanvas;
-
-	fn canvas<F: FnMut(&mut Self::RenderTarget, u32, u32)>(&mut self, id: usize, mut f: F) {
-		let texture = self.textures.get_mut(&id);
-		if let Some(texture) = texture {
-			let w = texture.1;
-			let h = texture.2;
-			self.ctx.with_texture_canvas(&mut texture.0, |canvas| f(canvas, w, h)).unwrap();
-		}
-	}
-
 	fn command(&mut self, cmd: Command<N, C>) {
 		self.cmd_buffer[self.channel].push(cmd);
 	}
@@ -161,7 +128,28 @@ impl<'t, 'ttf, 'rwops, N: SignedInt, C: Copy + 'static> Graphics<N, C> for Rende
 		(w, h)
 	}
 	fn channel(&mut self, ch: usize) { self.channel = ch }
+}
 
+impl<'t, 'ttf, 'rwops, N: SignedInt, C: Copy + 'static> TextureManager for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
+	type RenderTarget = SdlCanvas;
+
+	fn canvas<F: FnMut(&mut Self::RenderTarget, u32, u32)>(&mut self, id: usize, mut f: F) {
+		let texture = self.textures.get_mut(&id);
+		if let Some(texture) = texture {
+			let w = texture.1;
+			let h = texture.2;
+			self.ctx.with_texture_canvas(&mut texture.0, |canvas| f(canvas, w, h)).unwrap();
+		}
+	}
+	fn load_texture<T: Into<Option<usize>>, P: AsRef<Path>>(&mut self, id: T, filename: P) -> usize {
+		let id = self.gen_id(id);
+
+		let mut texture = self.creator.load_texture(filename).unwrap();
+		texture.set_blend_mode(BlendMode::Blend);
+		let TextureQuery { width, height, .. } = texture.query();
+		self.textures.insert(id, (texture, width, height));
+		id
+	}
 	fn create_texture<T: Into<Option<usize>>>(&mut self, id: T, w: u32, h: u32) -> usize {
 		let id = self.gen_id(id);
 

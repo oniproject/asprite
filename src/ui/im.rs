@@ -10,18 +10,10 @@ pub struct Panel<'a, R: Immediate + 'a> {
 }
 
 impl<'a, R: Immediate + 'a> Graphics<i16, u32> for Panel<'a, R> {
-	type RenderTarget = R::RenderTarget;
-
-	fn canvas<F: FnMut(&mut Self::RenderTarget, u32, u32)>(&mut self, id: usize, f: F) { self.render.canvas(id, f) }
-
 	fn command(&mut self, cmd: Command<i16, u32>) { self.render.command(cmd) }
 	fn text_size(&mut self, s: &str) -> (u32, u32) { self.render.text_size(s) }
 	fn image_size(&mut self, id: usize) -> (u32, u32) { self.render.image_size(id) }
 	fn channel(&mut self, ch: usize) { self.render.channel(ch) }
-
-	fn create_texture<T: Into<Option<usize>>>(&mut self, id: T, w: u32, h: u32) -> usize {
-		self.render.create_texture(id, w, h)
-	}
 }
 
 impl<'a, R: Immediate + 'a> Immediate for Panel<'a, R> {
@@ -56,6 +48,19 @@ pub trait Immediate: Sized + Graphics<i16, u32> {
 		let r = self.bounds();
 		self.lay(Rect::with_size(0, 0, r.dx(), r.dy()));
 		self.fill(r, color);
+	}
+
+	fn render_frame<A, B>(&mut self, r: Rect<i16>, bg: A, border: B)
+		where
+			A: Into<Option<u32>>,
+			B: Into<Option<u32>>,
+	{
+		if let Some(bg) = bg.into() {
+			self.fill(r, bg);
+		}
+		if let Some(border) = border.into() {
+			self.border(r, border);
+		}
 	}
 	fn header(&mut self, title: &str) {
 		let w = self.width();

@@ -34,21 +34,21 @@ pub static TEXT_SELECTION: Color = SELECT_BLUE;
 
 impl<N: SignedInt> Root<N, u32> {
 	pub fn new(rect: Rect<N>) -> Self {
-		Root {
-			widgets: Vec::new(),
+		Self {
+			widgets: RefCell::new(Vec::new()),
 			focus: Cell::new(usize::max_value()),
 			rect: Cell::new(rect),
 			redraw: Cell::new(true),
 			mouse_pos: Cell::new(Point::new(N::zero(), N::zero())),
 			mouse_left: Cell::new(false),
-			bg: WINDOW_BACKGROUND,
+			bg: Cell::new(WINDOW_BACKGROUND),
 		}
 	}
 }
 
 impl<N: SignedInt> Button<N, u32> {
-	pub fn new<F: Fn(&Self) + 'static>(label: String, callback: F) -> Self {
-		Self {
+	pub fn new<F: Fn(&Self) + 'static>(label: String, callback: F) -> Rc<Self> {
+		Rc::new(Self {
 			rect: Cell::new(Rect::default()),
 			bg: (BUTTON_BACKGROUND, BUTTON_BG_SELECTION),
 			fg: (BUTTON_FOREGROUND, BUTTON_FG_SELECTION),
@@ -65,17 +65,17 @@ impl<N: SignedInt> Button<N, u32> {
 				expand_across: true,
 				shrink_across: true,
 			},
-		}
+		})
 	}
 }
 
 impl<N: SignedInt> Label<N, u32> {
-	pub fn new(label: String) -> Self {
-		Self {
+	pub fn new(label: String) -> Rc<Self> {
+		Rc::new(Self {
 			rect: Cell::new(Rect::default()),
 			color: LABEL_COLOR,
 			label: RefCell::new(label),
 			measured: Cell::new(Point::new(N::zero(), N::zero())),
-		}
+		})
 	}
 }

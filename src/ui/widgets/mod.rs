@@ -1,4 +1,10 @@
 #![allow(dead_code)]
+
+pub use self::layout::{Flow, FlowData};
+pub use self::button::Button;
+pub use self::label::Label;
+pub use self::window::Root;
+
 mod theme;
 mod check_set;
 mod window;
@@ -7,89 +13,137 @@ mod label;
 mod layout;
 
 use std::any::Any;
-use std::cell::Cell;
+use std::cell::{Ref, RefMut, Cell};
 use std::rc::Rc;
+use std::ops::Deref;
 
 use common::*;
-use super::Mouse;
-
-pub use self::layout::*;
-pub use self::button::Button;
-pub use self::label::Label;
-pub use self::window::Root;
-
-pub trait Graphics<N: SignedInt, C: Copy + 'static> {
-	fn render_text_center(&mut self, r: Rect<N>, color: C, s: &str);
-	fn render_rect(&mut self, r: Rect<N>, color: C);
-	fn render_border(&mut self, r: Rect<N>, color: C);
-}
+use super::{Mouse, Graphics};
 
 pub fn example() -> Root<i16, u32> {
 	let r = Rect::with_size(800, 100, 420, 500);
-	let mut root = Root::new(r);
+	let root = Root::new(r);
 
-	let r = Rect::with_size(0, 0, 420, 500);
-	let mut list = Flow::vertical(r);
+	let list = Flow::vertical();
+	list.xy(0, 30);
+	list.wh(420, 500);
+
 	for i in 0..5 {
-		let btn = Rc::new(Button::new(format!("fuck #{}", i), move |_| {
+		let btn = Button::new(format!("fuck #{}", i), move |_| {
 			println!("fuck u #{}", i);
-		}));
+		});
 		btn.wh(60, 20);
 		list.add(btn);
 	}
 
 	for i in 0..5 {
-		let text = Rc::new(Label::new(format!("fuck #{}", i)));
+		let text = Label::new(format!("fuck #{}", i));
 		text.wh(60, 20);
 		list.add(text);
 	}
 
-	root.add(Rc::new(list));
+	root.add(list);
 	root.measure();
 	root.layout();
 	root
 }
 
-pub trait Layout {
-	fn layout(&self) {}
-	fn layout_data(&self) -> Option<&Any> {
-		None
+pub trait Container {
+	type Storage: IntoIterator<Item=Self::Item>;
+	type Item;
+	fn children(&self) -> Ref<Self::Storage>;
+	fn children_mut(&self) -> RefMut<Self::Storage>;
+	fn add(&self, w: Self::Item);
+	fn insert(&self, index: usize, w: Self::Item);
+	fn remove(&self, index: usize) -> Self::Item;
+
+	fn container_event<N, C, Item>(&self, event: Event<N>, origin: Point<N>, mut focused: bool, redraw: &Cell<bool>) -> bool
+		where
+			N: Num,
+			C: Copy + 'static,
+			Self: Widget<N, C> + Container<Item=Item, Storage=Vec<Item>>,
+			Item: Deref<Target=Widget<N, C>>
+	{
+		let origin = Point::from_coordinates(self.bounds().get().min.coords + origin.coords);
+		for c in self.children().iter() {
+			focused = focused || c.event(event, origin, false, redraw);
+		}
+		focused
+	}
+
+	fn container_paint<N, C, Item>(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool)
+		where
+			N: Num,
+			C: Copy + 'static,
+			Self: Widget<N, C> + Container<Item=Item, Storage=Vec<Item>>,
+			Item: Deref<Target=Widget<N, C>>
+	{
+		let origin = Point::from_coordinates(self.bounds().get().min.coords + origin.coords);
+		for c in self.children().iter() {
+			c.paint(ctx, origin, focused && false);
+		}
 	}
 }
 
-pub trait Measured<N: SignedInt> {
+pub trait Shell {
+	type Item;
+	fn child(&self) -> Option<Self::Item>;
+
+	fn shell_event<N, C, Item>(&self, event: Event<N>, origin: Point<N>, focused: bool, redraw: &Cell<bool>) -> bool
+		where
+			N: Num,
+			C: Copy + 'static,
+			Self: Widget<N, C> + Shell<Item=Item>,
+			Item: Deref<Target=Widget<N, C>>
+	{
+		let origin = Point::from_coordinates(self.bounds().get().min.coords + origin.coords);
+		match self.child() {
+			Some(c) => c.event(event, origin, false, redraw) || focused,
+			None => focused,
+		}
+	}
+
+	fn shell_paint<N, C, Item>(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool)
+		where
+			N: Num,
+			C: Copy + 'static,
+			Self: Widget<N, C> + Shell<Item=Item>,
+			Item: Deref<Target=Widget<N, C>>
+	{
+		let origin = Point::from_coordinates(self.bounds().get().min.coords + origin.coords);
+		if let Some(c) = self.child() {
+			c.paint(ctx, origin, focused && false);
+		}
+	}
+}
+
+pub trait Widget<N: Num, C: Copy + 'static>: Any {
+	fn bounds(&self) -> &Cell<Rect<N>>;
 	fn measured_size(&self) -> &Cell<Point<N>>;
+	fn layout(&self) {}
+	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool);
+	fn event(&self, _event: Event<N>, _origin: Point<N>, focused: bool, _redraw: &Cell<bool>) -> bool {
+		focused
+	}
+
+	fn layout_data(&self) -> Option<&Any> { None }
+
 	fn measure(&self, _w: Option<N>, _h: Option<N>) {
 		self.measured_size().set(Point::new(N::zero(), N::zero()))
 	}
-}
-
-pub trait Bounds<N: SignedInt> {
-	fn bounds(&self) -> &Cell<Rect<N>>;
 
 	fn wh(&self, w: N, h: N) {
 		let r = self.bounds().get();
 		self.bounds().set(r.wh(w, h));
 	} 
-
-	fn size(&self) -> (N, N) {
+	fn xy(&self, x: N, y: N) {
 		let r = self.bounds().get();
-		(r.dx(), r.dy())
+		self.bounds().set(r.xy(x, y));
 	} 
-
-	fn pos(&self) -> (N, N) {
-		let r = self.bounds().get();
-		(r.min.x, r.min.y)
-	} 
-}
-
-pub trait Widget<N: SignedInt, C: Copy + 'static>: Bounds<N> + Measured<N> + Layout + Any {
-	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool);
-	fn event(&self, event: Event<N>, origin: Point<N>, focused: bool, redraw: &Cell<bool>) -> bool;
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Event<N: SignedInt> {
+pub enum Event<N: Num> {
 	Init,
 	Mouse {
 		point: Point<N>,

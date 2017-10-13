@@ -45,7 +45,7 @@ impl<'a> App<'a> {
 
 	pub fn paint(&mut self, render: &mut ui::Render) {
 		render.prepare(WINDOW_BG);
-		self.tools.draw(render);
+		self.tools.paint(render);
 		self.ui(render);
 		self.update = render.finish();
 	}

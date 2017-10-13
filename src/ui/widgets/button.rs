@@ -17,19 +17,15 @@ pub struct Button<N: SignedInt, C: Copy + 'static> {
 	pub flow: FlowData<N>,
 }
 
-impl<N: SignedInt, C: Copy + 'static> Bounds<N> for Button<N, C> {
+impl<N, C> Widget<N, C> for Button<N, C>
+	where N: SignedInt, C: Copy + 'static
+{
 	fn bounds(&self) -> &Cell<Rect<N>> {
 		&self.rect
 	}
-}
-
-impl<N: SignedInt, C: Copy + 'static> Layout for Button<N, C> {
 	fn layout_data(&self) -> Option<&Any> {
 		Some(&self.flow)
 	}
-}
-
-impl<N: SignedInt, C: Copy + 'static> Measured<N> for Button<N, C> {
 	fn measured_size(&self) -> &Cell<Point<N>> {
 		&self.measured
 	}
@@ -37,11 +33,7 @@ impl<N: SignedInt, C: Copy + 'static> Measured<N> for Button<N, C> {
 		let rect = self.bounds().get();
 		self.measured.set(Point::new(rect.dx(), rect.dy()))
 	}
-}
 
-impl<N, C> Widget<N, C> for Button<N, C>
-	where N: SignedInt, C: Copy + 'static
-{
 	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, _focused: bool) {
 		let rect = self.rect.get().translate(origin);
 		let (fg, bg, border) = if self.pressed.get() {
@@ -50,11 +42,11 @@ impl<N, C> Widget<N, C> for Button<N, C>
 			(self.fg.0, self.bg.0, self.border.map(|b| b.0))
 		};
 		let text = self.label.borrow();
-		ctx.render_rect(rect, bg);
+		ctx.fill(rect, bg);
 		if let Some(border) = border {
-			ctx.render_border(rect, border);
+			ctx.border(rect, border);
 		}
-		ctx.render_text_center(rect, fg, &text);
+		ctx.text_center(rect, fg, &text);
 	}
 
 	fn event(&self, event: Event<N>, origin: Point<N>, focused: bool, redraw: &Cell<bool>) -> bool {

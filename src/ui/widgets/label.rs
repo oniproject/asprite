@@ -10,15 +10,12 @@ pub struct Label<N: SignedInt, C: Copy> {
 	pub label: RefCell<String>,
 }
 
-impl<N: SignedInt, C: Copy + 'static> Bounds<N> for Label<N, C> {
+impl<N, C> Widget<N, C> for Label<N, C>
+	where N: SignedInt, C: Copy + 'static
+{
 	fn bounds(&self) -> &Cell<Rect<N>> {
 		&self.rect
 	}
-}
-
-impl<N: SignedInt, C: Copy + 'static> Layout for Label<N, C> {}
-
-impl<N: SignedInt, C: Copy + 'static> Measured<N> for Label<N, C> {
 	fn measured_size(&self) -> &Cell<Point<N>> {
 		&self.measured
 	}
@@ -26,17 +23,9 @@ impl<N: SignedInt, C: Copy + 'static> Measured<N> for Label<N, C> {
 		let rect = self.bounds().get();
 		self.measured.set(Point::new(rect.dx(), rect.dy()))
 	}
-}
-
-impl<N, C> Widget<N, C> for Label<N, C>
-	where N: SignedInt, C: Copy + 'static
-{
 	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, _focused: bool) {
 		let rect = self.rect.get().translate(origin);
 		let text = self.label.borrow();
-		ctx.render_text_center(rect, self.color, &text);
-	}
-	fn event(&self, _event: Event<N>, _origin: Point<N>, focused: bool, _redraw: &Cell<bool>) -> bool {
-		focused
+		ctx.text_center(rect, self.color, &text);
 	}
 }
