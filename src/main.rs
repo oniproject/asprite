@@ -38,10 +38,8 @@ macro_rules! color(
 mod common;
 mod tool;
 mod gui;
-mod mask;
 mod editor;
 mod cmd;
-mod sprite;
 mod grid;
 
 mod app;
@@ -119,7 +117,7 @@ fn main() {
 	let mut events = sdl_context.event_pump().unwrap();
 
 	let sprite = {
-		let mut sprite = sprite::Sprite::new("GEN", 160, 120);
+		let mut sprite = cmd::Sprite::new("GEN", 160, 120);
 		sprite.add_layer("Layer Down");
 		sprite.add_layer("Layer 2");
 		sprite.add_layer("Layer 3");

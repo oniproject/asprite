@@ -46,6 +46,7 @@ impl<'a> Tools<'a> {
 
 			grid: Grid {
 				show: true,
+				rect: Rect::default(),
 				size: Vector::new(16, 16),
 				offset: Vector::new(-6, -6),
 				zoom: zoom as i16,
@@ -237,6 +238,11 @@ impl<'a> Tools<'a> {
 		render.image_zoomed(EDITOR_PREVIEW_ID, pos, zoom);
 
 		self.grid.zoom = zoom;
-		self.grid.paint(render, self.pos, self.editor.size());
+		self.grid.rect = Rect {
+			min: self.pos,
+			max: Point::from_coordinates(self.pos.coords + self.editor.size().coords),
+		};
+
+		self.grid.paint(render);
 	}
 }

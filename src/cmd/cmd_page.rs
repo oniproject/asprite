@@ -1,7 +1,8 @@
 use undo::Command;
 use std::error::Error;
-use sprite::*;
 use std::mem::swap;
+
+use super::*;
 
 pub struct DrawCommand {
 	page: Frame,

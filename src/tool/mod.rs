@@ -31,4 +31,5 @@ pub trait Context<N: SignedInt, C: Copy + Clone + Eq>: Canvas<C, N> {
 
 pub trait Tool<N: SignedInt, C: Copy + Clone + Eq> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx);
+	// fn preview<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx);
 }

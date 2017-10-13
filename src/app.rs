@@ -9,7 +9,6 @@ use tool::*;
 use gui;
 use gui::*;
 use editor::*;
-use sprite::*;
 use cmd::*;
 
 use undo::record::Record;
