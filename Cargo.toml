@@ -5,13 +5,15 @@ authors = ["Lain-dono <lain.dono@gmail.com>"]
 
 [workspace]
 members = [
-	"ui"
+	"ui",
+	"tiled",
 ]
 
 [dependencies]
 ui = { path = "ui/" }
+tiled = { path = "tiled/" }
 
-nalgebra = "0.13.0"
+nalgebra = "0.13"
 num-traits = "0.1"
 undo = "0.14"
 redo = "0.14"
