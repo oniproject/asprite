@@ -22,6 +22,11 @@ use vulkano::pipeline::shader::ShaderModule;
 
 use vulkano::format::Format;
 
+pub const TEXTURE_COUNT: usize = 10;
+
+
+//const TEXTURES_BY_GROUP: usize = 12;
+
 def!(MainInput MainInputIter
 	tex_coords => Format::R32G32Sfloat,
 	tex_color => Format::R32G32B32A32Sfloat,
@@ -97,7 +102,7 @@ unsafe impl PipelineLayoutDesc for Layout {
 					multisampled: false,
 					array_layers: DescriptorImageDescArray::NonArrayed,
 				}),
-				array_count: 12,
+				array_count: TEXTURE_COUNT as u32,
 				stages: self.0.clone(),
 				readonly: true,
 			}),

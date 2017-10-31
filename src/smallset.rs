@@ -1,21 +1,20 @@
 #[macro_export]
 macro_rules! smallset {
-	($name:ident <$t:ty> [ $fill:expr; $size:expr ]) => {
+	($name:ident [ $t:ty; $size:expr ]) => {
 		pub struct $name {
+			pub array: Vec<$t>,//[Option<$t>; $size],
 			pub len: usize,
-			pub array: [Option<$t>; $size],
 		}
 
+		#[allow(dead_code)]
 		impl $name {
-			/*
 			#[inline(always)]
 			pub fn new() -> Self {
 				Self {
-					array: [$fill; $size],
+					array: Vec::with_capacity($size),
 					len: 0,
 				}
 			}
-			*/
 
 			#[inline(always)]
 			pub fn len(&self) -> usize {
@@ -28,32 +27,29 @@ macro_rules! smallset {
 			}
 
 			#[inline(always)]
+			pub fn clear(&mut self) {
+				self.array.clear();
+			}
+
+			#[inline(always)]
 			pub fn position(&self, v: &$t) -> Option<usize> {
-				for i in 0..$size {
-					match self.array[i] {
-						Some(ref q) if q == v => return Some(i),
-						None => return None,
-						_ => (),
-					}
-				}
-				None
+				self.array.iter().position(|q| q == v)
 			}
 
 			#[inline(always)]
 			pub fn insert(&mut self, v: $t) -> Option<usize> {
 				let pos = self.position(&v);
 				if self.len() != self.capacity() && pos.is_none() {
-					self.array[self.len] = Some(v);
-					self.len += 1;
-					Some(self.len - 1)
+					self.array.push(v);
+					Some(self.array.len() - 1)
 				} else {
 					pos
 				}
 			}
 
 			#[inline(always)]
-			pub fn to_slice(&self) -> &[Option<$t>] {
-				&self.array[..self.len]
+			pub fn to_slice(&self) -> &[$t] {
+				&self.array[..]
 			}
 
 			#[inline(always)]
@@ -71,7 +67,7 @@ macro_rules! smallset {
 
 #[test]
 fn common() {
-	smallset!(Set<usize>[None; 3]);
+	smallset!(Set[usize; 3]);
 
 	let mut v = Set{
 		len: 0,

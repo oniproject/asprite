@@ -26,7 +26,7 @@ use vulkano::pipeline::viewport::Viewport;
 
 use vulkano::command_buffer::DynamicState;
 
-use vulkano::sync::GpuFuture;
+use vulkano::sync::{self, GpuFuture};
 use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::device::{Queue, Device, DeviceExtensions};
 use vulkano::swapchain::{
@@ -131,7 +131,9 @@ fn main() {
 				format, dimensions, 1,
 				usage, &queue, SurfaceTransform::Identity,
 				alpha,
-				PresentMode::Immediate, true, None)
+				PresentMode::Immediate,
+				//PresentMode::Fifo,
+				true, None)
 			.expect("failed to create swapchain")
 	};
 
@@ -164,15 +166,9 @@ fn main() {
 	world.add_resource(Vector2::new(w, h));
 
 	let mut arena = arena::Arena::new(textures.clone());
-	for _ in 0..BATCH_CAPACITY {
+	for _ in 0..BATCH_CAPACITY*2 {
 		arena.spawn(&mut world);
 	}
-
-	//let tsys = tsys::System
-
-	let mut dispatcher = specs::DispatcherBuilder::new()
-		.add(arena, "bunny mark", &[])
-		.build();
 
 	let renderpass = single_pass_renderpass!(device.clone(),
 			attachments: {
@@ -192,19 +188,23 @@ fn main() {
 
 	let proj = transform::Affine::projection(w, h).uniform4();
 
-	let (mut buf, index_future) = Batcher::new(device.clone(), queue.clone(), renderpass, &textures, proj);
+	let renderpass = Arc::new(renderpass);
 
-	let mut previous_frame_end = Box::new(textures_future.join(index_future)) as Box<GpuFuture>;
+	let (mut buf, index_future) = Batcher::new(device.clone(), queue.clone(), renderpass.clone(), proj);
 
-	let clear = vec![[0.0, 0.0, 1.0, 1.0].into()];
+	let proj = transform::Affine::projection(w, h).uniform4();
+	buf.proj_set(proj);
+
+	let mut dispatcher = specs::DispatcherBuilder::new()
+		.add(arena, "mark", &[])
+		.add(buf, "batcher", &["mark"])
+		.build();
+
+	let previous_frame_end: Box<GpuFuture + Send + Sync> = Box::new(textures_future.join(index_future));
+	world.add_resource(previous_frame_end);
 
 	loop {
-		previous_frame_end.cleanup_finished();
-
-		ticker.update();
-		world.add_resource(ticker.elapsed);
-
-		dispatcher.dispatch(&mut world.res);
+		world.write_resource::<Box<GpuFuture + Send + Sync>>().cleanup_finished();
 
 		if recreate_swapchain {
 			println!("recreate_swapchain");
@@ -218,7 +218,7 @@ fn main() {
 			world.add_resource(Vector2::new(w, h));
 
 			let proj = transform::Affine::projection(w, h).uniform4();
-			buf.proj_set(proj);
+			//buf.proj_set(proj);
 
 			let (new_swapchain, new_images) = match sc.recreate_with_dimension(dimensions) {
 				Ok(r) => r,
@@ -236,7 +236,7 @@ fn main() {
 
 		if framebuffers.is_none() {
 			let new = images.iter().map(|image| {
-				let f = Framebuffer::start(buf.renderpass.clone())
+				let f = Framebuffer::start(renderpass.clone())
 						.add(image.clone()).unwrap()
 						.build().unwrap();
 				Arc::new(f)
@@ -244,7 +244,7 @@ fn main() {
 			std::mem::replace(&mut framebuffers, Some(new));
 		}
 
-		let (image_num, future) = match acquire_next_image(sc.clone(), None) {
+		let (image_num, sw_future) = match acquire_next_image(sc.clone(), None) {
 			Ok(r) => r,
 			Err(AcquireError::OutOfDate) => {
 				recreate_swapchain = true;
@@ -254,78 +254,24 @@ fn main() {
 		};
 
 		let fb = framebuffers.as_ref().unwrap()[image_num].clone();
+		world.add_resource(fb.clone());
 
-		let r: (Arc<Framebuffer<_, ((), Arc<SwapchainImage>)>>, Arc<Device>, Arc<Queue>) =
-			(fb.clone(), device.clone(), queue.clone());
+		temporarily_move_out::<Box<GpuFuture + Send + Sync>, _, _>(
+			world.write_resource(), |tmp| Box::new(tmp.join(sw_future)));
 
-		world.add_resource(r);
+		ticker.update();
+		world.add_resource(ticker.elapsed);
+		dispatcher.dispatch(&mut world.res);
 
-		//let iter = arena.iter();
-		use specs::Join;
-		let read = world.read::<Sprite>();
-		let iter = read.join();
-		
-		struct ESI<I: Iterator> {
-			iter: I,
-			size: usize,
-			current: usize,
-			cache: [Vertex; 4],
-		}
+		temporarily_move_out::<Box<GpuFuture + Send + Sync>, _, _>(
+			world.write_resource(), |future| {
+				let future = future
+					.then_swapchain_present(queue.clone(), sc.clone(), image_num)
+					.then_signal_fence_and_flush().unwrap();
+				Box::new(future)
+			});
 
-		impl<'a, I: Iterator<Item=&'a Sprite>> Iterator for ESI<I> {
-			type Item = Vertex;
-			fn next(&mut self) -> Option<Self::Item> {
-				let cur = self.current % 4;
-				self.current += 1;
-				if cur == 0 {
-					if let Some(sprite) = self.iter.next() {
-						self.cache = sprite.cache;
-					} else {
-						return None;
-					}
-				}
-				Some(self.cache[cur])
-			}
-			fn size_hint(&self) -> (usize, Option<usize>) { (self.size, Some(self.size)) }
-		}
-		impl<'a, I: Iterator<Item=&'a Sprite>> ExactSizeIterator for ESI<I> {}
-
-		//world.add_resource(fb);
-
-		let cb = AutoCommandBufferBuilder::primary_one_time_submit(device.clone(), queue.family())
-			.unwrap()
-			.begin_render_pass(fb.clone(), false, clear.clone()).unwrap();
-
-
-		let state = DynamicState {
-			line_width: None,
-			viewports: Some(vec![Viewport {
-				origin: [0.0, 0.0],
-				dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-				depth_range: 0.0 .. 1.0,
-			}]),
-			scissors: None,
-		};
-
-		let cb = buf.draw_iterator(
-			state,
-			fb.clone(),
-			ESI {
-				iter: iter, size: 5000 * 4,
-				current: 0,
-				cache: [Vertex::default(); 4]
-			},
-			cb,
-		);
-
-		let cb = cb.end_render_pass().unwrap()
-			.build().unwrap();
-
-		let future = previous_frame_end.join(future)
-			.then_execute(queue.clone(), cb).unwrap()
-			.then_swapchain_present(queue.clone(), sc.clone(), image_num)
-			.then_signal_fence_and_flush().unwrap();
-		previous_frame_end = Box::new(future) as Box<_>;
+		//previous_frame_end = Box::new(future) as Box<_>;
 
 		let mut done = false;
 		events_loop.poll_events(|ev| {
@@ -473,8 +419,6 @@ impl Batcher {
 	}
 }
 use std::ops::Range;
-
-const TEXTURES_BY_GROUP: usize = 12;
 
 struct Group<T> {
 	range: Range<usize>,

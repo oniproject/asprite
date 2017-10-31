@@ -5,7 +5,6 @@ use specs::{Component, VecStorage};
 use d8::*;
 use texture::*;
 
-
 pub struct Frame {
 	pub x: f32,
 	pub y: f32,
@@ -66,6 +65,15 @@ pub struct Sprite {
 
 impl Component for Sprite {
 	type Storage = VecStorage<Self>;
+}
+
+struct SpriteBase {
+	pub anchor: Vector2<f32>,
+	pub size: Vector2<f32>,
+	pub color: [u8; 4],
+
+	pub uv_cache: [[u16; 2]; 4],
+	pub pos_cache: [Vector2<f32>; 4],
 }
 
 impl Sprite {
@@ -132,12 +140,12 @@ impl Sprite {
 			cy + (h2 * rotate.uy()),
 		);
 		let rotate = rotate.add(D8_S);
-		self.uv_n(2, 
+		self.uv_n(2,
 			cx + (w2 * rotate.ux()),
 			cy + (h2 * rotate.uy()),
 		);
 		let rotate = rotate.add(D8_S);
-		self.uv_n(3, 
+		self.uv_n(3,
 			cx + (w2 * rotate.ux()),
 			cy + (h2 * rotate.uy()),
 		);

@@ -72,7 +72,7 @@ impl Texture {
 */
 
 pub fn load_png<P>(queue: Arc<Queue>, device: Arc<Device>, path: P) ->
-	Result<(Box<GpuFuture>, BaseTexture)>
+	Result<(Box<GpuFuture + Send + Sync>, BaseTexture)>
 	where P: AsRef<Path>
 {
 	let image = image::open(path)?.to_rgba();
@@ -94,19 +94,19 @@ pub fn load_png<P>(queue: Arc<Queue>, device: Arc<Device>, path: P) ->
 		SamplerAddressMode::Repeat,
 		SamplerAddressMode::Repeat,
 		0.0, 1.0, 0.0, 0.0)?;
-	
-	let future = Box::new(future) as Box<GpuFuture>;
+
+	let future = Box::new(future) as Box<GpuFuture + Send + Sync>;
 	Ok((future, BaseTexture { wh, texture, sampler }))
 }
 
 
 pub fn load_images<P>(queue: Arc<Queue>, device: Arc<Device>, images: &[P]) ->
-	Result<(Box<GpuFuture>, Vec<BaseTexture>)>
+	Result<(Box<GpuFuture + Send + Sync>, Vec<BaseTexture>)>
 	where P: AsRef<Path>
 {
 	let mut future =
 		Box::new(vulkano::sync::now(device.clone()))
-		as Box<GpuFuture>;
+		as Box<GpuFuture + Send + Sync>;
 
 	let mut textures = Vec::with_capacity(images.len());
 	for m in images {

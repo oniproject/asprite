@@ -24,7 +24,7 @@ use cgmath::{Vector2, Matrix4};
 use std::sync::Arc;
 
 
-use specs::{self, Fetch, Entity, Entities, Join, ReadStorage, WriteStorage};
+use specs::{self, Fetch, FetchMut, Entity, Entities, Join, ReadStorage, WriteStorage};
 use specs::{Component, DenseVecStorage, FlaggedStorage};
 use specs::UnprotectedStorage;
 
@@ -33,54 +33,43 @@ use sprite::*;
 use texture::*;
 use quad_indices::*;
 
-pub const VERTEX_BY_SPRITE: usize = 4;
-pub const INDEX_BY_SPRITE: usize = 6;
+const VERTEX_BY_SPRITE: usize = 4;
+const INDEX_BY_SPRITE: usize = 6;
 pub const BATCH_CAPACITY: usize = 2_000;
 
 type BoxPipelineLayout = Box<PipelineLayoutAbstract + Send + Sync + 'static>;
+type Pipeline<Rp> = Arc<GraphicsPipeline<SingleBufferDefinition<Vertex>, BoxPipelineLayout, Arc<Rp>>>;
+type Index = Arc<ImmutableBuffer<[u16]>>;
 type Fb<Rp> = Arc<Framebuffer<Arc<Rp>, ((), Arc<SwapchainImage>)>>;
+type Projection = Arc<DescriptorSet + Send + Sync + 'static>;
 
-smallset!(Group<BaseTexture>[None; 12]);
+smallset!(Group[BaseTexture; fs::TEXTURE_COUNT]);
 
-pub struct Batcher<Rp> {
-	pub renderpass: Arc<Rp>,
-
-	device: Arc<Device>,
-	queue: Arc<Queue>,
-
-	uniform: CpuBufferPool<vs::ty::uni>,
-	proj_set: Arc<DescriptorSet + Send + Sync + 'static>,
-
-	vertex: CpuBufferPool<Vertex>,
-	index: Arc<ImmutableBuffer<[u16]>>,
-
-	pipeline: Arc<GraphicsPipeline<SingleBufferDefinition<Vertex>, BoxPipelineLayout, Arc<Rp>>>,
-	tex_set: Arc<DescriptorSet + Send + Sync + 'static>,
-
-	group: Group,
+struct Renderer<Rp> {
 	vertices: Vec<Vertex>,
+	vertex: CpuBufferPool<Vertex>,
+	index: Index,
+	pipeline: Pipeline<Rp>,
+	group: Group,
 }
 
-impl<Rp> Batcher<Rp>
+impl<Rp> Renderer<Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
-	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Rp, textures: &[BaseTexture], proj: Matrix4<f32>) -> (Self, Box<GpuFuture>) {
-
+	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Arc<Rp>)
+		-> (Self, Box<GpuFuture + Send + Sync>)
+	{
 		let (index, index_future) = ImmutableBuffer::from_iter(
 			QuadIndices(0u16, BATCH_CAPACITY * INDEX_BY_SPRITE),
 			BufferUsage::index_buffer(),
 			queue.clone(),
 		).expect("failed to create index buffer");
 
-
-		let uniform = CpuBufferPool::<vs::ty::uni>::new(device.clone(), BufferUsage::all());
-
 		let vertex = CpuBufferPool::<Vertex>::vertex_buffer(device.clone());
 
 		let vs = vs::Shader::load(device.clone()).expect("failed to create shader module");
 		let fs = fs::Shader::load(device.clone()).expect("failed to create shader module");
 
-		let renderpass = Arc::new(renderpass);
 		let pipeline = GraphicsPipeline::start()
 			.vertex_input_single_buffer::<Vertex>()
 			.vertex_shader(vs.main_entry_point(), ())
@@ -94,26 +83,123 @@ impl<Rp> Batcher<Rp>
 
 		let pipeline = Arc::new(pipeline);
 
-		let tex_set = PersistentDescriptorSet::start(pipeline.clone(), 1)
-			.enter_array().unwrap()
+		let vertices = Vec::with_capacity(BATCH_CAPACITY);
+		let group = Group::new();
 
-			.add_sampled_image(textures[ 0].texture.clone(), textures[ 0].sampler.clone()).unwrap()
-			.add_sampled_image(textures[ 1].texture.clone(), textures[ 1].sampler.clone()).unwrap()
-			.add_sampled_image(textures[ 2].texture.clone(), textures[ 2].sampler.clone()).unwrap()
-			.add_sampled_image(textures[ 3].texture.clone(), textures[ 3].sampler.clone()).unwrap()
-			.add_sampled_image(textures[ 4].texture.clone(), textures[ 4].sampler.clone()).unwrap()
-			.add_sampled_image(textures[ 5].texture.clone(), textures[ 5].sampler.clone()).unwrap()
-			.add_sampled_image(textures[ 6].texture.clone(), textures[ 6].sampler.clone()).unwrap()
-			.add_sampled_image(textures[ 7].texture.clone(), textures[ 7].sampler.clone()).unwrap()
-			.add_sampled_image(textures[ 8].texture.clone(), textures[ 8].sampler.clone()).unwrap()
-			.add_sampled_image(textures[ 9].texture.clone(), textures[ 9].sampler.clone()).unwrap()
-			.add_sampled_image(textures[10].texture.clone(), textures[10].sampler.clone()).unwrap()
-			.add_sampled_image(textures[11].texture.clone(), textures[11].sampler.clone()).unwrap()
+		(
+			Self { index, vertex, pipeline, vertices, group },
+			Box::new(index_future)
+		)
+	}
 
-			.leave_array().unwrap()
-			.build().unwrap();
+	#[inline]
+	fn render_sprite(&mut self, sprite: &Sprite, state: DynamicState, proj_set: Projection, mut cb: AutoCommandBufferBuilder) -> AutoCommandBufferBuilder {
+		if self.vertices.len() >= self.vertices.capacity() {
+			cb = self.flush(state.clone(), proj_set.clone(), cb);
+		}
 
-		let tex_set = Arc::new(tex_set);
+		if let Some(ref texture) = sprite.texture {
+			let id =
+				if let Some(id) = self.group.insert(texture.clone()) {
+					id as u32
+				} else {
+					cb = self.flush(state.clone(), proj_set, cb);
+					self.group.array.push(texture.clone());
+					0
+				};
+			let mut vtx = sprite.cache.clone();
+			for i in 0..4 {
+				vtx[i].texture = id;
+			}
+
+			for v in &vtx[..] {
+				self.vertices.push(*v);
+			}
+		}
+		cb
+	}
+
+	#[inline]
+	fn flush(&mut self, state: DynamicState, proj_set: Projection, cb: AutoCommandBufferBuilder) -> AutoCommandBufferBuilder {
+		if self.vertices.len() == 0 {
+			return cb;
+		}
+
+		let count = self.vertices.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
+
+		let vertex_buffer = self.vertex.chunk(self.vertices.drain(..)).unwrap();
+
+		let index_buffer = self.index
+			.clone()
+			.into_buffer_slice()
+			.slice(0..count)
+			.unwrap();
+
+		let tex_set = {
+			let t = &self.group.array;
+
+			PersistentDescriptorSet::start(self.pipeline.clone(), 1)
+				.enter_array().unwrap()
+
+				.add_sampled_image(t[ 0].texture.clone(), t[ 0].sampler.clone()).unwrap()
+				.add_sampled_image(t[ 1].texture.clone(), t[ 1].sampler.clone()).unwrap()
+				.add_sampled_image(t[ 2].texture.clone(), t[ 2].sampler.clone()).unwrap()
+				.add_sampled_image(t[ 3].texture.clone(), t[ 3].sampler.clone()).unwrap()
+				.add_sampled_image(t[ 4].texture.clone(), t[ 4].sampler.clone()).unwrap()
+				.add_sampled_image(t[ 5].texture.clone(), t[ 5].sampler.clone()).unwrap()
+				.add_sampled_image(t[ 6].texture.clone(), t[ 6].sampler.clone()).unwrap()
+				.add_sampled_image(t[ 7].texture.clone(), t[ 7].sampler.clone()).unwrap()
+				.add_sampled_image(t[ 8].texture.clone(), t[ 8].sampler.clone()).unwrap()
+				.add_sampled_image(t[ 9].texture.clone(), t[ 9].sampler.clone()).unwrap()
+				//.add_sampled_image(t[10].texture.clone(), t[10].sampler.clone()).unwrap()
+				//.add_sampled_image(t[11].texture.clone(), t[11].sampler.clone()).unwrap()
+
+				.leave_array().unwrap()
+				.build().unwrap()
+		};
+
+		self.group.clear();
+
+		cb.draw_indexed(
+			self.pipeline.clone(),
+			state,
+			vertex_buffer,
+			index_buffer,
+			(proj_set, Arc::new(tex_set)),
+			(),
+		).unwrap()
+	}
+}
+
+pub struct Batcher<Rp> {
+	renderer: Renderer<Rp>,
+	pub renderpass: Arc<Rp>,
+
+	device: Arc<Device>,
+	queue: Arc<Queue>,
+
+	uniform: CpuBufferPool<vs::ty::uni>,
+	proj_set: Projection,
+}
+
+impl<Rp> Batcher<Rp>
+	where Rp: RenderPassAbstract + Send + Sync + 'static
+{
+	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Arc<Rp>, proj: Matrix4<f32>)
+		-> (Self, Box<GpuFuture + Send + Sync>)
+	{
+		let (renderer, index_future) = Renderer::new(device.clone(), queue.clone(), renderpass.clone());
+
+		let (index, index_future) = ImmutableBuffer::from_iter(
+			QuadIndices(0u16, BATCH_CAPACITY * INDEX_BY_SPRITE),
+			BufferUsage::index_buffer(),
+			queue.clone(),
+		).expect("failed to create index buffer");
+
+		let uniform = CpuBufferPool::<vs::ty::uni>::new(device.clone(), BufferUsage::all());
+
+		let vertex = CpuBufferPool::<Vertex>::vertex_buffer(device.clone());
+
 		let proj_set = {
 			let uniform_buffer_subbuffer = {
 				let data = vs::ty::uni {
@@ -121,24 +207,14 @@ impl<Rp> Batcher<Rp>
 				};
 				uniform.next(data).unwrap()
 			};
-			let set = PersistentDescriptorSet::start(pipeline.clone(), 0)
+			let set = PersistentDescriptorSet::start(renderer.pipeline.clone(), 0)
 				.add_buffer(uniform_buffer_subbuffer).unwrap()
 				.build().unwrap();
 			Arc::new(set)
 		};
 
-		let vertices = Vec::new();
-		let group = Group {
-			len: 0,
-			array: [
-				None, None, None, None,
-				None, None, None, None,
-				None, None, None, None,
-			],
-		};
-
 		(
-			Self { device, queue, uniform, index, vertex, pipeline, renderpass, tex_set, proj_set, vertices, group },
+			Self { device, queue, uniform, renderpass, proj_set, renderer },
 			Box::new(index_future)
 		)
 	}
@@ -150,65 +226,10 @@ impl<Rp> Batcher<Rp>
 			};
 			self.uniform.next(data).unwrap()
 		};
-		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 0)
+		let set = PersistentDescriptorSet::start(self.renderer.pipeline.clone(), 0)
 			.add_buffer(uniform_buffer_subbuffer).unwrap()
 			.build().unwrap();
 		self.proj_set = Arc::new(set);
-	}
-
-	pub fn draw_iterator<I>(&mut self, state: DynamicState, fb: Fb<Rp>, mut iter: I, mut cb: AutoCommandBufferBuilder) -> AutoCommandBufferBuilder
-		where I: Iterator<Item = Vertex> + ExactSizeIterator
-	{
-		const SIZE: usize = 1000;
-		for _ in 0..BATCH_CAPACITY / SIZE {
-			self.vertices.extend(iter.by_ref().take(SIZE * VERTEX_BY_SPRITE));
-			cb = self.flush(state.clone(), fb.clone(), cb);
-			/*
-			let vertex_buffer = self.vertex.chunk().unwrap();
-
-			let end = SIZE * VERTEX_BY_SPRITE;
-
-			let index_buffer = self.index
-				.clone()
-				.into_buffer_slice()
-				//.slice(i*SIZE..count*VERTEX_BY_SPRITE)
-				.slice(0..end)
-				.unwrap();
-
-			cb = cb.draw_indexed(
-					self.pipeline.clone(),
-					state.clone(),
-					vertex_buffer.clone(),
-					index_buffer,
-					(self.proj_set.clone(), self.tex_set.clone()),
-					(),
-				).unwrap();
-				*/
-		}
-		cb
-	}
-
-	fn flush(&mut self, state: DynamicState, fb: Fb<Rp>, cb: AutoCommandBufferBuilder) -> AutoCommandBufferBuilder {
-		// create texture mapping from group
-
-		let count = self.vertices.len();
-
-		let vertex_buffer = self.vertex.chunk(self.vertices.drain(..)).unwrap();
-
-		let index_buffer = self.index
-			.clone()
-			.into_buffer_slice()
-			.slice(0..count)
-			.unwrap();
-
-		cb.draw_indexed(
-			self.pipeline.clone(),
-			state,
-			vertex_buffer,
-			index_buffer,
-			(self.proj_set.clone(), self.tex_set.clone()),
-			(),
-		).unwrap()
 	}
 }
 
@@ -216,12 +237,13 @@ impl<'a, Rp> specs::System<'a> for Batcher<Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
 	type SystemData = (
+		FetchMut<'a, Box<GpuFuture + Send + Sync>>,
 		Fetch<'a, Vector2<f32>>,
 		Fetch<'a, Fb<Rp>>,
 		ReadStorage<'a, Sprite>,
 	);
 
-	fn run(&mut self, (wh, qq, sprites,): Self::SystemData) {
+	fn run(&mut self, (future, wh, fb, sprites,): Self::SystemData) {
 		let wh = *wh;
 		let state = DynamicState {
 			line_width: None,
@@ -233,19 +255,41 @@ impl<'a, Rp> specs::System<'a> for Batcher<Rp>
 			scissors: None,
 		};
 
+		let clear = vec![[0.0, 0.0, 1.0, 1.0].into()];
+
+		let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(self.device.clone(), self.queue.family())
+			.unwrap()
+			.begin_render_pass(fb.clone(), false, clear).unwrap();
+
 		for (sprite,) in (&sprites,).join() {
-			let texture = match sprite.texture {
-				Some(ref texture) => texture,
-				None => continue,
-			};
-
-			// if we can push to current group - ok
-			// another - flush and retry
-
-
-			for v in &sprite.cache[..] {
-				self.vertices.push(*v);
-			}
+			let proj = self.proj_set.clone();
+			cb = self.renderer.render_sprite(&sprite, state.clone(), proj, cb);
 		}
+
+		let proj = self.proj_set.clone();
+		cb = self.renderer.flush(state, proj, cb);
+
+		let cb = cb
+			.end_render_pass().unwrap()
+			.build().unwrap();
+
+		let q = self.queue.clone();
+		temporarily_move_out(future, |f| Box::new(f.then_execute(q, cb).unwrap()));
 	}
+}
+
+use std::ops::DerefMut;
+
+/// Defeat borrowchecker
+/// https://stackoverflow.com/questions/29570781/temporarily-move-out-of-borrowed-content
+#[inline(always)]
+pub fn temporarily_move_out<T, D, F>(to: D, f: F)
+	where D: DerefMut<Target=T>, F: FnOnce(T) -> T
+{
+	use std::mem::{forget, uninitialized, replace};
+	let mut to = to;
+	let tmp = replace(&mut *to, unsafe { uninitialized() });
+	let new = f(tmp);
+	let uninit = replace(&mut *to, new);
+	forget(uninit);
 }

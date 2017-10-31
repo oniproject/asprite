@@ -49,6 +49,7 @@ impl Arena {
 		let mut sprite = Sprite {
 			anchor: Vector2::new(0.5, 1.0),
 			w: t.wh.0 as f32, h: t.wh.1 as f32,
+			texture: Some(self.textures[tex].clone()),
 			.. Default::default()
 		};
 		sprite.uv();
