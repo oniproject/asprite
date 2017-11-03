@@ -20,14 +20,15 @@ use vulkano::image::SwapchainImage;
 use vulkano::sync::GpuFuture;
 
 use cgmath::{Vector2, Matrix4};
+use cgmath::SquareMatrix;
 
 use std::sync::Arc;
 
 
 use specs::{self, Fetch, FetchMut, Entity, Entities, Join, ReadStorage, WriteStorage};
 use specs::{Component, DenseVecStorage, FlaggedStorage};
-use specs::UnprotectedStorage;
 
+use transform::*;
 use shader::*;
 use sprite::*;
 use texture::*;
@@ -98,24 +99,43 @@ impl<Rp> Renderer<Rp>
 			cb = self.flush(state.clone(), proj_set.clone(), cb);
 		}
 
-		if let Some(ref texture) = sprite.texture {
-			let id =
-				if let Some(id) = self.group.insert(texture.clone()) {
-					id as u32
-				} else {
-					cb = self.flush(state.clone(), proj_set, cb);
-					self.group.array.push(texture.clone());
-					0
-				};
-			let mut vtx = sprite.cache.clone();
-			for i in 0..4 {
-				vtx[i].texture = id;
-			}
+		let id =
+			if let Some(id) = self.group.insert(sprite.texture.clone()) {
+				id as u32
+			} else {
+				cb = self.flush(state.clone(), proj_set, cb);
+				self.group.array.push(sprite.texture.clone());
+				0
+			};
 
-			for v in &vtx[..] {
-				self.vertices.push(*v);
-			}
-		}
+		let vtx = [
+			Vertex {
+				position: sprite.pos[0].into(),
+				uv: sprite.uv[0],
+				color: sprite.color,
+				texture: id,
+			},
+			Vertex {
+				position: sprite.pos[1].into(),
+				uv: sprite.uv[1],
+				color: sprite.color,
+				texture: id,
+			},
+			Vertex {
+				position: sprite.pos[2].into(),
+				uv: sprite.uv[2],
+				color: sprite.color,
+				texture: id,
+			},
+			Vertex {
+				position: sprite.pos[3].into(),
+				uv: sprite.uv[3],
+				color: sprite.color,
+				texture: id,
+			},
+		];
+
+		self.vertices.extend(&vtx);
 		cb
 	}
 
@@ -136,7 +156,12 @@ impl<Rp> Renderer<Rp>
 			.unwrap();
 
 		let tex_set = {
-			let t = &self.group.array;
+			let t = &mut self.group.array;
+			debug_assert!(t.len() != 0);
+			while t.len() < t.capacity() {
+				let first = t[0].clone();
+				t.push(first);
+			}
 
 			PersistentDescriptorSet::start(self.pipeline.clone(), 1)
 				.enter_array().unwrap()
@@ -151,8 +176,14 @@ impl<Rp> Renderer<Rp>
 				.add_sampled_image(t[ 7].texture.clone(), t[ 7].sampler.clone()).unwrap()
 				.add_sampled_image(t[ 8].texture.clone(), t[ 8].sampler.clone()).unwrap()
 				.add_sampled_image(t[ 9].texture.clone(), t[ 9].sampler.clone()).unwrap()
-				//.add_sampled_image(t[10].texture.clone(), t[10].sampler.clone()).unwrap()
-				//.add_sampled_image(t[11].texture.clone(), t[11].sampler.clone()).unwrap()
+
+				.add_sampled_image(t[10].texture.clone(), t[10].sampler.clone()).unwrap()
+				.add_sampled_image(t[11].texture.clone(), t[11].sampler.clone()).unwrap()
+				.add_sampled_image(t[12].texture.clone(), t[12].sampler.clone()).unwrap()
+				.add_sampled_image(t[13].texture.clone(), t[13].sampler.clone()).unwrap()
+				.add_sampled_image(t[14].texture.clone(), t[14].sampler.clone()).unwrap()
+				.add_sampled_image(t[15].texture.clone(), t[15].sampler.clone()).unwrap()
+				.add_sampled_image(t[16].texture.clone(), t[16].sampler.clone()).unwrap()
 
 				.leave_array().unwrap()
 				.build().unwrap()
@@ -180,30 +211,24 @@ pub struct Batcher<Rp> {
 
 	uniform: CpuBufferPool<vs::ty::uni>,
 	proj_set: Projection,
+
+	last_wh: Vector2<f32>,
 }
 
 impl<Rp> Batcher<Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
-	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Arc<Rp>, proj: Matrix4<f32>)
+	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Arc<Rp>)
 		-> (Self, Box<GpuFuture + Send + Sync>)
 	{
 		let (renderer, index_future) = Renderer::new(device.clone(), queue.clone(), renderpass.clone());
 
-		let (index, index_future) = ImmutableBuffer::from_iter(
-			QuadIndices(0u16, BATCH_CAPACITY * INDEX_BY_SPRITE),
-			BufferUsage::index_buffer(),
-			queue.clone(),
-		).expect("failed to create index buffer");
-
 		let uniform = CpuBufferPool::<vs::ty::uni>::new(device.clone(), BufferUsage::all());
-
-		let vertex = CpuBufferPool::<Vertex>::vertex_buffer(device.clone());
 
 		let proj_set = {
 			let uniform_buffer_subbuffer = {
 				let data = vs::ty::uni {
-					proj: proj.into(),
+					proj: Matrix4::identity().into(),
 				};
 				uniform.next(data).unwrap()
 			};
@@ -214,12 +239,18 @@ impl<Rp> Batcher<Rp>
 		};
 
 		(
-			Self { device, queue, uniform, renderpass, proj_set, renderer },
+			Self { device, queue, uniform, renderpass, proj_set, renderer, last_wh: Vector2::new(0.0, 0.0) },
 			Box::new(index_future)
 		)
 	}
 
-	pub fn proj_set(&mut self, proj: Matrix4<f32>) {
+	fn proj_set(&mut self, wh: Vector2<f32>) {
+		if self.last_wh == wh {
+			return;
+		}
+		self.last_wh = wh;
+
+		let proj = Affine::projection(wh.x, wh.y).uniform4();
 		let uniform_buffer_subbuffer = {
 			let data = vs::ty::uni {
 				proj: proj.into(),
@@ -243,8 +274,11 @@ impl<'a, Rp> specs::System<'a> for Batcher<Rp>
 		ReadStorage<'a, Sprite>,
 	);
 
+	fn running_time(&self) -> specs::RunningTime { specs::RunningTime::Long }
+
 	fn run(&mut self, (future, wh, fb, sprites,): Self::SystemData) {
 		let wh = *wh;
+		self.proj_set(wh);
 		let state = DynamicState {
 			line_width: None,
 			viewports: Some(vec![Viewport {

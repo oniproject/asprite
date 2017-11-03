@@ -7,6 +7,8 @@ use cgmath::BaseFloat;
 use cgmath::One;
 use cgmath::Zero;
 
+use specs::{Component, DenseVecStorage, FlaggedStorage};
+
 use std::fmt::Debug;
 use std::ops::Mul;
 
@@ -40,6 +42,12 @@ pub struct Affine<T>
 {
 	pub m: Matrix2<T>,
 	pub t: Vector2<T>,
+}
+
+impl<T> Component for Affine<T>
+	where T: Clone + Copy + Debug + Send + Sync + 'static
+{
+	type Storage = FlaggedStorage<Self, DenseVecStorage<Self>>;
 }
 
 impl<T> Default for Affine<T>

@@ -21,14 +21,9 @@ extern crate vulkano;
 extern crate vulkano_win;
 
 use vulkano_win::VkSurfaceBuild;
-
-use vulkano::pipeline::viewport::Viewport;
-
-use vulkano::command_buffer::DynamicState;
-
-use vulkano::sync::{self, GpuFuture};
+use vulkano::sync::GpuFuture;
 use vulkano::instance::{Instance, PhysicalDevice};
-use vulkano::device::{Queue, Device, DeviceExtensions};
+use vulkano::device::{Device, DeviceExtensions};
 use vulkano::swapchain::{
 	Swapchain,
 	SurfaceTransform,
@@ -37,10 +32,7 @@ use vulkano::swapchain::{
 	acquire_next_image,
 	AcquireError,
 };
-use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::framebuffer::Framebuffer;
-use vulkano::image::SwapchainImage;
-use vulkano::buffer::BufferUsage;
 
 use specs::World;
 use cgmath::Vector2;
@@ -69,8 +61,6 @@ use sprite::*;
 use batcher::*;
 //use errors::*;
 use texture::*;
-
-use quad_indices::*;
 
 fn _main() {
 	#[inline(always)]
@@ -131,8 +121,8 @@ fn main() {
 				format, dimensions, 1,
 				usage, &queue, SurfaceTransform::Identity,
 				alpha,
-				PresentMode::Immediate,
-				//PresentMode::Fifo,
+				//PresentMode::Immediate,
+				PresentMode::Fifo,
 				true, None)
 			.expect("failed to create swapchain")
 	};
@@ -158,6 +148,7 @@ fn main() {
 
 	let mut world = World::new();
 	world.register::<Sprite>();
+	world.register::<transform::Affine<f32>>();
 	world.register::<arena::Velocity>();
 
 	let w = dimensions[0] as f32;
@@ -165,10 +156,8 @@ fn main() {
 
 	world.add_resource(Vector2::new(w, h));
 
-	let mut arena = arena::Arena::new(textures.clone());
-	for _ in 0..BATCH_CAPACITY*2 {
-		arena.spawn(&mut world);
-	}
+	let arena = arena::Arena::new(textures.clone());
+	world.add_resource(BATCH_CAPACITY);
 
 	let renderpass = single_pass_renderpass!(device.clone(),
 			attachments: {
@@ -186,22 +175,20 @@ fn main() {
 		).unwrap();
 	let mut ticker = Ticker::new();
 
-	let proj = transform::Affine::projection(w, h).uniform4();
-
 	let renderpass = Arc::new(renderpass);
 
-	let (mut buf, index_future) = Batcher::new(device.clone(), queue.clone(), renderpass.clone(), proj);
-
-	let proj = transform::Affine::projection(w, h).uniform4();
-	buf.proj_set(proj);
+	let (buf, index_future) = Batcher::new(device.clone(), queue.clone(), renderpass.clone());
 
 	let mut dispatcher = specs::DispatcherBuilder::new()
 		.add(arena, "mark", &[])
-		.add(buf, "batcher", &["mark"])
+		.add(SpriteSystem, "sprite", &["mark"])
+		.add(buf, "batcher", &[])
 		.build();
 
 	let previous_frame_end: Box<GpuFuture + Send + Sync> = Box::new(textures_future.join(index_future));
 	world.add_resource(previous_frame_end);
+
+	let mut add = false;
 
 	loop {
 		world.write_resource::<Box<GpuFuture + Send + Sync>>().cleanup_finished();
@@ -216,9 +203,6 @@ fn main() {
 			let h = dimensions[1] as f32;
 
 			world.add_resource(Vector2::new(w, h));
-
-			let proj = transform::Affine::projection(w, h).uniform4();
-			//buf.proj_set(proj);
 
 			let (new_swapchain, new_images) = match sc.recreate_with_dimension(dimensions) {
 				Ok(r) => r,
@@ -249,7 +233,7 @@ fn main() {
 			Err(AcquireError::OutOfDate) => {
 				recreate_swapchain = true;
 				continue;
-			},
+			}
 			Err(err) => panic!("{:?}", err)
 		};
 
@@ -259,9 +243,14 @@ fn main() {
 		temporarily_move_out::<Box<GpuFuture + Send + Sync>, _, _>(
 			world.write_resource(), |tmp| Box::new(tmp.join(sw_future)));
 
+		if add {
+			world.add_resource(10usize);
+		}
+
 		ticker.update();
 		world.add_resource(ticker.elapsed);
 		dispatcher.dispatch(&mut world.res);
+		world.maintain();
 
 		temporarily_move_out::<Box<GpuFuture + Send + Sync>, _, _>(
 			world.write_resource(), |future| {
@@ -275,10 +264,13 @@ fn main() {
 
 		let mut done = false;
 		events_loop.poll_events(|ev| {
-			use winit::{Event, WindowEvent};
+			use winit::{Event, WindowEvent, ElementState};
 			//use winit::VirtualKeyCode as VK;
 			match ev {
 				Event::WindowEvent { event: WindowEvent::Closed, .. } => done = true,
+				Event::WindowEvent { event: WindowEvent::MouseInput { state, .. }, .. } => {
+					add = state == ElementState::Pressed;
+				}
 				/*
 				Event::WindowEvent { event: WindowEvent::KeyboardInput {
 					input: winit::KeyboardInput {
@@ -301,8 +293,11 @@ fn main() {
 				_ => ()
 			}
 		});
-		if done { return; }
+		if done { break }
 	}
+
+	use specs::Join;
+	println!("count: {}", world.entities().join().count());
 }
 
 struct Ticker {
@@ -324,6 +319,7 @@ impl Ticker {
 		self.elapsed = self.now.elapsed();
 		self.times.push(self.elapsed);
 		self.now = Instant::now();
+
 		if self.times.len() >= 60 {
 			println!("{}", {
 				let sum: Duration = self.times.drain(..).sum();
@@ -335,141 +331,3 @@ impl Ticker {
 		}
 	}
 }
-
-/*
-type Tex = (u32, u32, Arc<()>, Arc<()>);
-
-struct Sp {
-	texture: Tex,
-	vertex: [Vertex; 4],
-
-	color: [u8; 4],
-
-	uv_cache: [Vector2<f32>; 4],
-	pos_cache: [Vector2<f32>; 4],
-}
-
-struct Batcher {
-	quads: Vec<Vertex>,
-	groups: Vec<Group<Tex>>,
-	current_group: Group<Tex>,
-}
-
-impl Batcher {
-	fn new() -> Self {
-		Self {
-			quads: Vec::new(),
-			groups: Vec::new(),
-			current_group: Group::new(0),
-		}
-	}
-
-	fn end(&mut self) {
-		self.flush();
-	}
-
-	fn push(&mut self, sprite: Sp) {
-		if self.quads.len() >= 666 {
-			self.flush();
-		}
-
-		let tex = match self.current_group.insert(sprite.texture.clone()) {
-			Some(tex) => tex as u32,
-			None => {
-				let end = self.current_group.range.end;
-				let mut group = ::std::mem::replace(&mut self.current_group, Group::new(end));
-				group.textures[0] = Some(sprite.texture.clone());
-				self.groups.push(group);
-				0
-			}
-		};
-
-		self.current_group.range.end += 1;
-
-		#[inline(always)]
-		pub fn pack_uv(uv: Vector2<f32>) -> [u16; 2] {
-			let Vector2 { x, y } = uv;
-			let x = (x * 65535.0) as u16;
-			let y = (y * 65535.0) as u16;
-			[x, y]
-		}
-
-		for i in 0..4 {
-			self.quads.push(Vertex {
-				position: sprite.pos_cache[i].into(),
-				uv: pack_uv(sprite.uv_cache[i]),
-				texture: tex,
-				color: sprite.color,
-			})
-		}
-	}
-
-	fn flush(&mut self) {
-		if self.current_group.range.len() != 0 {
-			let group = ::std::mem::replace(&mut self.current_group, Group::new(0));
-			self.groups.push(group);
-		}
-
-		for g in self.groups.drain(..) {
-			// create texture uniform
-			// then draw all
-		}
-
-		self.quads.clear();
-	}
-}
-use std::ops::Range;
-
-struct Group<T> {
-	range: Range<usize>,
-	len: usize,
-	textures: [Option<T>; TEXTURES_BY_GROUP],
-}
-
-impl<T: PartialEq> Group<T> {
-	fn new(start: usize) -> Self {
-		Self {
-			range: start..start,
-			len: 0,
-			textures: [
-				None, None, None, None,
-				None, None, None, None,
-				None, None, None, None,
-			],
-		}
-	}
-	#[inline(always)]
-	fn len(&self) -> usize {
-		self.len
-	}
-
-	#[inline(always)]
-	fn capacity(&self) -> usize {
-		TEXTURES_BY_GROUP
-	}
-
-	#[inline(always)]
-	fn position(&self, v: &T) -> Option<usize> {
-		for i in 0..TEXTURES_BY_GROUP {
-			match self.textures[i] {
-				Some(ref q) if q == v => return Some(i),
-				None => return None,
-				_ => (),
-			}
-		}
-		None
-	}
-
-	#[inline(always)]
-	fn insert(&mut self, v: T) -> Option<usize> {
-		let pos = self.position(&v);
-		if self.len() != self.capacity() && pos.is_none() {
-			self.textures[self.len] = Some(v);
-			self.len += 1;
-			Some(self.len - 1)
-		} else {
-			pos
-		}
-	}
-}
-*/

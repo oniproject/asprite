@@ -22,10 +22,7 @@ use vulkano::pipeline::shader::ShaderModule;
 
 use vulkano::format::Format;
 
-pub const TEXTURE_COUNT: usize = 10;
-
-
-//const TEXTURES_BY_GROUP: usize = 12;
+pub const TEXTURE_COUNT: usize = 16;
 
 def!(MainInput MainInputIter
 	tex_coords => Format::R32G32Sfloat,

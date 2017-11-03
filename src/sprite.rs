@@ -1,9 +1,10 @@
 #![allow(dead_code)]
-use cgmath::{Matrix2, Vector2, One, Zero};
-use specs::{Component, VecStorage};
+use cgmath::{Vector2, Zero};
+use specs::{self, Component, VecStorage, Join};
 
 use d8::*;
 use texture::*;
+use transform::*;
 
 pub struct Frame {
 	pub x: f32,
@@ -29,73 +30,61 @@ pub struct Vertex {
 
 impl_vertex!(Vertex, position, uv, color, texture);
 
-impl Vertex {
-	#[inline]
-	pub fn pack_uv(&mut self, x: f32, y: f32) {
-		self.uv[0] = (x * 65535.0) as u16;
-		self.uv[1] = (y * 65535.0) as u16;
-	}
+#[inline(always)]
+pub fn pack_uv(u: f32, v: f32) -> [u16; 2] {
+	let u = (u * 65535.0) as u16;
+	let v = (v * 65535.0) as u16;
+	[u, v]
 }
 
-#[derive(Derivative)]
-#[derivative(Default(new="true"))]
 pub struct Sprite {
-	#[derivative(Default(value="Matrix2::one()"))]
-	pub m: Matrix2<f32>,
-	#[derivative(Default(value="Vector2::zero()"))]
-	pub t: Vector2<f32>,
-	#[derivative(Default(value="Vector2::new(0.5, 0.5)"))]
+	pub texture: BaseTexture,
 	pub anchor: Vector2<f32>,
-
-	pub w: f32,
-	pub h: f32,
-
+	pub size: Vector2<f32>,
 	pub color: [u8; 4],
+	pub uv: [[u16; 2]; 4],
+	pub pos: [Vector2<f32>; 4],
+}
 
-	#[derivative(Default(value="[Vector2::new(0.0, 0.0); 4]"))]
-	pub uv_cache: [Vector2<f32>; 4],
-	#[derivative(Default(value="[Vector2::new(0.0, 0.0); 4]"))]
-	pub pos_cache: [Vector2<f32>; 4],
-
-	pub cache: [Vertex; 4],
-
-	#[derivative(Default(value="None"))]
-	pub texture: Option<BaseTexture>,
+impl Sprite {
+	pub fn new(texture: BaseTexture) -> Self {
+		Self {
+			texture,
+			anchor: Vector2::new(0.5, 0.5),
+			size: Vector2::zero(),
+			color: [0xff; 4],
+			uv: [
+				[0x0000, 0x0000],
+				[0xFFFF, 0x0000],
+				[0xFFFF, 0xFFFF],
+				[0x0000, 0xFFFF],
+			],
+			pos: [Vector2::new(0.0, 0.0); 4],
+		}
+	}
 }
 
 impl Component for Sprite {
 	type Storage = VecStorage<Self>;
 }
 
-struct SpriteBase {
-	pub anchor: Vector2<f32>,
-	pub size: Vector2<f32>,
-	pub color: [u8; 4],
+pub struct SpriteSystem;
 
-	pub uv_cache: [[u16; 2]; 4],
-	pub pos_cache: [Vector2<f32>; 4],
+impl<'a> specs::System<'a> for SpriteSystem {
+	type SystemData = (
+		specs::ReadStorage<'a, Affine<f32>>,
+		specs::WriteStorage<'a, Sprite>,
+	);
+	fn run(&mut self, (tr, mut sprites): Self::SystemData) {
+		((&tr).open().1, &mut sprites).join()
+			.for_each(|(t, s)| s.recalc_pos(t))
+	}
 }
 
 impl Sprite {
-	#[inline]
-	pub fn set_color(&mut self, r: u8, g: u8, b: u8, a: u8) {
-		self.color = [r, g, b, a];
-		for i in 0..4 {
-			self.cache[i].color = [r, g, b, a];
-		}
-	}
-
-	#[inline]
-	pub fn set_texture(&mut self, tex: u32) {
-		for i in 0..4 {
-			self.cache[i].texture = tex;
-		}
-	}
-
 	#[inline(always)]
 	pub fn uv_n(&mut self, i: usize, u: f32, v: f32) {
-		self.cache[i].pack_uv(u, v);
-		self.uv_cache[i] = Vector2::new(u, v);
+		self.uv[i] = pack_uv(u, v);
 	}
 
 	#[inline]
@@ -151,17 +140,17 @@ impl Sprite {
 		);
 	}
 
-	#[inline]
-	pub fn recalc(&mut self) {
-		let w1 = -self.anchor.x * self.w;
-		let w0 = w1 + self.w;
+	#[inline(always)]
+	pub fn recalc_pos(&mut self, aff: &Affine<f32>) {
+		let w1 = -self.anchor.x * self.size.x;
+		let w0 = w1 + self.size.x;
 
-		let h1 = -self.anchor.y * self.h;
-		let h0 = h1 + self.h;
+		let h1 = -self.anchor.y * self.size.y;
+		let h0 = h1 + self.size.y;
 
-		self.cache[0].position = (self.m * Vector2::new(w1, h1) + self.t).into();
-		self.cache[1].position = (self.m * Vector2::new(w0, h1) + self.t).into();
-		self.cache[2].position = (self.m * Vector2::new(w0, h0) + self.t).into();
-		self.cache[3].position = (self.m * Vector2::new(w1, h0) + self.t).into();
+		self.pos[0] = (aff.m * Vector2::new(w1, h1) + aff.t).into();
+		self.pos[1] = (aff.m * Vector2::new(w0, h1) + aff.t).into();
+		self.pos[2] = (aff.m * Vector2::new(w0, h0) + aff.t).into();
+		self.pos[3] = (aff.m * Vector2::new(w1, h0) + aff.t).into();
 	}
 }

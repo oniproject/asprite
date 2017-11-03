@@ -3,12 +3,11 @@ use rand::distributions::{IndependentSample, Range};
 use rand::{thread_rng, Rng};
 use cgmath::Vector2;
 use specs::{Component, VecStorage, World};
-use specs::{System, WriteStorage, ParJoin, Fetch};
-
-use rayon::iter::ParallelIterator;
+use specs::{LazyUpdate, Entities, System, WriteStorage, Join, Fetch, FetchMut};
 
 use std::time::Duration;
 
+use transform::*;
 use texture::*;
 use sprite::*;
 
@@ -35,7 +34,7 @@ impl Arena {
 		}
 	}
 
-	pub fn spawn(&mut self, w: &mut World) {
+	pub fn spawn(&self, w: &mut World) {
 		let mut rng = rand::thread_rng();
 		let between = Range::new(0.0, 10.0);
 		let tex = Range::new(0, self.textures.len());
@@ -46,25 +45,65 @@ impl Arena {
 		let tex = tex.ind_sample(&mut rng);
 		let t = &self.textures[tex];
 
-		let mut sprite = Sprite {
-			anchor: Vector2::new(0.5, 1.0),
-			w: t.wh.0 as f32, h: t.wh.1 as f32,
-			texture: Some(self.textures[tex].clone()),
-			.. Default::default()
-		};
-		sprite.uv();
-		sprite.set_texture(tex as u32);
-
-		sprite.recalc();
+		let mut sprite = Sprite::new(self.textures[tex].clone());
+		sprite.anchor.y = 1.0;
+		sprite.size.x = t.wh.0 as f32;
+		sprite.size.y = t.wh.1 as f32;
 
 		let speed = Velocity {
 			vel: Vector2::new(x, y),
 		};
 
+		let transform: Affine<f32> = Affine::default();
+
 		w.create_entity()
 			.with(sprite)
+			.with(transform)
 			.with(speed)
 			.build();
+	}
+
+	pub fn spawn_lazy<'a>(&self, e: &Entities<'a>, lazy: &Fetch<'a, LazyUpdate>) {
+		let mut rng = rand::thread_rng();
+		let between = Range::new(0.0, 10.0);
+		let tex = Range::new(0, self.textures.len());
+
+		let x = between.ind_sample(&mut rng);
+		let y = between.ind_sample(&mut rng) - 5.0;
+
+		let tex = tex.ind_sample(&mut rng);
+		let t = &self.textures[tex];
+
+		let mut sprite = Sprite::new(self.textures[tex].clone());
+		sprite.anchor.y = 1.0;
+		sprite.size.x = t.wh.0 as f32;
+		sprite.size.y = t.wh.1 as f32;
+
+		let speed = Velocity {
+			vel: Vector2::new(x, y),
+		};
+
+		let transform: Affine<f32> = Affine::default();
+
+		let e = e.create();
+		lazy.insert(e, sprite);
+		lazy.insert(e, transform);
+		lazy.insert(e, speed);
+	}
+}
+
+pub struct Time {
+	pub d: Duration,
+}
+
+impl Time {
+	#[inline(always)]
+	fn to_secs(&self) -> f32 {
+		self.d.as_secs() as f32 + self.d.subsec_nanos() as f32 / 1.0e9
+	}
+	#[inline(always)]
+	fn to_nanos(&self) -> u64 {
+		(self.d.as_secs() * 1_000_000_000) + self.d.subsec_nanos() as u64
 	}
 }
 
@@ -79,17 +118,29 @@ fn duration_to_nanos(d: Duration) -> u64 {
 
 impl<'a> System<'a> for Arena {
 	type SystemData = (
+		Entities<'a>,
+		Fetch<'a, LazyUpdate>,
+		FetchMut<'a, usize>,
 		Fetch<'a, Vector2<f32>>,
 		Fetch<'a, Duration>,
 		WriteStorage<'a, Velocity>,
-		WriteStorage<'a, Sprite>,
+		WriteStorage<'a, Affine<f32>>,
 	);
-	fn run(&mut self, (size, dt, mut speed, mut sprites): Self::SystemData) {
+	fn run(&mut self, (e, lazy, mut add, size, dt, mut speed, mut sprites): Self::SystemData) {
+		//use rayon::prelude::*;
+
+		if *add != 0 {
+			for _ in 0..*add {
+				self.spawn_lazy(&e, &lazy);
+			}
+			*add = 0;
+		}
+
 		let dt = duration_to_secs(*dt) * 50.0;
 		let size = *size;
 		let between = Range::new(0.0, 10.0);
-		(&mut speed, &mut sprites).par_join().for_each(|(speed, sprite)| {
-			let mut rng = thread_rng();
+
+		(&mut speed, &mut sprites).join().for_each(|(speed, sprite)| {
 			let speed = &mut speed.vel;
 			sprite.t += *speed * dt;
 			speed.y += self.gravity * dt;
@@ -105,6 +156,7 @@ impl<'a> System<'a> for Arena {
 			if sprite.t.y > size.y {
 				speed.y *= -0.85;
 				sprite.t.y = size.y;
+				let mut rng = thread_rng();
 				if rng.gen() {
 					speed.y -= between.ind_sample(&mut rng);
 				}
@@ -112,7 +164,6 @@ impl<'a> System<'a> for Arena {
 				speed.y = 0.0;
 				sprite.t.y = 0.0;
 			}
-			sprite.recalc();
 		});
 	}
 }
