@@ -52,6 +52,9 @@ use sprite::*;
 use batcher::*;
 use sprite_batcher::*;
 
+pub const TEXTURE_COUNT: u32 = 16;
+pub const BATCH_CAPACITY: usize = 2_000;
+
 fn _main() {
 	#[inline(always)]
 	pub fn pack_uv(x: f32, y: f32) -> [u16; 2] {
@@ -167,7 +170,7 @@ fn main() {
 
 	let renderpass = Arc::new(renderpass);
 
-	let (buf, index_future) = Batcher::new(device.clone(), queue.clone(), renderpass.clone(), TEXTURE_COUNT as u32);
+	let (buf, index_future) = Batcher::new(device.clone(), queue.clone(), renderpass.clone(), BATCH_CAPACITY, TEXTURE_COUNT);
 
 	let mut dispatcher = specs::DispatcherBuilder::new()
 		.add(arena, "mark", &[])

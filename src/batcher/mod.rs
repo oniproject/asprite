@@ -53,9 +53,6 @@ pub use self::affine::*;
 const VERTEX_BY_SPRITE: usize = 4;
 const INDEX_BY_SPRITE: usize = 6;
 
-pub const TEXTURE_COUNT: usize = 16;
-pub const BATCH_CAPACITY: usize = 2_000;
-
 type BoxPipelineLayout = Box<PipelineLayoutAbstract + Send + Sync + 'static>;
 type Pipeline<Rp> = Arc<GraphicsPipeline<SingleBufferDefinition<Vertex>, BoxPipelineLayout, Arc<Rp>>>;
 type Index = Arc<ImmutableBuffer<[u16]>>;
@@ -77,11 +74,11 @@ pub struct Renderer<Rp> {
 impl<Rp> Renderer<Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
-	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Arc<Rp>, group_size: u32)
+	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Arc<Rp>, capacity: usize, group_size: u32)
 		-> (Self, Box<GpuFuture + Send + Sync>)
 	{
 		let (index, index_future) = ImmutableBuffer::from_iter(
-			QuadIndices(0u16, BATCH_CAPACITY * INDEX_BY_SPRITE),
+			QuadIndices(0u16, capacity * INDEX_BY_SPRITE),
 			BufferUsage::index_buffer(),
 			queue.clone(),
 		).expect("failed to create index buffer");
@@ -106,7 +103,7 @@ impl<Rp> Renderer<Rp>
 
 		let pipeline = Arc::new(pipeline);
 
-		let vertices = Vec::with_capacity(BATCH_CAPACITY);
+		let vertices = Vec::with_capacity(capacity);
 		let group = Group::new(group_size as usize);
 
 		let (fu, white) = Texture::one_white_pixel(queue.clone(), device.clone()).unwrap();
