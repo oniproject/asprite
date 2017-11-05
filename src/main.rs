@@ -141,7 +141,7 @@ fn main() {
 
 	let mut world = World::new();
 	world.register::<Sprite>();
-	world.register::<Affine<f32>>();
+	world.register::<SpriteTransform>();
 	world.register::<arena::Velocity>();
 
 	let w = dimensions[0] as f32;

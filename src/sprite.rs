@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use cgmath::{Vector2, Zero};
 use specs::{self, Component, VecStorage, Join};
+use specs::{DenseVecStorage, FlaggedStorage};
 
 use d8::*;
 use batcher::*;
@@ -10,6 +11,13 @@ pub struct Frame {
 	pub y: f32,
 	pub w: f32,
 	pub h: f32,
+}
+
+#[derive(Default)]
+pub struct SpriteTransform(pub Affine<f32>);
+
+impl Component for SpriteTransform {
+	type Storage = FlaggedStorage<Self, DenseVecStorage<Self>>;
 }
 
 pub struct Sprite {
@@ -42,7 +50,7 @@ pub struct SpriteSystem;
 
 impl<'a> specs::System<'a> for SpriteSystem {
 	type SystemData = (
-		specs::ReadStorage<'a, Affine<f32>>,
+		specs::ReadStorage<'a, SpriteTransform>,
 		specs::WriteStorage<'a, Sprite>,
 	);
 	fn run(&mut self, (tr, mut sprites): Self::SystemData) {
@@ -111,16 +119,16 @@ impl Sprite {
 	}
 
 	#[inline(always)]
-	pub fn recalc_pos(&mut self, aff: &Affine<f32>) {
+	pub fn recalc_pos(&mut self, aff: &SpriteTransform) {
 		let w1 = -self.anchor.x * self.size.x;
 		let w0 = w1 + self.size.x;
 
 		let h1 = -self.anchor.y * self.size.y;
 		let h0 = h1 + self.size.y;
 
-		self.pos[0] = (aff.m * Vector2::new(w1, h1) + aff.t).into();
-		self.pos[1] = (aff.m * Vector2::new(w0, h1) + aff.t).into();
-		self.pos[2] = (aff.m * Vector2::new(w0, h0) + aff.t).into();
-		self.pos[3] = (aff.m * Vector2::new(w1, h0) + aff.t).into();
+		self.pos[0] = (aff.0.m * Vector2::new(w1, h1) + aff.0.t).into();
+		self.pos[1] = (aff.0.m * Vector2::new(w0, h1) + aff.0.t).into();
+		self.pos[2] = (aff.0.m * Vector2::new(w0, h0) + aff.0.t).into();
+		self.pos[3] = (aff.0.m * Vector2::new(w1, h0) + aff.0.t).into();
 	}
 }

@@ -53,7 +53,7 @@ impl Arena {
 			vel: Vector2::new(x, y),
 		};
 
-		let transform: Affine<f32> = Affine::default();
+		let transform = SpriteTransform::default();
 
 		let e = e.create();
 		lazy.insert(e, sprite);
@@ -94,7 +94,7 @@ impl<'a> System<'a> for Arena {
 		Fetch<'a, Vector2<f32>>,
 		Fetch<'a, Duration>,
 		WriteStorage<'a, Velocity>,
-		WriteStorage<'a, Affine<f32>>,
+		WriteStorage<'a, SpriteTransform>,
 	);
 	fn run(&mut self, (e, lazy, mut add, size, dt, mut speed, mut sprites): Self::SystemData) {
 		//use rayon::prelude::*;
@@ -111,6 +111,7 @@ impl<'a> System<'a> for Arena {
 		let between = Range::new(0.0, 10.0);
 
 		(&mut speed, &mut sprites).join().for_each(|(speed, sprite)| {
+			let sprite = &mut sprite.0;
 			let speed = &mut speed.vel;
 			sprite.t += *speed * dt;
 			speed.y += self.gravity * dt;
