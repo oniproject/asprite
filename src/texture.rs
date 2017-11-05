@@ -71,6 +71,30 @@ impl Texture {
 }
 */
 
+pub fn one_white_pixel(queue: Arc<Queue>, device: Arc<Device>) ->
+	Result<(Box<GpuFuture + Send + Sync>, BaseTexture)>
+{
+	let pixel = &[[0xFFu8; 4]; 1];
+
+	let (texture, future) = ImmutableImage::from_iter(
+		pixel.iter().cloned(),
+		Dimensions::Dim2d { width: 1, height: 1 },
+		R8G8B8A8Srgb,
+		queue)?;
+
+	let sampler = Sampler::new(
+		device.clone(),
+		Filter::Nearest, Filter::Nearest,
+		MipmapMode::Nearest,
+		SamplerAddressMode::Repeat,
+		SamplerAddressMode::Repeat,
+		SamplerAddressMode::Repeat,
+		0.0, 1.0, 0.0, 0.0)?;
+
+	let future = Box::new(future) as Box<GpuFuture + Send + Sync>;
+	Ok((future, BaseTexture { wh: (1, 1), texture, sampler }))
+}
+
 pub fn load_png<P>(queue: Arc<Queue>, device: Arc<Device>, path: P) ->
 	Result<(Box<GpuFuture + Send + Sync>, BaseTexture)>
 	where P: AsRef<Path>

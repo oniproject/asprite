@@ -41,24 +41,21 @@ use cgmath::Vector2;
 use std::sync::Arc;
 use std::time::{Instant, Duration};
 
-#[macro_use]
-mod smallset;
-
 mod errors;
 
 mod d8;
-mod quad_indices;
 mod arena;
 mod sprite;
-mod shader;
 mod transform;
 mod tsys;
 mod state;
 mod texture;
 mod batcher;
+mod sprite_batcher;
 
 use sprite::*;
 use batcher::*;
+use sprite_batcher::*;
 //use errors::*;
 use texture::*;
 

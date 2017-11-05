@@ -2,8 +2,7 @@
 macro_rules! smallset {
 	($name:ident [ $t:ty; $size:expr ]) => {
 		pub struct $name {
-			pub array: Vec<$t>,//[Option<$t>; $size],
-			pub len: usize,
+			pub array: Vec<$t>,
 		}
 
 		#[allow(dead_code)]
@@ -12,13 +11,12 @@ macro_rules! smallset {
 			pub fn new() -> Self {
 				Self {
 					array: Vec::with_capacity($size),
-					len: 0,
 				}
 			}
 
 			#[inline(always)]
 			pub fn len(&self) -> usize {
-				self.len
+				self.array.len()
 			}
 
 			#[inline(always)]
@@ -48,18 +46,32 @@ macro_rules! smallset {
 			}
 
 			#[inline(always)]
+			pub fn insert_r(&mut self, v: $t) -> Result<usize, $t> {
+				let pos = self.position(&v);
+				if self.len() != self.capacity() && pos.is_none() {
+					self.array.push(v);
+					Ok(self.array.len() - 1)
+				} else {
+					match pos {
+						Some(pos) => Ok(pos),
+						None => Err(v),
+					}
+				}
+			}
+
+			#[inline(always)]
 			pub fn to_slice(&self) -> &[$t] {
 				&self.array[..]
 			}
 
 			#[inline(always)]
 			pub fn is_empty(&self) -> bool {
-				self.len == 0
+				self.len() == 0
 			}
 
 			#[inline(always)]
 			pub fn is_full(&self) -> bool {
-				self.len == self.array.len()
+				self.len() == self.capacity()
 			}
 		}
 	};

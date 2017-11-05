@@ -1,7 +1,7 @@
-all: vs fs
+PREFIX:=src/batcher/spritebatch
+VERT:=$(PREFIX).vert
+FRAG:=$(PREFIX).frag
 
-vs:
-	glslangValidator -V src/shader/spritebatch.vert -o src/shader/spritebatch.vert.spv
-
-fs:
-	glslangValidator -V src/shader/spritebatch.frag -o src/shader/spritebatch.frag.spv
+spv:
+	glslangValidator -V $(VERT) -o $(VERT).spv
+	glslangValidator -V $(FRAG) -o $(FRAG).spv
