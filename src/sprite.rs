@@ -3,8 +3,6 @@ use cgmath::{Vector2, Zero};
 use specs::{self, Component, VecStorage, Join};
 
 use d8::*;
-use texture::*;
-use transform::*;
 use batcher::*;
 
 pub struct Frame {
@@ -15,7 +13,7 @@ pub struct Frame {
 }
 
 pub struct Sprite {
-	pub texture: BaseTexture,
+	pub texture: Texture,
 	pub anchor: Vector2<f32>,
 	pub size: Vector2<f32>,
 	pub color: [u8; 4],
@@ -24,7 +22,7 @@ pub struct Sprite {
 }
 
 impl Sprite {
-	pub fn new(texture: BaseTexture) -> Self {
+	pub fn new(texture: Texture) -> Self {
 		Self {
 			texture,
 			anchor: Vector2::new(0.5, 0.5),

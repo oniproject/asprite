@@ -12,30 +12,6 @@ use specs::{Component, DenseVecStorage, FlaggedStorage};
 use std::fmt::Debug;
 use std::ops::Mul;
 
-#[derive(Clone)]
-struct Transform<T>
-	where T: Clone + Copy + Debug
-{
-	children: Vec<Transform<T>>,
-	world: Affine<T>,
-	local: Affine<T>,
-}
-
-impl<T> Transform<T>
-	where T: BaseFloat + One + Zero
-{
-	fn update(&mut self, parent: &Affine<T>) {
-		// concat the parent matrix with the objects transform.
-		self.world.m = parent.m * self.local.m;
-		self.world.t = parent.m * self.local.t + parent.t;
-
-		//this._worldID ++;
-		for c in &mut self.children {
-			c.update(&self.world);
-		}
-	}
-}
-
 #[derive(Clone, Copy, Debug)]
 pub struct Affine<T>
 	where T: Clone + Copy + Debug

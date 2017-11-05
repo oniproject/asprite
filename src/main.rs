@@ -37,27 +37,20 @@ use vulkano::framebuffer::Framebuffer;
 use specs::World;
 use cgmath::Vector2;
 
-
 use std::sync::Arc;
 use std::time::{Instant, Duration};
-
-mod errors;
 
 mod d8;
 mod arena;
 mod sprite;
-mod transform;
 mod tsys;
 mod state;
-mod texture;
 mod batcher;
 mod sprite_batcher;
 
 use sprite::*;
 use batcher::*;
 use sprite_batcher::*;
-//use errors::*;
-use texture::*;
 
 fn _main() {
 	#[inline(always)]
@@ -124,7 +117,7 @@ fn main() {
 			.expect("failed to create swapchain")
 	};
 
-	let (textures_future, textures) = load_images(
+	let (textures_future, textures) = Texture::load_vec(
 		queue.clone(), device.clone(), &[
 			"./images/rabbitv3.png",
 			"./images/rabbitv3_ash.png",
@@ -145,7 +138,7 @@ fn main() {
 
 	let mut world = World::new();
 	world.register::<Sprite>();
-	world.register::<transform::Affine<f32>>();
+	world.register::<Affine<f32>>();
 	world.register::<arena::Velocity>();
 
 	let w = dimensions[0] as f32;
@@ -174,7 +167,7 @@ fn main() {
 
 	let renderpass = Arc::new(renderpass);
 
-	let (buf, index_future) = Batcher::new(device.clone(), queue.clone(), renderpass.clone());
+	let (buf, index_future) = Batcher::new(device.clone(), queue.clone(), renderpass.clone(), TEXTURE_COUNT as u32);
 
 	let mut dispatcher = specs::DispatcherBuilder::new()
 		.add(arena, "mark", &[])

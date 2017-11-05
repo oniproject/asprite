@@ -2,13 +2,12 @@ use rand;
 use rand::distributions::{IndependentSample, Range};
 use rand::{thread_rng, Rng};
 use cgmath::Vector2;
-use specs::{Component, VecStorage, World};
+use specs::{Component, VecStorage};
 use specs::{LazyUpdate, Entities, System, WriteStorage, Join, Fetch, FetchMut};
 
 use std::time::Duration;
 
-use transform::*;
-use texture::*;
+use batcher::*;
 use sprite::*;
 
 pub struct Velocity {
@@ -20,47 +19,18 @@ impl Component for Velocity {
 }
 
 pub struct Arena {
-	pub textures: Vec<BaseTexture>,
+	pub textures: Vec<Texture>,
 	pub gravity: f32,
 	pub wh: (f32, f32),
 }
 
 impl Arena {
-	pub fn new(textures: Vec<BaseTexture>) -> Self {
+	pub fn new(textures: Vec<Texture>) -> Self {
 		Self {
 			textures,
 			gravity: 0.75,
 			wh: (25.0, 32.0),
 		}
-	}
-
-	pub fn spawn(&self, w: &mut World) {
-		let mut rng = rand::thread_rng();
-		let between = Range::new(0.0, 10.0);
-		let tex = Range::new(0, self.textures.len());
-
-		let x = between.ind_sample(&mut rng);
-		let y = between.ind_sample(&mut rng) - 5.0;
-
-		let tex = tex.ind_sample(&mut rng);
-		let t = &self.textures[tex];
-
-		let mut sprite = Sprite::new(self.textures[tex].clone());
-		sprite.anchor.y = 1.0;
-		sprite.size.x = t.wh.0 as f32;
-		sprite.size.y = t.wh.1 as f32;
-
-		let speed = Velocity {
-			vel: Vector2::new(x, y),
-		};
-
-		let transform: Affine<f32> = Affine::default();
-
-		w.create_entity()
-			.with(sprite)
-			.with(transform)
-			.with(speed)
-			.build();
 	}
 
 	pub fn spawn_lazy<'a>(&self, e: &Entities<'a>, lazy: &Fetch<'a, LazyUpdate>) {

@@ -27,10 +27,15 @@ pub struct Batcher<Rp> {
 impl<Rp> Batcher<Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
-	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Arc<Rp>)
+	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Arc<Rp>, group_size: u32)
 		-> (Self, Box<GpuFuture + Send + Sync>)
 	{
-		let (renderer, index_future) = Renderer::new(device.clone(), queue.clone(), renderpass.clone());
+		let (renderer, index_future) =
+			Renderer::new(
+				device.clone(),
+				queue.clone(),
+				renderpass.clone(),
+				group_size);
 
 		(
 			Self { device, queue, renderer, last_wh: Vector2::new(0.0, 0.0) },

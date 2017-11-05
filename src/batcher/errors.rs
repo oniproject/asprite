@@ -3,5 +3,6 @@ error_chain! {
 		ImageError(::image::ImageError);
 		VkImageCreationError(::vulkano::image::ImageCreationError);
 		VkSamplerCreationError(::vulkano::sampler::SamplerCreationError);
+		VkOomError(::vulkano::OomError);
 	}
 }

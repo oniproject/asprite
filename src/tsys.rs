@@ -25,7 +25,7 @@ pub trait Transform {
 /// Handles updating `GlobalTransform` components based
 /// on the `LocalTransform` component and parents.
 #[derive(Derivative)]
-#[derivative(Default(new="true"))]
+#[derivative(Default)]
 pub struct System<T> {
 	/// Map of entities to index in sorted vec.
 	indices: HashMap<Entity, usize>,
