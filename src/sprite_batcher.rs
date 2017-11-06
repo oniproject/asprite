@@ -85,13 +85,13 @@ impl<'a, Rp> specs::System<'a> for Batcher<Rp>
 			.begin_render_pass(fb.clone(), false, clear).unwrap();
 
 		for (sprite,) in (&sprites,).join() {
-			cb = self.renderer.push(cb, state.clone(),
+			cb = self.renderer.texture_quad(cb, state.clone(),
 				sprite.texture.clone(),
 				sprite.color,
 				sprite.pos, sprite.uv).unwrap();
 		}
 
-		cb = self.renderer.flush(state, cb).unwrap();
+		cb = self.renderer.flush(cb, state).unwrap();
 
 		let cb = cb
 			.end_render_pass().unwrap()
@@ -100,20 +100,4 @@ impl<'a, Rp> specs::System<'a> for Batcher<Rp>
 		let q = self.queue.clone();
 		temporarily_move_out(future, |f| Box::new(f.then_execute(q, cb).unwrap()));
 	}
-}
-
-use std::ops::DerefMut;
-
-/// Defeat borrowchecker
-/// https://stackoverflow.com/questions/29570781/temporarily-move-out-of-borrowed-content
-#[inline(always)]
-pub fn temporarily_move_out<T, D, F>(to: D, f: F)
-	where D: DerefMut<Target=T>, F: FnOnce(T) -> T
-{
-	use std::mem::{forget, uninitialized, replace};
-	let mut to = to;
-	let tmp = replace(&mut *to, unsafe { uninitialized() });
-	let new = f(tmp);
-	let uninit = replace(&mut *to, new);
-	forget(uninit);
 }

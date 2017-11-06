@@ -1,6 +1,5 @@
 #![feature(const_fn)]
 #![feature(conservative_impl_trait)]
-#![feature(try_trait)]
 
 #[macro_use] extern crate vulkano;
 #[macro_use] extern crate error_chain;
@@ -12,14 +11,18 @@ extern crate unicode_normalization;
 extern crate rusttype;
 
 use vulkano::buffer::immutable::ImmutableBuffer;
-use vulkano::buffer::cpu_pool::CpuBufferPool;
+use vulkano::buffer::cpu_pool::{CpuBufferPool, CpuBufferPoolChunk};
 use vulkano::buffer::{BufferUsage, BufferAccess};
+use vulkano::buffer::BufferSlice;
 use vulkano::framebuffer::{RenderPassAbstract, Subpass};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
 use vulkano::device::{Device, Queue};
 use vulkano::sync::GpuFuture;
 use vulkano::sync::now as vk_now;
 use vulkano::format::Format;
+
+use vulkano::memory::pool::StdMemoryPool;
+use vulkano::memory::pool::MemoryPool;
 
 use vulkano::descriptor::PipelineLayoutAbstract;
 use vulkano::descriptor::descriptor_set::{DescriptorSet, DescriptorSetDesc, PersistentDescriptorSet, DescriptorSetsCollection};
@@ -55,18 +58,56 @@ mod errors;
 mod affine;
 //mod text;
 
+mod vbo;
+
 mod sprite_shader;
 mod sprite_renderer;
 
 use self::sprite_renderer::*;
-
 use self::quad_indices::*;
 use self::group::*;
+use self::vbo::*;
 
 pub use self::errors::*;
 pub use self::texture::*;
 pub use self::vertex::*;
 pub use self::affine::*;
+
+
+use std::ops::DerefMut;
+
+/// Defeat borrowchecker
+/// https://stackoverflow.com/questions/29570781/temporarily-move-out-of-borrowed-content
+#[inline(always)]
+pub fn temporarily_move_out<T, D, F>(to: D, f: F)
+	where D: DerefMut<Target=T>, F: FnOnce(T) -> T
+{
+	use std::mem::{forget, uninitialized, replace};
+	let mut to = to;
+	let tmp = replace(&mut *to, unsafe { uninitialized() });
+	let new = f(tmp);
+	let uninit = replace(&mut *to, new);
+	forget(uninit);
+}
+
+#[inline(always)]
+pub fn temporarily_move_out_result<T, D, F>(to: D, f: F) -> Result<()>
+	where D: DerefMut<Target=T>, F: FnOnce(T) -> Result<T>
+{
+	use std::mem::{forget, uninitialized, replace};
+	let mut to = to;
+	let tmp = replace(&mut *to, unsafe { uninitialized() });
+	match f(tmp) {
+		Ok(new) => {
+			let uninit = replace(&mut *to, new);
+			forget(uninit);
+			Ok(())
+		}
+		Err(err) => {
+			Err(err)
+		}
+	}
+}
 
 const VERTEX_BY_SPRITE: usize = 4;
 const INDEX_BY_SPRITE: usize = 6;
@@ -76,18 +117,12 @@ type Pipeline<Rp> = Arc<GraphicsPipeline<SingleBufferDefinition<Vertex>, BoxPipe
 type Index = Arc<ImmutableBuffer<[u16]>>;
 type Projection = Arc<DescriptorSet + Send + Sync + 'static>;
 
-struct VBO<T> {
-	vertices: Vec<T>,
-	vertex: CpuBufferPool<T>,
-}
-
 pub struct Renderer<Rp> {
-	vertices: Vec<Vertex>,
-	vertex: CpuBufferPool<Vertex>,
+	vbo: VBO<Vertex>,
 
 	index: Index,
 	group: Group,
-	white: Texture,
+	empty: Texture,
 
 	sprite: SpriteRenderer<Rp>,
 }
@@ -104,10 +139,10 @@ impl<Rp> Renderer<Rp>
 			queue.clone(),
 		)?;
 
-		let vertex = CpuBufferPool::<Vertex>::vertex_buffer(device.clone());
-		let vertices = Vec::with_capacity(capacity);
+		let vbo = VBO::new(device.clone(), capacity);
+
 		let group = Group::new(group_size as usize);
-		let (fu, white) = Texture::one_white_pixel(queue.clone(), device.clone())?;
+		let (fu, empty) = Texture::one_white_pixel(queue.clone(), device.clone())?;
 		let index_future = index_future.join(fu);
 
 		let pass = Subpass::from(renderpass.clone(), 0)
@@ -115,7 +150,7 @@ impl<Rp> Renderer<Rp>
 		let sprite = SpriteRenderer::new(device.clone(), pass, group_size)?;
 
 		Ok((
-			Self { white, index, vertex, vertices, group, sprite },
+			Self { vbo, empty, index, group, sprite },
 			Box::new(index_future)
 		))
 	}
@@ -125,71 +160,32 @@ impl<Rp> Renderer<Rp>
 		Ok(())
 	}
 
-	pub fn push(&mut self,
-		mut cb: AutoCommandBufferBuilder,
-		state: DynamicState,
-
-		texture: Texture,
-		color: [u8; 4],
-		pos: [Vector2<f32>; 4],
-		uv: [[u16;2]; 4],
-		) -> Result<AutoCommandBufferBuilder>
-	{
-		if self.vertices.len() >= self.vertices.capacity() {
-			cb = self.flush(state.clone(), cb)?;
-		}
-
-		let id = match self.group.insert(texture) {
-			Ok(id) => id as u32,
-			Err(texture) => {
-				cb = self.flush(state.clone(), cb)?;
-				self.group.push(texture);
-				0
-			}
-		};
-
-		for i in 0..4 {
-			self.vertices.push(Vertex {
-				position: pos[i].into(),
-				uv: uv[i],
-				color: color,
-				texture: id,
-			});
-		}
-		Ok(cb)
-	}
-
-	pub fn flush(&mut self, state: DynamicState, cb: AutoCommandBufferBuilder) -> Result<AutoCommandBufferBuilder> {
-		if self.vertices.len() == 0 {
+	pub fn flush(&mut self, cb: AutoCommandBufferBuilder, state: DynamicState) -> Result<AutoCommandBufferBuilder> {
+		if self.vbo.is_empty() {
 			return Ok(cb);
 		}
 
-		let count = self.vertices.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
+		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
+		let vbo: CpuBufferPoolChunk<Vertex, Arc<StdMemoryPool>> = self.vbo.flush()?;
 
-		let vbo = self.vertex.chunk(self.vertices.drain(..))?;
 		let ibo = self.index.clone()
 			.into_buffer_slice()
 			.slice(0..count)
 			.expect("failure index buffer slice");
 
-		let set = {
-			let t = &mut self.group.array;
-			while t.len() < t.capacity() {
-				let first = self.white.clone();
-				t.push(first);
-			}
+		let t = &mut self.group.array;
+		while t.len() < t.capacity() {
+			let first = self.empty.clone();
+			t.push(first);
+		}
 
-			let set = self.sprite.sets(t)?;
-			t.clear();
-			set
-		};
+		let cb = self.sprite.draw_indexed(cb, state, vbo, ibo, t)?;
+		t.clear();
 
-		let pipe = self.sprite.pipe();
-
-		Ok(cb.draw_indexed(pipe, state, vbo, ibo, set, ())?)
+		Ok(cb)
 	}
 
-	pub fn rectangle(&mut self,
+	pub fn color_quad(&mut self,
 		cb: AutoCommandBufferBuilder,
 		state: DynamicState,
 		min: Vector2<f32>,
@@ -202,7 +198,40 @@ impl<Rp> Renderer<Rp>
 			Vector2::new(max.x, max.y),
 			Vector2::new(min.x, max.y),
 		];
-		let texture = self.white.clone();
-		self.push(cb, state, texture, color, pos, zero_uv())
+		let texture = self.empty.clone();
+		self.texture_quad(cb, state, texture, color, pos, zero_uv())
+	}
+
+	pub fn texture_quad(&mut self,
+		mut cb: AutoCommandBufferBuilder,
+		state: DynamicState,
+
+		texture: Texture,
+		color: [u8; 4],
+		pos: [Vector2<f32>; 4],
+		uv: [[u16;2]; 4]) -> Result<AutoCommandBufferBuilder>
+	{
+		if self.vbo.is_full() {
+			cb = self.flush(cb, state.clone())?;
+		}
+
+		let id = match self.group.insert(texture) {
+			Ok(id) => id as u32,
+			Err(texture) => {
+				cb = self.flush(cb, state.clone())?;
+				self.group.push(texture);
+				0
+			}
+		};
+
+		for i in 0..4 {
+			self.vbo.push(Vertex {
+				position: pos[i].into(),
+				uv: uv[i],
+				color: color,
+				texture: id,
+			});
+		}
+		Ok(cb)
 	}
 }
