@@ -90,25 +90,6 @@ pub fn temporarily_move_out<T, D, F>(to: D, f: F)
 	forget(uninit);
 }
 
-#[inline(always)]
-pub fn temporarily_move_out_result<T, D, F>(to: D, f: F) -> Result<()>
-	where D: DerefMut<Target=T>, F: FnOnce(T) -> Result<T>
-{
-	use std::mem::{forget, uninitialized, replace};
-	let mut to = to;
-	let tmp = replace(&mut *to, unsafe { uninitialized() });
-	match f(tmp) {
-		Ok(new) => {
-			let uninit = replace(&mut *to, new);
-			forget(uninit);
-			Ok(())
-		}
-		Err(err) => {
-			Err(err)
-		}
-	}
-}
-
 const VERTEX_BY_SPRITE: usize = 4;
 const INDEX_BY_SPRITE: usize = 6;
 
