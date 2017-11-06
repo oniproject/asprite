@@ -1,4 +1,4 @@
-PREFIX:=src/batcher/spritebatch
+PREFIX:=renderer/src/sprite
 VERT:=$(PREFIX).vert
 FRAG:=$(PREFIX).frag
 

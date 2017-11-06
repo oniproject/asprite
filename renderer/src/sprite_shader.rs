@@ -39,12 +39,10 @@ macro_rules! def {
 		}
 		impl Iterator for $iter {
 			type Item = $crate::vulkano::pipeline::shader::ShaderInterfaceDefEntry;
-			#[inline]
 			fn next(&mut self) -> Option<Self::Item> {
 				def!(@step 0, self, $($name => $format,)*);
 				None
 			}
-			#[inline]
 			fn size_hint(&self) -> (usize, Option<usize>) {
 				let len = (
 					def!(@step 0, $($name => $format,)*)
@@ -86,11 +84,10 @@ pub struct Shader {
 
 impl Shader {
 	/// Loads the shader in Vulkan as a `ShaderModule`.
-	#[inline]
 	pub fn load(device: Arc<Device>) -> Result<Shader> {
 		unsafe {
-			let frag = include_bytes!("./spritebatch.frag.spv");
-			let vert = include_bytes!("./spritebatch.vert.spv");
+			let frag = include_bytes!("./sprite.frag.spv");
+			let vert = include_bytes!("./sprite.vert.spv");
 
 			let frag = ShaderModule::new(device.clone(), &frag[..])?;
 			let vert = ShaderModule::new(device, &vert[..])?;
@@ -100,7 +97,6 @@ impl Shader {
 	}
 
 	/// Returns a logical struct describing the entry point named `main`.
-	#[inline]
 	pub fn vert_entry_point(&self) -> (GraphicsEntryPoint<(), VertInput, Vert2Frag, VertexLayout>, ()) {
 		(
 		unsafe {
@@ -118,7 +114,6 @@ impl Shader {
 	}
 
 	/// Returns a logical struct describing the entry point named `main`.
-	#[inline]
 	pub fn frag_entry_point(&self, count: u32) -> (GraphicsEntryPoint<TextureCount, Vert2Frag, FragOutput, FragmentLayout>, TextureCount) {
 		(unsafe {
 			self.frag.graphics_entry_point(
@@ -141,11 +136,9 @@ pub struct FragmentLayout {
 	pub count: u32,
 }
 unsafe impl PipelineLayoutDesc for FragmentLayout {
-	#[inline]
 	fn num_sets(&self) -> usize {
 		2
 	}
-	#[inline]
 	fn num_bindings_in_set(&self, set: usize) -> Option<usize> {
 		match set {
 			0 => Some(0),
@@ -153,7 +146,6 @@ unsafe impl PipelineLayoutDesc for FragmentLayout {
 			_ => None,
 		}
 	}
-	#[inline]
 	fn descriptor(&self, set: usize, binding: usize) -> Option<DescriptorDesc> {
 		match (set, binding) {
 			(1, 0) => Some(DescriptorDesc {
@@ -171,11 +163,9 @@ unsafe impl PipelineLayoutDesc for FragmentLayout {
 			_ => None,
 		}
 	}
-	#[inline]
 	fn num_push_constants_ranges(&self) -> usize {
 		0
 	}
-	#[inline]
 	fn push_constants_range(&self, num: usize) -> Option<PipelineLayoutDescPcRange> {
 		if num != 0 || 0 == 0 {
 			return None;
@@ -191,18 +181,15 @@ unsafe impl PipelineLayoutDesc for FragmentLayout {
 #[derive(Debug, Clone)]
 pub struct VertexLayout(pub ShaderStages);
 unsafe impl PipelineLayoutDesc for VertexLayout {
-	#[inline]
 	fn num_sets(&self) -> usize {
 		1
 	}
-	#[inline]
 	fn num_bindings_in_set(&self, set: usize) -> Option<usize> {
 		match set {
 			0 => Some(1),
 			_ => None,
 		}
 	}
-	#[inline]
 	fn descriptor(&self, set: usize, binding: usize) -> Option<DescriptorDesc> {
 		match (set, binding) {
 			(0, 0) => {
@@ -219,11 +206,9 @@ unsafe impl PipelineLayoutDesc for VertexLayout {
 			_ => None,
 		}
 	}
-	#[inline]
 	fn num_push_constants_ranges(&self) -> usize {
 		0
 	}
-	#[inline]
 	fn push_constants_range(&self, num: usize) -> Option<PipelineLayoutDescPcRange> {
 		if num != 0 || 0 == 0 {
 			return None;
@@ -242,7 +227,6 @@ pub struct TextureCount {
 	pub count: u32,
 }
 unsafe impl SpecConstsTrait for TextureCount {
-	#[inline]
 	fn descriptors() -> &'static [SpecializationMapEntry] {
 		static DESCRIPTORS: [SpecializationMapEntry; 1] = [
 			SpecializationMapEntry {

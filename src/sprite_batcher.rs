@@ -35,7 +35,7 @@ impl<Rp> Batcher<Rp>
 				device.clone(),
 				queue.clone(),
 				renderpass.clone(),
-				capacity, group_size);
+				capacity, group_size).unwrap();
 
 		(
 			Self { device, queue, renderer, last_wh: Vector2::new(0.0, 0.0) },
@@ -49,7 +49,7 @@ impl<Rp> Batcher<Rp>
 			return;
 		}
 		self.last_wh = wh;
-		self.renderer.proj_set(wh);
+		self.renderer.proj_set(wh).unwrap();
 	}
 }
 
@@ -88,10 +88,10 @@ impl<'a, Rp> specs::System<'a> for Batcher<Rp>
 			cb = self.renderer.push(cb, state.clone(),
 				sprite.texture.clone(),
 				sprite.color,
-				sprite.pos, sprite.uv);
+				sprite.pos, sprite.uv).unwrap();
 		}
 
-		cb = self.renderer.flush(state, cb);
+		cb = self.renderer.flush(state, cb).unwrap();
 
 		let cb = cb
 			.end_render_pass().unwrap()
