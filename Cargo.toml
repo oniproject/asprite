@@ -3,11 +3,21 @@ name = "pixi"
 version = "0.1.0"
 authors = ["Lain-dono <lain.dono@gmail.com>"]
 
+[workspace]
+members = [
+	"renderer"
+]
+
+[profile.release]
+lto = true
+
 [dependencies]
+renderer = { path = "renderer" }
+
 vulkano = "0.7"
 vulkano-shader-derive = "0.7"
 vulkano-win = "0.7"
-cgmath = "0.14"
+cgmath = "0.15"
 image = "0.17"
 winit = "0.7"
 time = "0.1.37"

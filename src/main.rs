@@ -3,13 +3,13 @@
 #![feature(derive_clone_copy)]
 #![feature(const_fn)]
 
+extern crate renderer;
+
 extern crate specs;
 extern crate hibitset;
 extern crate fnv;
 #[macro_use]
 extern crate derivative;
-#[macro_use]
-extern crate error_chain;
 
 extern crate rayon;
 extern crate rand;
@@ -45,29 +45,14 @@ mod arena;
 mod sprite;
 mod tsys;
 mod state;
-mod batcher;
 mod sprite_batcher;
 
 use sprite::*;
-use batcher::*;
+use renderer::*;
 use sprite_batcher::*;
 
 pub const TEXTURE_COUNT: u32 = 16;
 pub const BATCH_CAPACITY: usize = 2_000;
-
-fn _main() {
-	#[inline(always)]
-	pub fn pack_uv(x: f32, y: f32) -> [u16; 2] {
-		let x = (x * 65535.0) as u16;
-		let y = (y * 65535.0) as u16;
-		[x, y]
-	}
-
-	println!("{:?}", pack_uv(0.0, 0.0));
-	println!("{:?}", pack_uv(1.0, 0.0));
-	println!("{:?}", pack_uv(1.0, 1.0));
-	println!("{:?}", pack_uv(0.0, 1.0));
-}
 
 fn main() {
 	let extensions = vulkano_win::required_extensions();

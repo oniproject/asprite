@@ -83,7 +83,7 @@ impl Texture {
 		let image = image::open(path)?.to_rgba();
 
 		let wh = image.dimensions();
-		let image_data = image.into_raw().clone();
+		let image_data = image.into_raw();
 
 		let (texture, future) = ImmutableImage::from_iter(
 			image_data.iter().cloned(),

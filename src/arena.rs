@@ -7,7 +7,7 @@ use specs::{LazyUpdate, Entities, System, WriteStorage, Join, Fetch, FetchMut};
 
 use std::time::Duration;
 
-use batcher::*;
+use renderer::*;
 use sprite::*;
 
 pub struct Velocity {

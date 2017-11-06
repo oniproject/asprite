@@ -1,3 +1,11 @@
+#![feature(const_fn)]
+
+#[macro_use] extern crate vulkano;
+#[macro_use] extern crate error_chain;
+#[macro_use] extern crate derivative;
+extern crate cgmath;
+extern crate image;
+
 use vulkano::buffer::immutable::ImmutableBuffer;
 use vulkano::buffer::cpu_pool::CpuBufferPool;
 use vulkano::buffer::{BufferUsage, BufferAccess};

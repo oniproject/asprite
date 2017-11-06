@@ -15,7 +15,7 @@ use specs::{self, Fetch, FetchMut, Join, ReadStorage};
 type Fb<Rp> = Arc<Framebuffer<Arc<Rp>, ((), Arc<SwapchainImage>)>>;
 
 use sprite::*;
-use batcher::*;
+use renderer::*;
 
 pub struct Batcher<Rp> {
 	renderer: Renderer<Rp>,

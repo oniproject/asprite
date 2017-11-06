@@ -4,7 +4,7 @@ use specs::{self, Component, VecStorage, Join};
 use specs::{DenseVecStorage, FlaggedStorage};
 
 use d8::*;
-use batcher::*;
+use renderer::*;
 
 pub struct Frame {
 	pub x: f32,
