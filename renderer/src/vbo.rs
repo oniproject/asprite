@@ -23,7 +23,7 @@ impl<T> VBO<T> {
 	}
 
 	pub fn push(&mut self, v: T) {
-		self.vertices.push(v);
+		self.vertices.push(v)
 	}
 
 	pub fn len(&self) -> usize {

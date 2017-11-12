@@ -1,4 +1,23 @@
-pub struct QuadIndices<T>(pub T, pub usize);
+use super::*;
+
+#[derive(Clone)]
+pub struct QuadIBO<T>(Index<T>);
+
+impl QuadIBO<u16> {
+	pub fn new(queue: Arc<Queue>, cap: usize) -> Result<(Self, BoxFuture)> {
+		let (index, future) = ImmutableBuffer::from_iter(
+			QuadIndices(0u16, cap),
+			BufferUsage::index_buffer(),
+			queue,
+		)?;
+		Ok((QuadIBO(index), Box::new(future)))
+	}
+	pub fn slice(&self, count: usize) -> Option<ChunkIBO<u16>> {
+		self.0.clone().into_buffer_slice().slice(0..count)
+	}
+}
+
+struct QuadIndices<T>(pub T, pub usize);
 
 impl ExactSizeIterator for QuadIndices<u16> {}
 impl ExactSizeIterator for QuadIndices<u32> {}

@@ -17,14 +17,14 @@ type Fb<Rp> = Arc<Framebuffer<Arc<Rp>, ((), Arc<SwapchainImage>)>>;
 use sprite::*;
 use renderer::*;
 
-pub struct Batcher<Rp> {
-	renderer: Renderer<Rp>,
+pub struct Batcher<'a, Rp> {
+	renderer: Renderer<'a, Rp>,
 	device: Arc<Device>,
 	queue: Arc<Queue>,
 	last_wh: Vector2<f32>,
 }
 
-impl<Rp> Batcher<Rp>
+impl<'a, Rp> Batcher<'a, Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
 	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Arc<Rp>, capacity: usize, group_size: u32)
@@ -53,14 +53,14 @@ impl<Rp> Batcher<Rp>
 	}
 }
 
-impl<'a, Rp> specs::System<'a> for Batcher<Rp>
+impl<'a, 'sys, Rp> specs::System<'sys> for Batcher<'a, Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
 	type SystemData = (
-		FetchMut<'a, Box<GpuFuture + Send + Sync>>,
-		Fetch<'a, Vector2<f32>>,
-		Fetch<'a, Fb<Rp>>,
-		ReadStorage<'a, Sprite>,
+		FetchMut<'sys, Box<GpuFuture + Send + Sync>>,
+		Fetch<'sys, Vector2<f32>>,
+		Fetch<'sys, Fb<Rp>>,
+		ReadStorage<'sys, Sprite>,
 	);
 
 	fn running_time(&self) -> specs::RunningTime { specs::RunningTime::Long }
@@ -83,6 +83,8 @@ impl<'a, Rp> specs::System<'a> for Batcher<Rp>
 		let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(self.device.clone(), self.queue.family())
 			.unwrap()
 			.begin_render_pass(fb.clone(), false, clear).unwrap();
+
+		cb = self.renderer.test_text(cb, state.clone()).unwrap();
 
 		for (sprite,) in (&sprites,).join() {
 			cb = self.renderer.texture_quad(cb, state.clone(),

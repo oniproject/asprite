@@ -309,3 +309,58 @@ impl Ticker {
 		}
 	}
 }
+
+/*
+#[macro_use]
+extern crate vulkano_shader_derive;
+mod vs {
+	#[derive(VulkanoShader)]
+	#[ty = "vertex"]
+	#[src = "
+
+#version 450
+
+precision highp float;
+
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 uv;
+
+layout(location = 0) out vec2 tex_coords;
+layout(location = 1) out vec4 tex_color;
+
+layout(set = 0, binding = 0) uniform uni {
+	mat4 proj;
+	vec4 color;
+} uniforms;
+
+void main() {
+	mat3 proj = mat3(uniforms.proj);
+	vec2 pos = (proj * vec3(position, 1.0)).xy;
+	gl_Position = vec4(pos, 0.0, 1.0);
+	tex_coords = uv;
+	tex_color = uniforms.color;
+}
+
+"]
+	struct Dummy;
+}
+
+mod fs {
+	#[derive(VulkanoShader)]
+	#[ty = "fragment"]
+	#[src = "
+#version 450
+
+layout(location = 0) in vec2 tex_coords;
+layout(location = 1) in vec4 tex_color;
+layout(location = 0) out vec4 f_color;
+
+layout(set = 1, binding = 0) uniform sampler2D tex;
+
+void main() {
+	f_color = vec4(1.0, 1.0, 1.0, texture(tex, tex_coords).r) * tex_color;
+}
+"]
+	struct Dummy;
+}
+*/

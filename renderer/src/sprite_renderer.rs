@@ -1,16 +1,13 @@
 use super::*;
-
 use sprite_shader::*;
 
 //vulkano::pipeline::vertex::SingleBufferDefinition<vertex::Vertex>:
 //vulkano::pipeline::vertex::VertexSource<vulkano::buffer::cpu_pool::CpuBufferPoolChunk<vertex::Vertex, A>>
-//
-
-type ChunkVBO<T> = CpuBufferPoolChunk<T, Arc<StdMemoryPool>>;
-type ChunkIBO<T> = BufferSlice<[T], Arc<ImmutableBuffer<[T]>>>;
 
 pub struct SpriteRenderer<Rp> {
-	pipeline: Pipeline<Rp>,
+	pub vbo: VBO<sprite_shader::Vertex>,
+	ibo: QuadIBO<u16>,
+	pipeline: Pipeline<Rp, sprite_shader::Vertex>,
 	uniform: CpuBufferPool<Uniform>,
 	proj_set: Projection,
 }
@@ -18,15 +15,15 @@ pub struct SpriteRenderer<Rp> {
 impl<Rp> SpriteRenderer<Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
-	pub fn new(device: Arc<Device>, pass: Subpass<Arc<Rp>>, group_size: u32) -> Result<Self> {
+	pub fn new(device: Arc<Device>, ibo: QuadIBO<u16>, pass: Subpass<Arc<Rp>>, capacity: usize, group_size: u32) -> Result<Self> {
 		assert_eq!(group_size, 16);
-		let shader = Shader::load(device.clone()).expect("failed to create shader module");
+		let shader = Shader::load(device.clone())?;
 
 		let vs = shader.vert_entry_point();
 		let fs = shader.frag_entry_point(group_size);
 
 		let pipeline = GraphicsPipeline::start()
-			.vertex_input_single_buffer::<Vertex>()
+			.vertex_input_single_buffer::<sprite_shader::Vertex>()
 			.vertex_shader(vs.0, vs.1)
 			.triangle_list()
 			.viewports_dynamic_scissors_irrelevant(1)
@@ -49,52 +46,12 @@ impl<Rp> SpriteRenderer<Rp>
 			Arc::new(set)
 		};
 
-		Ok(Self { pipeline, uniform, proj_set })
+		let vbo = VBO::new(device.clone(), capacity);
+
+		Ok(Self { pipeline, uniform, proj_set, ibo, vbo })
 	}
 
-	pub fn pipe(&mut self) -> Pipeline<Rp> {
-		self.pipeline.clone()
-	}
-
-	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
-		let proj = Affine::projection(wh.x, wh.y).uniform4();
-		let uniform_buffer_subbuffer = self.uniform.next(Uniform {
-			proj: proj.into(),
-		})?;
-		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 0)
-			.add_buffer(uniform_buffer_subbuffer)?
-			.build()?;
-		self.proj_set = Arc::new(set);
-		Ok(())
-	}
-
-	/*
-	pub fn sets_x(&mut self, t: &[Texture]) -> Result<()> {//-> Result<impl DescriptorSetsCollection> {
-		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 1)
-			.enter_array()?;
-
-		for t in t {
-			set = set.add_sampled_image(t.texture.clone(), t.sampler.clone())?;
-		}
-
-		let set = set.leave_array()?.build()?;
-
-		//Ok((self.proj_set.clone(), Arc::new(set)))
-		Ok(())
-	}
-	*/
-
-	pub fn draw_indexed(
-		&mut self, cb: AutoCommandBufferBuilder, state: DynamicState,
-		vbo: ChunkVBO<Vertex>, ibo: ChunkIBO<u16>, textures: &[Texture]
-		) -> Result<AutoCommandBufferBuilder>
-	{
-		let count = sprite_shader::TextureCount { count: textures.len() as u32 };
-		let set = self.sets(textures).unwrap();
-		Ok(cb.draw_indexed(self.pipeline.clone(), state, vbo, ibo, set, count)?)
-	}
-
-	pub fn sets(&mut self, t: &[Texture]) -> Result<impl DescriptorSetsCollection> {
+	fn sets(&mut self, t: &[Texture]) -> Result<impl DescriptorSetsCollection> {
 		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 1)
 			.enter_array()?
 
@@ -122,6 +79,46 @@ impl<Rp> SpriteRenderer<Rp>
 			.build()?;
 
 		Ok((self.proj_set.clone(), set))
+	}
+
+	pub fn flush(&mut self, cb: CmdBuild, state: DynamicState, textures: &[Texture]) -> Result<CmdBuild> {
+		if self.vbo.is_empty() {
+			return Ok(cb);
+		}
+
+		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
+		let ibo = self.ibo.slice(count).expect("failure index buffer slice");
+		let vbo: CpuBufferPoolChunk<sprite_shader::Vertex, Arc<StdMemoryPool>> = self.vbo.flush()?;
+
+		let count = sprite_shader::TextureCount { count: textures.len() as u32 };
+		let set = self.sets(textures)?;
+
+		Ok(cb.draw_indexed(self.pipeline.clone(), state, vbo, ibo, set, count)?)
+	}
+}
+
+impl<Rp> RendererSubpass for SpriteRenderer<Rp>
+	where Rp: RenderPassAbstract + Send + Sync + 'static
+{
+	fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
+		let proj = Affine::projection(wh.x, wh.y).uniform4();
+		let uniform_buffer_subbuffer = self.uniform.next(Uniform {
+			proj: proj.into(),
+		})?;
+		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 0)
+			.add_buffer(uniform_buffer_subbuffer)?
+			.build()?;
+		self.proj_set = Arc::new(set);
+		Ok(())
+	}
+	fn draw_indexed(
+		&mut self, cb: CmdBuild, state: DynamicState,
+		vbo: ChunkVBO<Vertex>, ibo: ChunkIBO<u16>, textures: &[Texture]
+		) -> Result<CmdBuild>
+	{
+		let count = sprite_shader::TextureCount { count: textures.len() as u32 };
+		let set = self.sets(textures).unwrap();
+		Ok(cb.draw_indexed(self.pipeline.clone(), state, vbo, ibo, set, count)?)
 	}
 }
 

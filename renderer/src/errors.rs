@@ -1,6 +1,7 @@
 error_chain! {
 	foreign_links {
 		//NoneError(::std::option::NoneError);
+		//CacheWriteErr(::rusttype::gpu_cache::CacheWriteErr);
 		ImageError(::image::ImageError);
 		VkImageCreationError(::vulkano::image::ImageCreationError);
 		VkSamplerCreationError(::vulkano::sampler::SamplerCreationError);
