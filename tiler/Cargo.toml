@@ -1,0 +1,13 @@
+[package]
+name = "tiler"
+version = "0.1.0"
+authors = ["Lain-dono <lain.dono@gmail.com>"]
+
+[dependencies]
+vulkano = "0.7"
+vulkano-shader-derive = "0.7"
+vulkano-win = "0.7"
+cgmath = "0.14"
+image = "0.14"
+winit = "0.7"
+time = "0.1.37"

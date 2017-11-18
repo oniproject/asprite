@@ -7,11 +7,16 @@ authors = ["Lain-dono <lain.dono@gmail.com>"]
 members = [
 	"ui",
 	"tiled",
+	"tiler",
 ]
+
+[profile.release]
+lto = true
 
 [dependencies]
 ui = { path = "ui/" }
 tiled = { path = "tiled/" }
+tiler = { path = "tiler/" }
 
 nalgebra = "0.13"
 num-traits = "0.1"
