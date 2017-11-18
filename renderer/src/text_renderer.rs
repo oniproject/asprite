@@ -2,7 +2,6 @@ use vulkano::format::R8Unorm;
 use vulkano::image::StorageImage;
 use vulkano::image::ImageLayout;
 use vulkano::command_buffer::synced::*;
-use vulkano::command_buffer::pool::standard::StandardCommandPoolBuilder;
 use vulkano::command_buffer::sys::UnsafeCommandBufferBuilderBufferImageCopy;
 use vulkano::command_buffer::sys::UnsafeCommandBufferBuilderImageAspect;
 
@@ -11,7 +10,7 @@ use text_shader::*;
 
 use std::iter;
 
-use rusttype::{FontCollection, Font, Scale, point, vector, PositionedGlyph, Rect};
+use rusttype::{Font, Scale, point, PositionedGlyph};
 use rusttype::gpu_cache::Cache;
 
 #[inline(always)]
@@ -44,7 +43,7 @@ impl<Rp> TextRenderer<Rp>
 		let texture = StorageImage::new(
 			device.clone(),
 			Dimensions::Dim2d { width, height },
-			R8Unorm, f).unwrap();
+			R8Unorm, f)?;
 
 		let sampler = Sampler::new(
 			device.clone(),
@@ -84,10 +83,8 @@ impl<Rp> TextRenderer<Rp>
 		Ok(Self { texture, sampler, cache, pool, pipeline, uniform, wh, vbo, ibo, upload: false, })
 	}
 
-	pub fn paragraph(&mut self, cb: CmdBuild, state: DynamicState, font: &Font, text: &str) -> Result<CmdBuild> {
-		let width = 500;
-		let glyphs = layout_paragraph(&font, Scale::uniform(24.0), width, &text);
-		self.glyphs(cb, state, &glyphs)
+	pub fn text<'a>(&mut self, cb: CmdBuild, state: DynamicState, text: &Text<'a>) -> Result<CmdBuild> {
+		self.glyphs(cb, state, &text.glyphs)
 	}
 
 	pub fn glyphs<'a>(&mut self, mut cb: CmdBuild, state: DynamicState, glyphs: &[PositionedGlyph<'a>]) -> Result<CmdBuild> {
@@ -98,26 +95,23 @@ impl<Rp> TextRenderer<Rp>
 		self.cache_queued(&mut cb)?;
 
 		let cache = &mut self.cache;
-		for (uv, pos) in glyphs.into_iter()
-				.filter_map(|g| cache.rect_for(0, g).unwrap()) {
-			let uv = [
-				pack_uv(uv.min.x, uv.min.y),
-				pack_uv(uv.max.x, uv.min.y),
-				pack_uv(uv.max.x, uv.max.y),
-				pack_uv(uv.min.x, uv.max.y),
-			];
-
-			let pos = [
-				[pos.min.x as f32, pos.min.y as f32],
-				[pos.max.x as f32, pos.min.y as f32],
-				[pos.max.x as f32, pos.max.y as f32],
-				[pos.min.x as f32, pos.max.y as f32],
-			];
-			for i in 0..4 {
-				self.vbo.push(Vertex {
-					uv: uv[i], position: pos[i]
-				});
-			}
+		for (uv, pos) in glyphs.into_iter().filter_map(|g| cache.rect_for(0, g).unwrap()) {
+			self.vbo.push(Vertex {
+				uv: pack_uv(uv.min.x, uv.min.y),
+				position: [pos.min.x as f32, pos.min.y as f32],
+			});
+			self.vbo.push(Vertex {
+				uv: pack_uv(uv.max.x, uv.min.y),
+				position: [pos.max.x as f32, pos.min.y as f32],
+			});
+			self.vbo.push(Vertex {
+				uv: pack_uv(uv.max.x, uv.max.y),
+				position: [pos.max.x as f32, pos.max.y as f32],
+			});
+			self.vbo.push(Vertex {
+				uv: pack_uv(uv.min.x, uv.max.y),
+				position: [pos.min.x as f32, pos.max.y as f32],
+			});
 		}
 
 		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
@@ -128,7 +122,6 @@ impl<Rp> TextRenderer<Rp>
 			let proj = Affine::projection(self.wh.x, self.wh.y).uniform4();
 			let uniform_buffer_subbuffer = self.uniform.next(Uniform {
 				proj: proj.into(),
-				//color: [0xFF, 0xFF, 0xFF, 0xFF],
 				color: [1.0, 1.0, 1.0, 1.0],
 			})?;
 			let set = PersistentDescriptorSet::start(self.pipeline.clone(), 0)
@@ -196,6 +189,7 @@ impl<Rp> TextRenderer<Rp>
 				}
 			}
 		}).unwrap();
+
 		Ok(())
 	}
 
@@ -203,122 +197,4 @@ impl<Rp> TextRenderer<Rp>
 		self.wh = wh;
 		Ok(())
 	}
-}
-
-/*
-pub fn run() {
-	let font = include_bytes!("../../TerminusTTF-4.46.0.ttf");
-	let font = FontCollection::from_bytes(font as &[u8]).into_font().unwrap();
-
-	let text: String = "A japanese poem:
-Feel free to type out some text, and delete it with Backspace. You can also try resizing this window."
-.into();
-
-	let (cw, ch) = (512, 512);
-	let mut cache = Cache::new(cw, ch, 0.1, 0.1);
-
-	let width = 500;
-	let glyphs = layout_paragraph(&font, Scale::uniform(24.0), width, &text);
-
-	for g in &glyphs {
-		cache.queue_glyph(0, g.clone());
-	}
-
-	/*
-	let img = StorageImage::new(
-	let buf = CpuBufferPool::upload(device.clone());
-	*/
-
-	//let cb = AutoCommandBuffer::new(device.clone(), queue.family()).unwrap()
-	cache.cache_queued(|rect, data| {
-		println!("cache_queued {:?}", rect);
-
-		/*
-		let src = buf.chunk(data).unwrap()
-
-		let offset = rect.min;
-		let size = rect.max - rect.min;
-
-		let size = [size.x, size.y, 0];
-		let offset = [rect.min.x, rect.min.y, 0];
-		cb = cb.copy_buffer_to_image_dimensions(
-				src, dst,
-				offset, size,
-				first_layer, num_layers, mipmap
-			).unwrap()
-			*/
-		//copy_buffer_to_image_dimensions<S, D, Px>(
-		//self,
-		//source: S,
-		//destination: D,
-		//offset: [u32; 3],
-		//size: [u32; 3],
-		//first_layer: u32,
-		//num_layers: u32,
-		//mipmap: u32
-		//) -> Result<Self, CopyBufferImageError> 
-	});
-
-	let iter = glyphs.iter()
-		.filter_map(|g| cache.rect_for(0, &g).unwrap());
-
-	for (uv, pos) in iter {
-		println!("{:?} {:?}", uv, pos);
-	}
-
-	/*
-	cache.cache_queued(|rect, data| {
-		cache_tex.main_level().write(glium::Rect {
-			left: rect.min.x,
-			bottom: rect.min.y,
-			width: rect.width(),
-			height: rect.height()
-		}, glium::texture::RawImage2d {
-			data: Cow::Borrowed(data),
-			width: rect.width(),
-			height: rect.height(),
-			format: glium::texture::ClientFormat::U8
-		});
-	}).unwrap();
-	*/
-}
-*/
-
-fn layout_paragraph<'a>(font: &'a Font, scale: Scale, width: u32, text: &str) -> Vec<PositionedGlyph<'a>> {
-	use unicode_normalization::UnicodeNormalization;
-
-	let mut result = Vec::new();
-	let v_metrics = font.v_metrics(scale);
-	let advance_height = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
-	let mut caret = point(0.0, v_metrics.ascent);
-	let mut last_glyph_id = None;
-
-	for c in text.nfc() {
-		if c.is_control() {
-			match c {
-				'\n' => caret = point(0.0, caret.y + advance_height),
-				_ => {}
-			}
-			continue;
-		}
-		let base_glyph = match font.glyph(c) {
-			Some(glyph) => glyph,
-			None => continue,
-		};
-		if let Some(id) = last_glyph_id.take() {
-			caret.x += font.pair_kerning(scale, id, base_glyph.id());
-		}
-		last_glyph_id = Some(base_glyph.id());
-		let mut glyph = base_glyph.scaled(scale).positioned(caret);
-		if let Some(bb) = glyph.pixel_bounding_box() {
-			if bb.max.x > width as i32 {
-				caret = point(0.0, caret.y + advance_height);
-				glyph = glyph.into_unpositioned().positioned(caret);
-				last_glyph_id = None;
-			}
-		}
-		caret.x += glyph.unpositioned().h_metrics().advance_width;
-		result.push(glyph);
-	}
-	result
 }

@@ -40,6 +40,8 @@ use cgmath::Vector2;
 use std::sync::Arc;
 use std::time::{Instant, Duration};
 
+use renderer::vertex::*;
+
 mod d8;
 mod arena;
 mod sprite;

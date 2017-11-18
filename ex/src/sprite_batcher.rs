@@ -1,8 +1,10 @@
-use vulkano::framebuffer::RenderPassAbstract;
-use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
+use vulkano::command_buffer::AutoCommandBufferBuilder;
+use vulkano::command_buffer::DynamicState;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::device::{Device, Queue};
+use vulkano::framebuffer::RenderPassAbstract;
 use vulkano::framebuffer::Framebuffer;
+use vulkano::framebuffer::Subpass;
 use vulkano::image::SwapchainImage;
 use vulkano::sync::GpuFuture;
 
@@ -16,12 +18,19 @@ type Fb<Rp> = Arc<Framebuffer<Arc<Rp>, ((), Arc<SwapchainImage>)>>;
 
 use sprite::*;
 use renderer::*;
+use renderer::vertex::*;
+
+fn terminus() -> Font<'static> {
+	let font = include_bytes!("../../TerminusTTF-4.46.0.ttf");
+	FontCollection::from_bytes(font as &[u8]).into_font().unwrap()
+}
 
 pub struct Batcher<'a, Rp> {
-	renderer: Renderer<'a, Rp>,
+	renderer: Renderer<Rp>,
 	device: Arc<Device>,
 	queue: Arc<Queue>,
 	last_wh: Vector2<f32>,
+	font: Font<'a>,
 }
 
 impl<'a, Rp> Batcher<'a, Rp>
@@ -30,15 +39,19 @@ impl<'a, Rp> Batcher<'a, Rp>
 	pub fn new(device: Arc<Device>, queue: Arc<Queue>, renderpass: Arc<Rp>, capacity: usize, group_size: u32)
 		-> (Self, Box<GpuFuture + Send + Sync>)
 	{
+		let pass = Subpass::from(renderpass.clone(), 0)
+			.expect("failure subpass creation");
+
 		let (renderer, index_future) =
 			Renderer::new(
 				device.clone(),
 				queue.clone(),
-				renderpass.clone(),
+				pass.clone(),
 				capacity, group_size).unwrap();
 
+		let font = terminus();
 		(
-			Self { device, queue, renderer, last_wh: Vector2::new(0.0, 0.0) },
+			Self { device, queue, renderer, last_wh: Vector2::new(0.0, 0.0), font },
 			Box::new(index_future)
 		)
 	}
@@ -49,7 +62,7 @@ impl<'a, Rp> Batcher<'a, Rp>
 			return;
 		}
 		self.last_wh = wh;
-		self.renderer.proj_set(wh).unwrap();
+		self.renderer.resize(wh).unwrap();
 	}
 }
 
@@ -84,7 +97,15 @@ impl<'a, 'sys, Rp> specs::System<'sys> for Batcher<'a, Rp>
 			.unwrap()
 			.begin_render_pass(fb.clone(), false, clear).unwrap();
 
-		cb = self.renderer.test_text(cb, state.clone()).unwrap();
+		{
+				let text = "A japanese poem:
+			Feel free to type out some text, and delete it with Backspace. You can also try resizing this window.";
+
+			let text = Text::new(&self.font, text, 24.0)
+				.lay(Vector2::new(0.0, 0.0), 500);
+
+			cb = self.renderer.text(cb, state.clone(), &text).unwrap();
+		}
 
 		for (sprite,) in (&sprites,).join() {
 			cb = self.renderer.texture_quad(cb, state.clone(),

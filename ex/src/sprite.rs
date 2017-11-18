@@ -5,6 +5,7 @@ use specs::{DenseVecStorage, FlaggedStorage};
 
 use d8::*;
 use renderer::*;
+use renderer::vertex::*;
 
 pub struct Frame {
 	pub x: f32,

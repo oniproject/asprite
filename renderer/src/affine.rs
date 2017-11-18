@@ -11,9 +11,7 @@ use std::fmt::Debug;
 use std::ops::Mul;
 
 #[derive(Clone, Copy, Debug)]
-pub struct Affine<T>
-	where T: Clone + Copy + Debug
-{
+pub struct Affine<T: Clone + Copy + Debug> {
 	pub m: Matrix2<T>,
 	pub t: Vector2<T>,
 }

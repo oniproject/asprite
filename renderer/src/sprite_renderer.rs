@@ -51,7 +51,18 @@ impl<Rp> SpriteRenderer<Rp>
 		Ok(Self { pipeline, uniform, proj_set, ibo, vbo })
 	}
 
-	fn sets(&mut self, t: &[Texture]) -> Result<impl DescriptorSetsCollection> {
+	pub fn flush(&mut self, cb: CmdBuild, state: DynamicState, textures: &[Texture]) -> Result<CmdBuild> {
+		if self.vbo.is_empty() {
+			return Ok(cb);
+		}
+
+		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
+		let ibo = self.ibo.slice(count).expect("failure index buffer slice");
+		let vbo: CpuBufferPoolChunk<sprite_shader::Vertex, Arc<StdMemoryPool>> = self.vbo.flush()?;
+
+		let count = sprite_shader::TextureCount { count: textures.len() as u32 };
+
+		let t = textures;
 		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 1)
 			.enter_array()?
 
@@ -78,29 +89,12 @@ impl<Rp> SpriteRenderer<Rp>
 			.leave_array()?
 			.build()?;
 
-		Ok((self.proj_set.clone(), set))
-	}
-
-	pub fn flush(&mut self, cb: CmdBuild, state: DynamicState, textures: &[Texture]) -> Result<CmdBuild> {
-		if self.vbo.is_empty() {
-			return Ok(cb);
-		}
-
-		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
-		let ibo = self.ibo.slice(count).expect("failure index buffer slice");
-		let vbo: CpuBufferPoolChunk<sprite_shader::Vertex, Arc<StdMemoryPool>> = self.vbo.flush()?;
-
-		let count = sprite_shader::TextureCount { count: textures.len() as u32 };
-		let set = self.sets(textures)?;
+		let set = (self.proj_set.clone(), set);
 
 		Ok(cb.draw_indexed(self.pipeline.clone(), state, vbo, ibo, set, count)?)
 	}
-}
 
-impl<Rp> RendererSubpass for SpriteRenderer<Rp>
-	where Rp: RenderPassAbstract + Send + Sync + 'static
-{
-	fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
+	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
 		let proj = Affine::projection(wh.x, wh.y).uniform4();
 		let uniform_buffer_subbuffer = self.uniform.next(Uniform {
 			proj: proj.into(),
@@ -110,15 +104,6 @@ impl<Rp> RendererSubpass for SpriteRenderer<Rp>
 			.build()?;
 		self.proj_set = Arc::new(set);
 		Ok(())
-	}
-	fn draw_indexed(
-		&mut self, cb: CmdBuild, state: DynamicState,
-		vbo: ChunkVBO<Vertex>, ibo: ChunkIBO<u16>, textures: &[Texture]
-		) -> Result<CmdBuild>
-	{
-		let count = sprite_shader::TextureCount { count: textures.len() as u32 };
-		let set = self.sets(textures).unwrap();
-		Ok(cb.draw_indexed(self.pipeline.clone(), state, vbo, ibo, set, count)?)
 	}
 }
 

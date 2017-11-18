@@ -1,14 +1,8 @@
 [root]
-name = "renderer"
+name = "xx"
 version = "0.1.0"
 dependencies = [
  "cgmath 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "derivative 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "error-chain 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "image 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rusttype 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "unicode-normalization 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "vulkano 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -274,6 +268,28 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "backtrace 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ex"
+version = "0.1.0"
+dependencies = [
+ "cgmath 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "derivative 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "error-chain 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fnv 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hibitset 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "image 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.3.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rayon 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "renderer 0.1.0",
+ "specs 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "time 0.1.38 (registry+https://github.com/rust-lang/crates.io-index)",
+ "vulkano 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "vulkano-shader-derive 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "vulkano-win 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winit 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "xx 0.1.0",
 ]
 
 [[package]]
@@ -602,27 +618,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pixi"
-version = "0.1.0"
-dependencies = [
- "cgmath 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "derivative 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "error-chain 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "fnv 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "hibitset 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "image 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.3.17 (registry+https://github.com/rust-lang/crates.io-index)",
- "rayon 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "renderer 0.1.0",
- "specs 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "time 0.1.38 (registry+https://github.com/rust-lang/crates.io-index)",
- "vulkano 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "vulkano-shader-derive 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "vulkano-win 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "winit 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "pkg-config"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -686,6 +681,19 @@ dependencies = [
 name = "redox_syscall"
 version = "0.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "renderer"
+version = "0.1.0"
+dependencies = [
+ "cgmath 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "derivative 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "error-chain 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "image 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rusttype 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "unicode-normalization 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "vulkano 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "rustc-demangle"
