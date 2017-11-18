@@ -5,11 +5,11 @@ authors = ["Lain-dono <lain.dono@gmail.com>"]
 
 [dependencies]
 renderer = { path = "../renderer" }
+math = { path = "../math" }
 
 vulkano = "0.7"
 vulkano-shader-derive = "0.7"
 vulkano-win = "0.7"
-cgmath = "0.15"
 image = "0.17"
 winit = "0.7"
 time = "0.1.37"

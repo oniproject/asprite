@@ -8,7 +8,7 @@ use vulkano::framebuffer::Subpass;
 use vulkano::image::SwapchainImage;
 use vulkano::sync::GpuFuture;
 
-use cgmath::Vector2;
+use math::Vector2;
 
 use std::sync::Arc;
 

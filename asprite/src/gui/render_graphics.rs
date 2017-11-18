@@ -10,11 +10,11 @@ use std::collections::HashMap;
 
 use ui::{Graphics, TextureManager, Command};
 
-use common::*;
+use math::*;
 
 pub type SdlCanvas = Canvas<Window>;
 
-pub struct RenderGraphics<'t, 'ttf_module, 'rwops, N: SignedInt, C: Copy + 'static> {
+pub struct RenderGraphics<'t, 'ttf_module, 'rwops, N: BaseNum, C: Copy + 'static> {
 	pub ctx: SdlCanvas,
 	pub font: Font<'ttf_module, 'rwops>,
 	pub creator: &'t TextureCreator<WindowContext>,
@@ -25,7 +25,7 @@ pub struct RenderGraphics<'t, 'ttf_module, 'rwops, N: SignedInt, C: Copy + 'stat
 	cmd_buffer: Vec<Vec<Command<N, C>>>,
 }
 
-impl<'t, 'ttf, 'rwops, N: SignedInt, C: Copy + 'static>  RenderGraphics<'t, 'ttf, 'rwops, N, C> {
+impl<'t, 'ttf, 'rwops, N: BaseNum, C: Copy + 'static>  RenderGraphics<'t, 'ttf, 'rwops, N, C> {
 	fn gen_id<T: Into<Option<usize>>>(&mut self, id: T) -> usize {
 		id.into().unwrap_or_else(|| {
 			let id = self.last_texture_id;
@@ -90,7 +90,7 @@ impl<'t, 'ttf, 'rwops> RenderGraphics<'t, 'ttf, 'rwops, i16, u32> {
 		}
 	}
 
-	fn line(ctx: &Canvas<Window>, start: Point<i16>, end: Point<i16>, color: u32) {
+	fn line(ctx: &Canvas<Window>, start: Point2<i16>, end: Point2<i16>, color: u32) {
 		ctx.line(
 			start.x, start.y,
 			end.x, end.y,
@@ -118,7 +118,7 @@ impl<'t, 'ttf, 'rwops> RenderGraphics<'t, 'ttf, 'rwops, i16, u32> {
 	}
 }
 
-impl<'t, 'ttf, 'rwops, N: SignedInt, C: Copy + 'static> Graphics<N, C> for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
+impl<'t, 'ttf, 'rwops, N: BaseNum, C: Copy + 'static> Graphics<N, C> for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
 	fn command(&mut self, cmd: Command<N, C>) {
 		self.cmd_buffer[self.channel].push(cmd);
 	}
@@ -133,7 +133,7 @@ impl<'t, 'ttf, 'rwops, N: SignedInt, C: Copy + 'static> Graphics<N, C> for Rende
 	fn channel(&mut self, ch: usize) { self.channel = ch }
 }
 
-impl<'t, 'ttf, 'rwops, N: SignedInt, C: Copy + 'static> TextureManager for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
+impl<'t, 'ttf, 'rwops, N: BaseNum, C: Copy + 'static> TextureManager for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
 	type RenderTarget = SdlCanvas;
 
 	fn canvas<F: FnMut(&mut Self::RenderTarget, u32, u32)>(&mut self, id: usize, mut f: F) {

@@ -2,13 +2,13 @@ use std::path::Path;
 use super::*;
 
 #[derive(Clone, Debug)]
-pub enum Command<N: Num, C: Copy + 'static> {
-	Line(Point<N>, Point<N>, C),
+pub enum Command<N: BaseNum, C: Copy + 'static> {
+	Line(Point2<N>, Point2<N>, C),
 	Border(Rect<N>, C),
 	Fill(Rect<N>, C),
 	Clip(Option<Rect<N>>),
-	Text(String, Point<N>, C),
-	Image(usize, Point<N>, N),
+	Text(String, Point2<N>, C),
+	Image(usize, Point2<N>, N),
 }
 
 pub trait TextureManager {
@@ -18,21 +18,21 @@ pub trait TextureManager {
 	fn load_texture<T: Into<Option<usize>>, P: AsRef<Path>>(&mut self, id: T, filename: P) -> usize;
 }
 
-pub trait Graphics<N: Num, C: Copy + 'static> {
+pub trait Graphics<N: BaseNum, C: Copy + 'static> {
 	fn command(&mut self, cmd: Command<N, C>);
 	fn text_size(&mut self, s: &str) -> (u32, u32);
 	fn image_size(&mut self, id: usize) -> (u32, u32);
 	fn channel(&mut self, ch: usize);
 
-	fn line(&mut self, a: Point<N>, b: Point<N>, color: C) {
+	fn line(&mut self, a: Point2<N>, b: Point2<N>, color: C) {
 		self.command(Command::Line(a, b, color));
 	}
 
 	fn hline(&mut self, x1: N, x2: N, y: N, color: C) {
-		self.line(Point::new(x1, y), Point::new(x2, y), color);
+		self.line(Point2::new(x1, y), Point2::new(x2, y), color);
 	}
 	fn vline(&mut self, x: N, y1: N, y2: N, color: C) {
-		self.line(Point::new(x, y1), Point::new(x, y2), color);
+		self.line(Point2::new(x, y1), Point2::new(x, y2), color);
 	}
 
 	fn border(&mut self, r: Rect<N>, color: C) {
@@ -45,10 +45,10 @@ pub trait Graphics<N: Num, C: Copy + 'static> {
 		self.command(Command::Clip(r));
 	}
 
-	fn image(&mut self, m: usize, p: Point<N>) {
+	fn image(&mut self, m: usize, p: Point2<N>) {
 		self.image_zoomed(m, p, N::one());
 	}
-	fn image_zoomed(&mut self, m: usize, p: Point<N>, zoom: N) {
+	fn image_zoomed(&mut self, m: usize, p: Point2<N>, zoom: N) {
 		self.command(Command::Image(m, p, zoom));
 	}
 	fn image_rect_center(&mut self, m: usize, r: Rect<N>) {
@@ -57,12 +57,12 @@ pub trait Graphics<N: Num, C: Copy + 'static> {
 
 	fn image_align(&mut self, m: usize, r: Rect<N>, x: f32, y: f32) {
 		let (tw, th) = self.image_size(m);
-		let size = Point::new(N::from(tw).unwrap(), N::from(th).unwrap());
+		let size = Point2::new(N::from(tw).unwrap(), N::from(th).unwrap());
 		let p = r.align(x, y, size);
 		self.image(m, p);
 	}
 
-	fn text(&mut self, p: Point<N>, color: C, s: &str) {
+	fn text(&mut self, p: Point2<N>, color: C, s: &str) {
 		self.command(Command::Text(s.to_string(), p, color));
 	}
 
@@ -80,7 +80,7 @@ pub trait Graphics<N: Num, C: Copy + 'static> {
 
 	fn text_align(&mut self, r: Rect<N>, x: f32, y: f32, color: C, s: &str) {
 		let (tw, th) = self.text_size(s);
-		let size = Point::new(N::from(tw).unwrap(), N::from(th).unwrap());
+		let size = Point2::new(N::from(tw).unwrap(), N::from(th).unwrap());
 		let p = r.align(x, y, size);
 		self.text(p, color, s);
 	}

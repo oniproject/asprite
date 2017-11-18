@@ -4,7 +4,8 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 
-use common::*;
+use math::*;
+
 use tool::*;
 use gui;
 use gui::*;
@@ -31,7 +32,7 @@ impl<'a> App<'a> {
 			Rc::new(RefCell::new(Record::new(sprite))),
 		];
 		
-		let mut tools = Tools::new(6, Point::new(300, 300), files[0].clone());
+		let mut tools = Tools::new(6, Point2::new(300, 300), files[0].clone());
 		tools.editor.sync();
 		Self {
 			update: true,
@@ -53,10 +54,10 @@ impl<'a> App<'a> {
 		self.update = true;
 		match event {
 		Event::MouseMotion {x, y, xrel, yrel, ..} => {
-			let p = Point::new(x as i16, y as i16);
+			let p = Point2::new(x as i16, y as i16);
 			render.mouse(Mouse::Move(p));
-			let p = Point::new(x as i32, y as i32);
-			let v = Vector::new(xrel as i32, yrel as i32);
+			let p = Point2::new(x as i32, y as i32);
+			let v = Vector2::new(xrel as i32, yrel as i32);
 			self.tools.mouse_move(p, v);
 		}
 
@@ -110,15 +111,15 @@ impl<'a> App<'a> {
 		}
 
 		Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
-			let p = Point::new(x as i16, y as i16);
+			let p = Point2::new(x as i16, y as i16);
 			render.mouse(Mouse::Press(p));
-			let p = Point::new(x as i32, y as i32);
+			let p = Point2::new(x as i32, y as i32);
 			self.tools.mouse_press(p);
 		}
 		Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
-			let p = Point::new(x as i16, y as i16);
+			let p = Point2::new(x as i16, y as i16);
 			render.mouse(Mouse::Release(p));
-			let p = Point::new(x as i32, y as i32);
+			let p = Point2::new(x as i32, y as i32);
 			self.tools.mouse_release(p);
 		}
 

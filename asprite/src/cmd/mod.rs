@@ -5,6 +5,7 @@ pub use self::cmd_page::*;
 pub use self::sprite::*;
 
 use common::*;
+use math::*;
 use tool::*;
 pub use self::canvas::Canvas;
 
@@ -19,7 +20,7 @@ pub struct Editor<'a> {
 	pub redraw: Option<Rect<i32>>,
 
 	pub brush_rect: Rect<i16>,
-	pub brush_offset: Vector<i16>,
+	pub brush_offset: Vector2<i16>,
 
 	canvas: Frame,
 	rect: Rect<i32>,
@@ -45,7 +46,7 @@ impl<'a> Editor<'a> {
 
 			redraw: Some(rect),
 			brush_rect: Rect::with_size(0, 0, 3, 3),
-			brush_offset: Vector::new(-1, -1),
+			brush_offset: Vector2::new(-1, -1),
 		}
 	}
 
@@ -53,8 +54,8 @@ impl<'a> Editor<'a> {
 		self.image.borrow()
 	}
 
-	pub fn size(&self) -> Point<i32> {
-		Point::new(self.rect.dx() as i32, self.rect.dy() as i32)
+	pub fn size(&self) -> Vector2<i32> {
+		Vector2::new(self.rect.dx() as i32, self.rect.dy() as i32)
 	}
 
 	pub fn redo(&mut self) {
@@ -166,7 +167,7 @@ impl<'a> Context<i32, u8> for Editor<'a> {
 		let _ = self.sprite().as_receiver().color.set(color);
 	}
 
-	fn paint_brush(&mut self, p: Point<i32>, color: u8) {
+	fn paint_brush(&mut self, p: Point2<i32>, color: u8) {
 		let brush = [
 			true, false, true,
 			false, true, false,

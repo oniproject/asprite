@@ -16,21 +16,21 @@ pub struct FlowData<N> {
 	pub shrink_across: bool,
 }
 
-pub struct Flow<N: Num, C: Copy + 'static> {
+pub struct Flow<N: BaseNum, C: Copy + 'static> {
 	pub widgets: RefCell<Vec<Rc<Widget<N, C>>>>,
 	pub axis: Cell<Axis>,
 
 	pub rect: Cell<Rect<N>>,
-	pub measured: Cell<Point<N>>,
+	pub measured: Cell<Vector2<N>>,
 }
 
-impl<N: Num, C: Copy + 'static> Flow<N, C> {
+impl<N: BaseNum, C: Copy + 'static> Flow<N, C> {
 	pub fn new(axis: Axis, rect: Rect<N>) -> Rc<Self> {
 		Rc::new(Self {
 			widgets: RefCell::new(Vec::new()),
 			rect: Cell::new(rect),
 			axis: Cell::new(axis),
-			measured: Cell::new(Point::new(N::zero(), N::zero())),
+			measured: Cell::new(Vector2::zero()),
 		})
 	}
 	pub fn vertical() -> Rc<Self> {
@@ -41,7 +41,7 @@ impl<N: Num, C: Copy + 'static> Flow<N, C> {
 	}
 }
 
-impl<N: Num, C: Copy + 'static> Container for Flow<N, C> {
+impl<N: BaseNum, C: Copy + 'static> Container for Flow<N, C> {
 	type Storage = Vec<Rc<Widget<N, C>>>;
 	type Item = Rc<Widget<N, C>>;
 
@@ -66,15 +66,15 @@ impl<N: Num, C: Copy + 'static> Container for Flow<N, C> {
 }
 
 impl<N, C> Widget<N, C> for Flow<N, C>
-	where N: Num, C: Copy + 'static
+	where N: BaseFloat + 'static, C: Copy + 'static
 {
 	fn bounds(&self) -> &Cell<Rect<N>> { &self.rect }
-	fn measured_size(&self) -> &Cell<Point<N>> { &self.measured }
+	fn measured_size(&self) -> &Cell<Vector2<N>> { &self.measured }
 
-	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, focused: bool) {
+	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Vector2<N>, focused: bool) {
 		self.container_paint(ctx, origin, focused)
 	}
-	fn event(&self, event: Event<N>, origin: Point<N>, focused: bool, redraw: &Cell<bool>) -> bool {
+	fn event(&self, event: Event<N>, origin: Vector2<N>, focused: bool, redraw: &Cell<bool>) -> bool {
 		self.container_event(event, origin, focused, redraw)
 	}
 
@@ -86,7 +86,7 @@ impl<N, C> Widget<N, C> for Flow<N, C>
 			Axis::Vertical => height = None,
 		}
 
-		let mut size = Point::new(N::zero(), N::zero());
+		let mut size: Vector2<N> = Vector2::zero();
 
 		let widgets = self.widgets.borrow();
 		for w in widgets.iter() {
@@ -157,9 +157,9 @@ impl<N, C> Widget<N, C> for Flow<N, C>
 			total_weight = total_shrink_weight;
 		}
 
-		let mut p = Point::new(zero, zero);
+		let mut p = Point2::new(zero, zero);
 		for c in widgets.iter() {
-			let mut q = Point::from_coordinates(p.coords + c.measured_size().get().coords);
+			let mut q = p + c.measured_size().get();
 			downcast(c.layout_data(), |d: &FlowData<N>| {
 				if d.along_weight > zero && (expand && d.expand_along || shrink && d.shrink_along) {
 					let delta = extra * d.along_weight / total_weight;
@@ -205,7 +205,7 @@ fn downcast<T: 'static, F: FnOnce(&T)>(d: Option<Ref<Any>>, f: F) {
 	}
 }
 
-fn stretch_across<N: Num>(child: N, parent: N, expand: bool, shrink: bool) -> N{
+fn stretch_across<N: BaseNum>(child: N, parent: N, expand: bool, shrink: bool) -> N{
 	if (expand && child < parent) || (shrink && child > parent) {
 		parent
 	} else {

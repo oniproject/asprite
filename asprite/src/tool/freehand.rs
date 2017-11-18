@@ -1,11 +1,11 @@
 use super::*;
 
-pub struct Freehand<N: SignedInt, C: Copy + PartialEq> {
+pub struct Freehand<N: BaseNum, C: Copy + PartialEq> {
 	pub perfect: bool,
 	pub line: bool,
 
-	pub last: Point<N>,
-	pub pts: Vec<(Point<N>, bool)>,
+	pub last: Point2<N>,
+	pub pts: Vec<(Point2<N>, bool)>,
 	pub color: C,
 	pub active: bool,
 }
@@ -13,7 +13,7 @@ pub struct Freehand<N: SignedInt, C: Copy + PartialEq> {
 impl Freehand<i32, u8> {
 	pub fn new() -> Self {
 		Self {
-			last: Point::new(0, 0),
+			last: Point2::new(0, 0),
 			pts: Vec::new(),
 			color: 0,
 			active: false,
@@ -24,7 +24,7 @@ impl Freehand<i32, u8> {
 	}
 }
 
-impl<N: SignedInt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
+impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Move(p) => {
@@ -76,13 +76,13 @@ impl<N: SignedInt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
 	}
 }
 
-impl<N: SignedInt, C: Copy + Clone + Eq> Freehand<N, C> {
-	pub fn update<Ctx: Context<N, C>>(&mut self, m: Point<N>, last: Point<N>, ctx: &mut Ctx) {
+impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Freehand<N, C> {
+	pub fn update<Ctx: Context<N, C>>(&mut self, m: Point2<N>, last: Point2<N>, ctx: &mut Ctx) {
 		if self.point_exists(m.x, m.y) {
 			return;
 		}
 
-		draw_line(last, m, |p: Point<N>| {
+		draw_line(last, m, |p: Point2<N>| {
 			if !self.point_exists(p.x, p.y) {
 				self.pts.push((p, true));
 			}

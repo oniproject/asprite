@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use cgmath::{Vector2, Zero};
+use math::*;
 use specs::{self, Component, VecStorage, Join};
 use specs::{DenseVecStorage, FlaggedStorage};
 
-use d8::*;
+use math::d8::*;
 use renderer::*;
 use renderer::vertex::*;
 

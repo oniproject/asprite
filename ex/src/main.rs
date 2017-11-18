@@ -4,6 +4,7 @@
 #![feature(const_fn)]
 
 extern crate renderer;
+extern crate math;
 
 extern crate specs;
 extern crate hibitset;
@@ -13,7 +14,7 @@ extern crate derivative;
 
 extern crate rayon;
 extern crate rand;
-extern crate cgmath;
+//extern crate cgmath;
 extern crate image;
 extern crate winit;
 #[macro_use]
@@ -35,19 +36,19 @@ use vulkano::swapchain::{
 use vulkano::framebuffer::Framebuffer;
 
 use specs::World;
-use cgmath::Vector2;
 
 use std::sync::Arc;
 use std::time::{Instant, Duration};
 
 use renderer::vertex::*;
+use math::*;
 
-mod d8;
 mod arena;
 mod sprite;
 mod tsys;
 mod state;
 mod sprite_batcher;
+
 
 use sprite::*;
 use renderer::*;

@@ -6,11 +6,10 @@ authors = ["Lain-dono <lain.dono@gmail.com>"]
 
 [dependencies]
 ui = { path = "../ui/" }
-tiled = { path = "../tiled/" }
-tiler = { path = "../tiler/" }
+math = { path = "../math/" }
+#tiled = { path = "../tiled/" }
+#tiler = { path = "../tiler/" }
 
-nalgebra = "0.13"
-num-traits = "0.1"
 undo = "0.14"
 redo = "0.14"
 image = "0.15"

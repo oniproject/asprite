@@ -1,6 +1,9 @@
 #![feature(const_fn)]
 #![feature(conservative_impl_trait)]
 
+extern crate math;
+use math::*;
+
 #[macro_use] extern crate vulkano;
 #[macro_use] extern crate error_chain;
 #[macro_use] extern crate derivative;
@@ -44,9 +47,6 @@ use vulkano::sampler::{Sampler, Filter, MipmapMode, SamplerAddressMode};
 use vulkano::image::ImmutableImage;
 use vulkano::image::Dimensions;
 use vulkano::format::R8G8B8A8Srgb;
-
-use cgmath::{Vector2, Matrix4};
-use cgmath::{SquareMatrix, Zero};
 
 pub use rusttype::{FontCollection, Font};
 
@@ -113,7 +113,6 @@ pub mod vertex;
 mod renderer;
 mod quad_indices;
 mod group;
-mod affine;
 mod vbo;
 
 mod texture;
@@ -136,7 +135,6 @@ use self::vertex::*;
 
 pub use self::text::*;
 pub use self::texture::*;
-pub use self::affine::*;
 pub use self::renderer::*;
 
 const VERTEX_BY_SPRITE: usize = 4;

@@ -1,10 +1,10 @@
 use super::*;
 
 #[derive(Copy, Clone, Debug)]
-pub enum Event<N: Num> {
+pub enum Event<N: BaseNum> {
 	Init,
 	Mouse {
-		point: Point<N>,
+		point: Point2<N>,
 		left: bool,
 		middle: bool,
 		right: bool,

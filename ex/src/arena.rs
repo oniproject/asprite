@@ -1,7 +1,7 @@
 use rand;
 use rand::distributions::{IndependentSample, Range};
 use rand::{thread_rng, Rng};
-use cgmath::Vector2;
+use math::Vector2;
 use specs::{Component, VecStorage};
 use specs::{LazyUpdate, Entities, System, WriteStorage, Join, Fetch, FetchMut};
 

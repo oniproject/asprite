@@ -1,12 +1,16 @@
 #![allow(dead_code)]
 use common::*;
 
+use math::*;
+
 // see http://will.thimbleby.net/scanline-flood-fill/
+
+use std::iter::Step;
 
 pub trait Canvas<Color, N>
 	where
 		Color: Copy + Clone + Eq,
-		N: SignedInt,
+		N: BaseNumExt + Step,
 {
 	unsafe fn pixel_unchecked(&mut self, x: N, y: N, color: Color);
 	fn update(&mut self, r: Rect<N>);
@@ -14,7 +18,7 @@ pub trait Canvas<Color, N>
 
 	fn at(&self, x: N, y: N) -> Option<Color>;
 
-	fn update_point(&mut self, p: Point<N>) {
+	fn update_point(&mut self, p: Point2<N>) {
 		let one = N::one();
 		let r = Rect::with_size(p.x, p.y, one, one);
 		self.update(r);
@@ -62,7 +66,7 @@ pub trait Canvas<Color, N>
 		}
 	}
 
-	fn brush_line(&mut self, r: Rect<N>, size: Point<N>, brush: &[bool], color: Color) {
+	fn brush_line(&mut self, r: Rect<N>, size: Point2<N>, brush: &[bool], color: Color) {
 		draw_line(r.min, r.max, |p| {
 			let br = Rect::with_size(p.x, p.y, size.x, size.y);
 			self.mask(br, brush, color);
@@ -91,7 +95,7 @@ pub trait Canvas<Color, N>
 		}
 	}
 
-	fn scanline_fill(&mut self, p: Point<N>, color: Color) {
+	fn scanline_fill(&mut self, p: Point2<N>, color: Color) {
 		let x = p.x;
 		let y = p.y;
 

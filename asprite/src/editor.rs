@@ -1,4 +1,5 @@
 use common::*;
+use math::*;
 use tool::*;
 
 use cmd::*;
@@ -24,31 +25,31 @@ pub struct Tools<'a> {
 	pub bucket: Bucket<i32, u8>,
 	pub dropper: EyeDropper<i32, u8>,
 
-	pub pos: Point<i32>,
+	pub pos: Point2<i32>,
 	pub grid: Grid,
 
 	pub drag: bool,
 
-	pub m: Point<i32>,
-	pub mouse: Point<i32>,
+	pub m: Point2<i32>,
+	pub mouse: Point2<i32>,
 	pub zoom: i32,
 
 	pub created: bool,
 }
 
 impl<'a> Tools<'a> {
-	pub fn new(zoom: i32, pos: Point<i32>, sprite: ImageCell<'a>) -> Self {
+	pub fn new(zoom: i32, pos: Point2<i32>, sprite: ImageCell<'a>) -> Self {
 		Self {
 			zoom, pos,
-			mouse: Point::new(-100, -100),
-			m: Point::new(-100, -100),
+			mouse: Point2::new(-100, -100),
+			m: Point2::new(-100, -100),
 			drag: false,
 
 			grid: Grid {
 				show: true,
 				rect: Rect::default(),
-				size: Vector::new(16, 16),
-				offset: Vector::new(-6, -6),
+				size: Vector2::new(16, 16),
+				offset: Vector2::new(-6, -6),
 				zoom: zoom as i16,
 			},
 
@@ -80,21 +81,21 @@ impl<'a> Tools<'a> {
 		}
 	}
 
-	pub fn mouse_press(&mut self, p: Point<i32>) {
+	pub fn mouse_press(&mut self, p: Point2<i32>) {
 		let p = self.set_mouse(p);
 		if p.x >= 0 && p.y >= 0 {
 			self.input(Input::Press(p));
 		}
 	}
 
-	pub fn mouse_release(&mut self, p: Point<i32>) {
+	pub fn mouse_release(&mut self, p: Point2<i32>) {
 		let p = self.set_mouse(p);
 		if p.x >= 0 && p.y >= 0 {
 			self.input(Input::Release(p));
 		}
 	}
 
-	pub fn mouse_move(&mut self, p: Point<i32>, v: Vector<i32>) {
+	pub fn mouse_move(&mut self, p: Point2<i32>, v: Vector2<i32>) {
 		let p = self.set_mouse(p);
 		if self.drag {
 			self.pos += v;
@@ -103,22 +104,24 @@ impl<'a> Tools<'a> {
 		}
 	}
 
-	fn set_mouse(&mut self, p: Point<i32>) -> Point<i32> {
-		self.mouse = Point::from_coordinates((p - self.pos) / self.zoom);
+	fn set_mouse(&mut self, p: Point2<i32>) -> Point2<i32> {
+		let v = (p - self.pos) / self.zoom;
+		self.mouse = Point2::new(0, 0) + v;
 		self.mouse
 	}
 
 	pub fn zoom_from_center(&mut self, y: i32) {
-		let p = self.editor.size();
-		self.zoom(y, |diff| p * diff / 2);
+		let v = self.editor.size();
+		self.zoom(y, |diff| v * diff / 2);
 	}
 
 	pub fn zoom_from_mouse(&mut self, y: i32) {
 		let p = self.mouse;
-		self.zoom(y, |diff| p * diff);
+		let v = Vector2::new(p.x, p.y);
+		self.zoom(y, |diff| v * diff);
 	}
 
-	fn zoom<F: FnOnce(i32) -> Point<i32>>(&mut self, y: i32, f: F) {
+	fn zoom<F: FnOnce(i32) -> Vector2<i32>>(&mut self, y: i32, f: F) {
 		let last = self.zoom;
 		self.zoom += y;
 		if self.zoom < 1 { self.zoom = 1 }
@@ -231,7 +234,7 @@ impl<'a> Tools<'a> {
 			}
 		});
 
-		let pos = Point::new(self.pos.x as i16, self.pos.y as i16);
+		let pos = Point2::new(self.pos.x as i16, self.pos.y as i16);
 		let zoom = self.zoom as i16;
 
 		render.image_zoomed(EDITOR_SPRITE_ID, pos, zoom);
@@ -240,7 +243,7 @@ impl<'a> Tools<'a> {
 		self.grid.zoom = zoom;
 		self.grid.rect = Rect {
 			min: self.pos,
-			max: Point::from_coordinates(self.pos.coords + self.editor.size().coords),
+			max: self.pos + self.editor.size(),
 		};
 
 		self.grid.paint(render);

@@ -8,6 +8,7 @@ pub use self::render_graphics::*;
 pub use self::im::*;
 pub use self::theme::*;
 pub use ui::*;
+use math::*;
 
 use sdl2::video::{Window, WindowContext};
 use sdl2::render::{Canvas, TextureCreator};
@@ -57,11 +58,11 @@ pub struct Render<'t, 'ttf_module, 'rwops> {
 	pub next_rect: Rect<i16>,
 
 	pub key: Option<Key>,
-	mouse: (bool, Point<i16>),
+	mouse: (bool, Point2<i16>),
 
 	cursors: Cursors,
 
-	win: Root<i16, u32>,
+	win: Root<f32, u32>,
 }
 
 impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
@@ -71,7 +72,7 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 			last: 0, hot: 0, active: 0, // kbd: 0,
 			key: None,
 			next_rect: Rect::with_coords(0, 0, 0, 0),
-			mouse: (false, Point::new(0, 0)),
+			mouse: (false, Point2::new(0, 0)),
 			win: example(),
 			cursors: create_cursors(),
 		}
@@ -83,7 +84,7 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 			Mouse::Press(p) => self.mouse = (true, p),
 			Mouse::Release(p) => self.mouse = (false, p),
 		}
-		self.win.event(event);
+		// FIXME: self.win.event(event);
 	}
 
 	pub fn prepare(&mut self, bg: u32) {
@@ -100,7 +101,7 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 
 	pub fn finish(&mut self) -> bool {
 		self.win.redraw.set(true);
-		self.win.paint(&mut self.graph);
+		// FIXME: self.win.paint(&mut self.graph);
 
 		let last_active = self.active;
 		//let last_kbd = self.kbd;

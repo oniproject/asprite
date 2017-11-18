@@ -4,13 +4,14 @@
 #![feature(conservative_impl_trait)]
 
 extern crate ui;
+extern crate math;
+
 extern crate image;
 extern crate either;
 extern crate rand;
 extern crate undo;
 extern crate sdl2;
-extern crate num_traits;
-extern crate nalgebra as na;
+
 extern crate nfd;
 
 use sdl2::mouse::Cursor;
@@ -45,6 +46,7 @@ mod grid;
 mod app;
 
 use common::*;
+use math::*;
 use gui::*;
 
 fn create_pal(pal: &mut Palette<u32>) {
@@ -130,8 +132,8 @@ fn main() {
 			let page = sprite.page_mut(0, 0);
 
 			let r = Rect::with_size(0i32, 0, 160, 120);
-			let va = Point::new(20i32, 10);
-			let vb = Point::new(130i32, 100);
+			let va = Point2::new(20i32, 10);
+			let vb = Point2::new(130i32, 100);
 
 			gradient::draw_gradient(r, va, vb, |p, idx, total| {
 				let pos = gradient::extra_dithered(idx, p.x as i16, p.y as i16, total, 5, 1);

@@ -8,4 +8,4 @@ pub mod gradient;
 pub use self::bre::*;
 pub use self::palette::Palette;
 
-pub use ui::math::*;
+use math::*;

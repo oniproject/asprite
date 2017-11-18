@@ -1,11 +1,15 @@
 [workspace]
 members = [
-	"asprite",
-	"ui",
-	"tiled",
-	"tiler",
+	#"tiled",
+	#"tiler",
+
 	"ex",
 	"renderer",
+
+	"asprite",
+
+	"ui",
+	"math",
 ]
 
 [profile.release]

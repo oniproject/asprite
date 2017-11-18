@@ -1,9 +1,11 @@
 use super::*;
 
+use std::iter::Step;
+
 pub fn mask<N, F>(r: Rect<N>, br: Rect<N>, brush: &[bool], mut f: F)
 	where
 		F: FnMut(N, N),
-		N: SignedInt
+		N: BaseNum + Step
 {
 	let w = br.dx();
 	let start = r.min - br.min;
@@ -26,7 +28,7 @@ pub fn mask<N, F>(r: Rect<N>, br: Rect<N>, brush: &[bool], mut f: F)
 pub fn blit<N, F, C>(r: Rect<N>, br: Rect<N>, brush: &[C], mut f: F)
 	where
 		F: FnMut(N, N, C),
-		N: SignedInt,
+		N: BaseNum + Step,
 		C: Copy
 {
 	let w = br.dx();
@@ -47,39 +49,39 @@ pub fn blit<N, F, C>(r: Rect<N>, br: Rect<N>, brush: &[C], mut f: F)
 
 pub fn hline_<N, F>(x1: N, x2: N, y: N, mut pixel: F)
 	where
-		F: FnMut(Point<N>),
-		N: SignedInt
+		F: FnMut(Point2<N>),
+		N: BaseNum + Step
 {
 	let one = N::one();
 	for x in x1..x2+one {
-		pixel(Point::new(x, y))
+		pixel(Point2::new(x, y))
 	}
 }
 
 fn hline<N, F>(x1: N, x2: N, y: N, pixel: &mut F)
 	where
-		F: FnMut(Point<N>),
-		N: SignedInt
+		F: FnMut(Point2<N>),
+		N: BaseNum + Step
 {
 	for x in x1..x2 {
-		pixel(Point::new(x, y))
+		pixel(Point2::new(x, y))
 	}
 }
 
 fn vline<N, F>(x: N, y1: N, y2: N, pixel: &mut F)
 	where
-		F: FnMut(Point<N>),
-		N: SignedInt
+		F: FnMut(Point2<N>),
+		N: BaseNum + Step
 {
 	for y in y1..y2 {
-		pixel(Point::new(x, y))
+		pixel(Point2::new(x, y))
 	}
 }
 
 pub fn draw_rect<N, F>(r: Rect<N>, mut pixel: F)
 	where
-		F: FnMut(Point<N>),
-		N: SignedInt
+		F: FnMut(Point2<N>),
+		N: BaseNum + Step
 {
 	hline(r.min.x, r.max.x, r.min.y, &mut pixel);
 	hline(r.min.x, r.max.x, r.max.y, &mut pixel);
@@ -89,20 +91,20 @@ pub fn draw_rect<N, F>(r: Rect<N>, mut pixel: F)
 
 pub fn fill_rect<N, F>(r: Rect<N>, mut pixel: F)
 	where
-		F: FnMut(Point<N>),
-		N: SignedInt
+		F: FnMut(Point2<N>),
+		N: BaseNum + Step
 {
 	for y in r.min.y..r.max.y {
 		for x in r.min.x..r.max.x {
-			pixel(Point::new(x, y))
+			pixel(Point2::new(x, y))
 		}
 	}
 }
 
-pub fn draw_line<N, F>(start: Point<N>, end: Point<N>, mut pixel: F)
+pub fn draw_line<N, F>(start: Point2<N>, end: Point2<N>, mut pixel: F)
 	where
-		F: FnMut(Point<N>),
-		N: SignedInt
+		F: FnMut(Point2<N>),
+		N: BaseNumExt + Step
 {
 	let one = N::one();
 	let two = N::one() + N::one();
@@ -114,7 +116,7 @@ pub fn draw_line<N, F>(start: Point<N>, end: Point<N>, mut pixel: F)
 		let (incr, delta) = {
 			let incr_x = if start.x < end.x { one } else { -one };
 			let incr_y = if start.y < end.y { one } else { -one };
-			(Point::new(incr_x, incr_y), Point::new(dx, dy))
+			(Point2::new(incr_x, incr_y), Point2::new(dx, dy))
 		};
 
 		let mut pos = start;
@@ -150,8 +152,8 @@ pub fn draw_line<N, F>(start: Point<N>, end: Point<N>, mut pixel: F)
 
 pub fn draw_ellipse<N, F>(r: Rect<N>, mut seg: F)
 	where
-		N: SignedInt,
-		F: FnMut(Point<N>, Point<N>),
+		N: BaseNum,
+		F: FnMut(Point2<N>, Point2<N>),
 {
 	let (mut x0, mut y0, mut x1, mut y1) = (
 		r.min.x.to_i64().unwrap(),
@@ -187,10 +189,10 @@ pub fn draw_ellipse<N, F>(r: Rect<N>, mut seg: F)
 	b1 = 8*b*b;
 
 	while {
-		let q1 = Point::new(N::from(x1).unwrap(), N::from(y0).unwrap());
-		let q2 = Point::new(N::from(x0).unwrap(), N::from(y0).unwrap());
-		let q3 = Point::new(N::from(x0).unwrap(), N::from(y1).unwrap());
-		let q4 = Point::new(N::from(x1).unwrap(), N::from(y1).unwrap());
+		let q1 = Point2::new(N::from(x1).unwrap(), N::from(y0).unwrap());
+		let q2 = Point2::new(N::from(x0).unwrap(), N::from(y0).unwrap());
+		let q3 = Point2::new(N::from(x0).unwrap(), N::from(y1).unwrap());
+		let q4 = Point2::new(N::from(x1).unwrap(), N::from(y1).unwrap());
 		seg(q2, q1);
 		seg(q3, q4);
 		e2 = 2*err;
@@ -215,13 +217,13 @@ pub fn draw_ellipse<N, F>(r: Rect<N>, mut seg: F)
 	// too early stop of flat ellipses a=1
 	while y0-y1 < b {
 		// -> finish tip of ellipse 
-		let a = Point::new(N::from(x0-1).unwrap(), N::from(y0).unwrap());
-		let b = Point::new(N::from(x1+1).unwrap(), N::from(y0).unwrap());
+		let a = Point2::new(N::from(x0-1).unwrap(), N::from(y0).unwrap());
+		let b = Point2::new(N::from(x1+1).unwrap(), N::from(y0).unwrap());
 		seg(a, b);
 		y0 += 1;
 
-		let a = Point::new(N::from(x0-1).unwrap(), N::from(y1).unwrap());
-		let b = Point::new(N::from(x1+1).unwrap(), N::from(y1).unwrap());
+		let a = Point2::new(N::from(x0-1).unwrap(), N::from(y1).unwrap());
+		let b = Point2::new(N::from(x1+1).unwrap(), N::from(y1).unwrap());
 		seg(a, b);
 		y1 -= 1;
 	}
@@ -278,8 +280,8 @@ struct Octant(u8);
 impl Octant {
 	/// adapted from http://codereview.stackexchange.com/a/95551
 	#[inline]
-	fn from_points<T>(start: Point<T>, end: Point<T>) -> Octant
-		where T: SignedInt
+	fn from_points<T>(start: Point2<T>, end: Point2<T>) -> Octant
+		where T: BaseNumExt
 	{
 		let mut d = end - start;
 
@@ -306,47 +308,47 @@ impl Octant {
 	}
 
 	#[inline]
-	fn to_octant0<T>(&self, p: Point<T>) -> Point<T>
-		where T: SignedInt
+	fn to_octant0<T>(&self, p: Point2<T>) -> Point2<T>
+		where T: BaseNumExt
 	{
 		match self.0 {
-			0 => Point::new(p.x, p.y),
-			1 => Point::new(p.y, p.x),
-			2 => Point::new(p.y, -p.x),
-			3 => Point::new(-p.x, p.y),
-			4 => Point::new(-p.x, -p.y),
-			5 => Point::new(-p.y, -p.x),
-			6 => Point::new(-p.y, p.x),
-			7 => Point::new(p.x, -p.y),
+			0 => Point2::new(p.x, p.y),
+			1 => Point2::new(p.y, p.x),
+			2 => Point2::new(p.y, -p.x),
+			3 => Point2::new(-p.x, p.y),
+			4 => Point2::new(-p.x, -p.y),
+			5 => Point2::new(-p.y, -p.x),
+			6 => Point2::new(-p.y, p.x),
+			7 => Point2::new(p.x, -p.y),
 			_ => unreachable!(),
 		}
 	}
 
 	#[inline]
-	fn from_octant0<T>(&self, p: Point<T>) -> Point<T>
-		where T: SignedInt
+	fn from_octant0<T>(&self, p: Point2<T>) -> Point2<T>
+		where T: BaseNumExt
 	{
 		match self.0 {
-			0 => Point::new(p.x, p.y),
-			1 => Point::new(p.y, p.x),
-			2 => Point::new(-p.y, p.x),
-			3 => Point::new(-p.x, p.y),
-			4 => Point::new(-p.x, -p.y),
-			5 => Point::new(-p.y, -p.x),
-			6 => Point::new(p.y, -p.x),
-			7 => Point::new(p.x, -p.y),
+			0 => Point2::new(p.x, p.y),
+			1 => Point2::new(p.y, p.x),
+			2 => Point2::new(-p.y, p.x),
+			3 => Point2::new(-p.x, p.y),
+			4 => Point2::new(-p.x, -p.y),
+			5 => Point2::new(-p.y, -p.x),
+			6 => Point2::new(p.y, -p.x),
+			7 => Point2::new(p.x, -p.y),
 			_ => unreachable!(),
 		}
 	}
 }
 
 impl<T> Bresenham<T>
-	where T: SignedInt
+	where T: BaseNumExt
 {
 	/// Creates a new iterator.Yields intermediate points between `start`
 	/// and `end`. Does include `start` but not `end`.
 	#[inline]
-	pub fn new(start: Point<T>, end: Point<T>) -> Bresenham<T> {
+	pub fn new(start: Point2<T>, end: Point2<T>) -> Bresenham<T> {
 		let octant = Octant::from_points(start, end);
 
 		let start = octant.to_octant0(start);
@@ -367,9 +369,9 @@ impl<T> Bresenham<T>
 }
 
 impl<T> Iterator for Bresenham<T>
-	where T: SignedInt
+	where T: BaseNumExt
 {
-	type Item = Point<T>;
+	type Item = Point2<T>;
 
 	#[inline]
 	fn next(&mut self) -> Option<Self::Item> {
@@ -377,7 +379,7 @@ impl<T> Iterator for Bresenham<T>
 			return None;
 		}
 
-		let p = Point::new(self.x, self.y);
+		let p = Point2::new(self.x, self.y);
 
 		if self.diff >= T::zero() {
 			self.y += T::one();
@@ -395,54 +397,54 @@ impl<T> Iterator for Bresenham<T>
 
 #[test]
 fn test_wp_example() {
-	let bi = Bresenham::new(Point::new(0, 1), Point::new(6, 4));
+	let bi = Bresenham::new(Point2::new(0, 1), Point2::new(6, 4));
 	let res: Vec<_> = bi.collect();
 
 	assert_eq!(
 		res,
 		[
-			Point::new(0, 1),
-			Point::new(1, 1),
-			Point::new(2, 2),
-			Point::new(3, 2),
-			Point::new(4, 3),
-			Point::new(5, 3),
+			Point2::new(0, 1),
+			Point2::new(1, 1),
+			Point2::new(2, 2),
+			Point2::new(3, 2),
+			Point2::new(4, 3),
+			Point2::new(5, 3),
 		]
 	)
 }
 
 #[test]
 fn test_inverse_wp() {
-	let bi = Bresenham::new(Point::new(6, 4), Point::new(0, 1));
+	let bi = Bresenham::new(Point2::new(6, 4), Point2::new(0, 1));
 	let res: Vec<_> = bi.collect();
 
 	assert_eq!(
 		res,
 		[
-			Point::new(6, 4),
-			Point::new(5, 4),
-			Point::new(4, 3),
-			Point::new(3, 3),
-			Point::new(2, 2),
-			Point::new(1, 2),
+			Point2::new(6, 4),
+			Point2::new(5, 4),
+			Point2::new(4, 3),
+			Point2::new(3, 3),
+			Point2::new(2, 2),
+			Point2::new(1, 2),
 		]
 	)
 }
 
 #[test]
 fn test_straight_hline() {
-	let bi = Bresenham::new(Point::new(2, 3), Point::new(5, 3));
+	let bi = Bresenham::new(Point2::new(2, 3), Point2::new(5, 3));
 	let res: Vec<_> = bi.collect();
 
-	assert_eq!(res, [Point::new(2, 3), Point::new(3, 3), Point::new(4, 3)]);
+	assert_eq!(res, [Point2::new(2, 3), Point2::new(3, 3), Point2::new(4, 3)]);
 }
 
 #[test]
 fn test_straight_vline() {
-	let bi = Bresenham::new(Point::new(2, 3), Point::new(2, 6));
+	let bi = Bresenham::new(Point2::new(2, 3), Point2::new(2, 6));
 	let res: Vec<_> = bi.collect();
 
-	assert_eq!(res, [Point::new(2, 3), Point::new(2, 4), Point::new(2, 5)]);
+	assert_eq!(res, [Point2::new(2, 3), Point2::new(2, 4), Point2::new(2, 5)]);
 }
 
 
@@ -450,32 +452,32 @@ fn test_straight_vline() {
 #[test]
 fn test_br() {
 	let pts = [
-		Point::new(0, 0),
-		Point::new(10, 10),
-		Point::new(1, 2),
-		Point::new(3, 4),
-		Point::new(4, 6),
-		Point::new(10, 10),
-		Point::new(2, 3),
-		Point::new(12, 5),
-		Point::new(-1, -2),
-		Point::new(0, 0),
-		Point::new(-1, -2),
-		Point::new(4, 6),
-		Point::new(-10, -20),
-		Point::new(30, 40),
-		Point::new(8, 8),
-		Point::new(8, 8),
-		Point::new(88, 88),
-		Point::new(88, 88),
-		Point::new(6, 5),
-		Point::new(4, 3),
+		Point2::new(0, 0),
+		Point2::new(10, 10),
+		Point2::new(1, 2),
+		Point2::new(3, 4),
+		Point2::new(4, 6),
+		Point2::new(10, 10),
+		Point2::new(2, 3),
+		Point2::new(12, 5),
+		Point2::new(-1, -2),
+		Point2::new(0, 0),
+		Point2::new(-1, -2),
+		Point2::new(4, 6),
+		Point2::new(-10, -20),
+		Point2::new(30, 40),
+		Point2::new(8, 8),
+		Point2::new(8, 8),
+		Point2::new(88, 88),
+		Point2::new(88, 88),
+		Point2::new(6, 5),
+		Point2::new(4, 3),
 	];
 
 	println!("left - self, right - from grafx");
 	for min in &pts {
 		for max in &pts {
-			//let (min, max) = (Point::new(0, 1), Point::new(6, 4));
+			//let (min, max) = (Point2::new(0, 1), Point2::new(6, 4));
 			//let bi = Bresenham::new(*max, *min);
 
 			let bi = Bresenham::new(*max, *min);

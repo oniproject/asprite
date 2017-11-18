@@ -3,17 +3,17 @@ use std::rc::Rc;
 
 use super::*;
 
-pub struct Root<N: Num, C: Copy + 'static> {
+pub struct Root<N: BaseNum, C: Copy + 'static> {
 	pub widgets: RefCell<Vec<Rc<Widget<N, C>>>>,
 	pub focus: Cell<usize>,
 	pub rect: Cell<Rect<N>>,
 	pub redraw: Cell<bool>,
-	pub mouse_pos: Cell<Point<N>>,
+	pub mouse_pos: Cell<Point2<N>>,
 	pub mouse_left: Cell<bool>,
 	pub bg: Cell<C>,
 }
 
-impl<N: Num, C: Copy + 'static> Container for Root<N, C> {
+impl<N: BaseNum, C: Copy + 'static> Container for Root<N, C> {
 	type Storage = Vec<Rc<Widget<N, C>>>;
 	type Item = Rc<Widget<N, C>>;
 
@@ -37,7 +37,7 @@ impl<N: Num, C: Copy + 'static> Container for Root<N, C> {
 	}
 }
 
-impl<N: Num, C: Copy + 'static> Root<N, C> {
+impl<N: BaseNum, C: Copy + 'static> Root<N, C> {
 	pub fn bounds(&self) -> &Cell<Rect<N>> {
 		&self.rect
 	}
@@ -64,6 +64,8 @@ impl<N: Num, C: Copy + 'static> Root<N, C> {
 		ctx.fill(self.rect.get(), self.bg.get());
 
 		let origin = self.rect.get().min;
+		let origin = Vector2::new(origin.x, origin.y);
+
 		let focus = self.focus.get();
 		let widgets = self.widgets.borrow();
 		for (i, w) in widgets.iter().enumerate() {
@@ -89,7 +91,10 @@ impl<N: Num, C: Copy + 'static> Root<N, C> {
 			right: false,
 			middle: false,
 		};
+
 		let origin = self.rect.get().min;
+		let origin = Vector2::new(origin.x, origin.y);
+
 		let widgets = self.widgets.borrow();
 		for (i, w) in widgets.iter().enumerate() {
 			if w.event(event, origin, self.focus.get() == i, &self.redraw) {

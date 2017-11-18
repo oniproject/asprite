@@ -4,9 +4,9 @@ use std::rc::Rc;
 use super::*;
 use super::check_set::*;
 
-pub struct Button<N: Num, C: Copy + 'static> {
+pub struct Button<N: BaseNum, C: Copy + 'static> {
 	pub rect: Cell<Rect<N>>,
-	pub measured: Cell<Point<N>>,
+	pub measured: Cell<Vector2<N>>,
 	pub layout: RefCell<FlowData<N>>,
 
 	pub fg: (C, C),
@@ -18,18 +18,18 @@ pub struct Button<N: Num, C: Copy + 'static> {
 }
 
 impl<N, C> Widget<N, C> for Button<N, C>
-	where N: Num, C: Copy + 'static
+	where N: BaseNum + 'static, C: Copy + 'static
 {
 	fn bounds(&self) -> &Cell<Rect<N>> { &self.rect }
 	fn layout_data(&self) -> Option<Ref<Any>> { Some(self.layout.borrow()) }
-	fn measured_size(&self) -> &Cell<Point<N>> { &self.measured }
+	fn measured_size(&self) -> &Cell<Vector2<N>> { &self.measured }
 
 	fn measure(&self, _w: Option<N>, _h: Option<N>) {
 		let rect = self.bounds().get();
-		self.measured.set(Point::new(rect.dx(), rect.dy()))
+		self.measured.set(Vector2::new(rect.dx(), rect.dy()))
 	}
 
-	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Point<N>, _focused: bool) {
+	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Vector2<N>, _focused: bool) {
 		let rect = self.rect.get().translate(origin);
 		let (fg, bg, border) = if self.pressed.get() {
 			(self.fg.1, self.bg.1, self.border.map(|b| b.1))
@@ -44,7 +44,7 @@ impl<N, C> Widget<N, C> for Button<N, C>
 		ctx.text_center(rect, fg, &text);
 	}
 
-	fn event(&self, event: Event<N>, origin: Point<N>, focused: bool, redraw: &Cell<bool>) -> bool {
+	fn event(&self, event: Event<N>, origin: Vector2<N>, focused: bool, redraw: &Cell<bool>) -> bool {
 		match event {
 			Event::Mouse { point, left, .. } => {
 				let mut click = false;

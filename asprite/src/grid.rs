@@ -1,12 +1,12 @@
-use common::*;
+use math::*;
 use gui::*;
 
 #[derive(Clone, Copy)]
 pub struct Grid {
 	pub show: bool,
 	pub rect: Rect<i32>,
-	pub size: Vector<i16>,
-	pub offset: Vector<i16>,
+	pub size: Vector2<i16>,
+	pub offset: Vector2<i16>,
 	pub zoom: i16,
 }
 
@@ -19,8 +19,8 @@ impl Grid {
 		let (pos, size) = {
 			let r = self.rect;
 			let min = r.min;
-			let pos = Point::new(min.x as i16, min.y as i16);
-			let size = Point::new(r.dx() as i16, r.dy() as i16);
+			let pos = Point2::new(min.x as i16, min.y as i16);
+			let size = Point2::new(r.dx() as i16, r.dy() as i16);
 			(pos, size)
 		};
 

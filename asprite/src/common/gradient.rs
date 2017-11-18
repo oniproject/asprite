@@ -57,7 +57,7 @@ pub fn extra_dithered(index: i32, x: i16, y: i16, total: i32, bounds: i32, facto
 	})
 }
 
-pub fn draw_gradient<F: FnMut(Point<i32>, i32, i32)>(r: Rect<i32>, va: Point<i32>, vb: Point<i32>, mut f: F) {
+pub fn draw_gradient<F: FnMut(Point2<i32>, i32, i32)>(r: Rect<i32>, va: Point2<i32>, vb: Point2<i32>, mut f: F) {
 	if vb.x == va.x {
 		if vb.y == va.y {
 			return;

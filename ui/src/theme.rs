@@ -31,21 +31,21 @@ pub static TEXT_BORDER: Color = BORDER_GREY;
 pub static TEXT_FOREGROUND: Color = BLACK;
 pub static TEXT_SELECTION: Color = SELECT_BLUE;
 
-impl<N: Num> Root<N, u32> {
+impl<N: BaseNum> Root<N, u32> {
 	pub fn new(rect: Rect<N>) -> Self {
 		Self {
 			widgets: RefCell::new(Vec::new()),
 			focus: Cell::new(usize::max_value()),
 			rect: Cell::new(rect),
 			redraw: Cell::new(true),
-			mouse_pos: Cell::new(Point::new(N::zero(), N::zero())),
+			mouse_pos: Cell::new(Point2::new(N::zero(), N::zero())),
 			mouse_left: Cell::new(false),
 			bg: Cell::new(WINDOW_BACKGROUND),
 		}
 	}
 }
 
-impl<N: Num> Button<N, u32> {
+impl<N: BaseNum> Button<N, u32> {
 	pub fn new<F: Fn(&Self) + 'static>(label: String, callback: F) -> Rc<Self> {
 		Rc::new(Self {
 			bg: (BUTTON_BACKGROUND, BUTTON_BG_SELECTION),
@@ -56,7 +56,7 @@ impl<N: Num> Button<N, u32> {
 			pressed: Cell::new(false),
 
 			rect: Cell::new(Rect::default()),
-			measured: Cell::new(Point::new(N::zero(), N::zero())),
+			measured: Cell::new(Vector2::zero()),
 			layout: RefCell::new(FlowData {
 				along_weight: N::zero(),
 				expand_along: false,
@@ -68,11 +68,11 @@ impl<N: Num> Button<N, u32> {
 	}
 }
 
-impl<N: Num> Label<N, u32> {
+impl<N: BaseNum> Label<N, u32> {
 	pub fn new(label: String) -> Rc<Self> {
 		Rc::new(Self {
 			rect: Cell::new(Rect::default()),
-			measured: Cell::new(Point::new(N::zero(), N::zero())),
+			measured: Cell::new(Vector2::zero()),
 
 			color: LABEL_COLOR,
 			label: RefCell::new(label),

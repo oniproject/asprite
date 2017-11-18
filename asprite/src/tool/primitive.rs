@@ -1,5 +1,4 @@
 use super::*;
-use std::cmp;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrimitiveMode {
@@ -7,9 +6,9 @@ pub enum PrimitiveMode {
 	Ellipse,
 }
 
-pub struct Primitive<N: SignedInt, C: Copy> {
-	pub start: Point<N>,
-	pub last: Point<N>,
+pub struct Primitive<N: BaseNum, C: Copy> {
+	pub start: Point2<N>,
+	pub last: Point2<N>,
 	pub color: C,
 	pub active: bool,
 	pub square: bool,
@@ -19,9 +18,9 @@ pub struct Primitive<N: SignedInt, C: Copy> {
 
 impl Primitive<i32, u8> {
 	pub fn new() -> Self {
-		Primitive {
-			start: Point::new(0, 0),
-			last: Point::new(0, 0),
+		Self {
+			start: Point2::new(0, 0),
+			last: Point2::new(0, 0),
 			color: 0,
 			active: false,
 			square: false,
@@ -31,7 +30,7 @@ impl Primitive<i32, u8> {
 	}
 }
 
-impl<N: SignedInt, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N, C> {
+impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N, C> {
 	fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
 		match input {
 			Input::Move(p) => {
@@ -40,8 +39,16 @@ impl<N: SignedInt, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N, C> {
 					let p = if self.square {
 						let dx = self.start.x - p.x;
 						let dy = self.start.y - p.y;
-						let d = cmp::min(dx.abs(), dy.abs());
-						Point::new(
+						let d = {
+							let dx = dx.abs();
+							let dy = dy.abs();
+							if dx < dy {
+								dx
+							} else {
+								dy
+							}
+						};
+						Point2::new(
 							self.start.x - d * dx.signum(),
 							self.start.y - d * dy.signum(),
 						)
@@ -50,7 +57,7 @@ impl<N: SignedInt, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N, C> {
 					};
 					let mut r = Rect { min: p, max: self.start }
 						.normalize();
-					r.max += Vector::new(N::one(), N::one());
+					r.max += Vector2::new(N::one(), N::one());
 					match (self.fill, self.mode) {
 						(true, PrimitiveMode::Rect) => ctx.rect_fill(r, self.color),
 						(false, PrimitiveMode::Rect) => ctx.rect(r, self.color),

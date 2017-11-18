@@ -1,11 +1,4 @@
-#![allow(dead_code)]
-
-use cgmath::Vector2;
-use cgmath::Matrix2;
-use cgmath::Matrix4;
-use cgmath::BaseFloat;
-use cgmath::One;
-use cgmath::Zero;
+use super::*;
 
 use std::fmt::Debug;
 use std::ops::Mul;
