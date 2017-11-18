@@ -26,7 +26,7 @@ use vulkano::memory::pool::StdMemoryPool;
 use vulkano::memory::pool::MemoryPool;
 
 use vulkano::descriptor::PipelineLayoutAbstract;
-use vulkano::descriptor::descriptor_set::{DescriptorSet, PersistentDescriptorSet, DescriptorSetsCollection};
+use vulkano::descriptor::descriptor_set::{DescriptorSet, PersistentDescriptorSet};
 use vulkano::descriptor::pipeline_layout::{PipelineLayoutDesc, PipelineLayoutDescPcRange};
 use vulkano::descriptor::descriptor::{DescriptorBufferDesc, ShaderStages};
 use vulkano::descriptor::descriptor::{DescriptorDesc, DescriptorDescTy};
@@ -149,5 +149,5 @@ type Projection = Arc<DescriptorSet + Send + Sync + 'static>;
 
 type BoxFuture = Box<GpuFuture + Send + Sync>;
 
-type ChunkVBO<T> = CpuBufferPoolChunk<T, Arc<StdMemoryPool>>;
+//type ChunkVBO<T> = CpuBufferPoolChunk<T, Arc<StdMemoryPool>>;
 type ChunkIBO<T> = BufferSlice<[T], Index<T>>;

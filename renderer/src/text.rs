@@ -1,7 +1,6 @@
 use super::*;
 
 use rusttype::{Font, Scale, point, PositionedGlyph};
-use rusttype::gpu_cache::Cache;
 
 pub struct Text<'a> {
 	pub(crate) glyphs: Vec<PositionedGlyph<'a>>,

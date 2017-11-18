@@ -1,6 +1,6 @@
 [workspace]
 members = [
-	"asprite"
+	"asprite",
 	"ui",
 	"tiled",
 	"tiler",

@@ -5,7 +5,6 @@ authors = ["Lain-dono <lain.dono@gmail.com>"]
 
 [dependencies]
 renderer = { path = "../renderer" }
-xx = { path = "../xx" }
 
 vulkano = "0.7"
 vulkano-shader-derive = "0.7"

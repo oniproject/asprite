@@ -10,7 +10,7 @@ use text_shader::*;
 
 use std::iter;
 
-use rusttype::{Font, Scale, point, PositionedGlyph};
+use rusttype::PositionedGlyph;
 use rusttype::gpu_cache::Cache;
 
 #[inline(always)]

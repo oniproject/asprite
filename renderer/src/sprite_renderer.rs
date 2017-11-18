@@ -106,12 +106,3 @@ impl<Rp> SpriteRenderer<Rp>
 		Ok(())
 	}
 }
-
-use vulkano::descriptor::descriptor_set::DescriptorWrite;
-fn lay<I>(bid: u32, t: I) -> impl Iterator<Item=DescriptorWrite>
-	where I: Iterator<Item=Texture>
-{
-	t.enumerate().map(move |(i, t)| {
-		DescriptorWrite::combined_image_sampler(bid, i as u32, &t.sampler, &t.texture)
-	})
-}
