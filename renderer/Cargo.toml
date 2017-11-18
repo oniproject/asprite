@@ -1,0 +1,13 @@
+[package]
+name = "renderer"
+version = "0.1.0"
+authors = ["Lain-dono <lain.dono@gmail.com>"]
+
+[dependencies]
+vulkano = "0.7"
+cgmath = "0.15"
+image = "0.17"
+derivative = "1"
+error-chain = "0.11"
+unicode-normalization = "0.1.5"
+rusttype = "0.2.3"

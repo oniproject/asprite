@@ -1,35 +1,12 @@
-[package]
-name = "asprite"
-version = "0.1.0"
-authors = ["Lain-dono <lain.dono@gmail.com>"]
-
 [workspace]
 members = [
+	"asprite"
 	"ui",
 	"tiled",
 	"tiler",
+	"ex",
+	"renderer",
 ]
 
 [profile.release]
 lto = true
-
-[dependencies]
-ui = { path = "ui/" }
-tiled = { path = "tiled/" }
-tiler = { path = "tiler/" }
-
-nalgebra = "0.13"
-num-traits = "0.1"
-undo = "0.14"
-redo = "0.14"
-image = "0.15"
-gif = "0.9"
-rand = "0.3"
-nfd = "0.0.4"
-either = "1"
-color_quant = "1"
-
-[dependencies.sdl2]
-version = "0.30"
-default-features = false
-features = ["ttf","image","gfx","mixer"]
