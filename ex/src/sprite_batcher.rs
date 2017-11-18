@@ -21,7 +21,7 @@ use renderer::*;
 use renderer::vertex::*;
 
 fn terminus() -> Font<'static> {
-	let font = include_bytes!("../../TerminusTTF-4.46.0.ttf");
+	let font = include_bytes!("../../res/TerminusTTF-4.46.0.ttf");
 	FontCollection::from_bytes(font as &[u8]).into_font().unwrap()
 }
 

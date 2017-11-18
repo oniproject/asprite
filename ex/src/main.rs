@@ -110,18 +110,18 @@ fn main() {
 
 	let (textures_future, textures) = Texture::load_vec(
 		queue.clone(), device.clone(), &[
-			"./images/rabbitv3.png",
-			"./images/rabbitv3_ash.png",
-			"./images/rabbitv3_batman.png",
-			"./images/rabbitv3_bb8.png",
-			"./images/rabbitv3_frankenstein.png",
-			"./images/rabbitv3_neo.png",
-			"./images/rabbitv3_sonic.png",
-			"./images/rabbitv3_spidey.png",
-			"./images/rabbitv3_stormtrooper.png",
-			"./images/rabbitv3_superman.png",
-			"./images/rabbitv3_tron.png",
-			"./images/rabbitv3_wolverine.png",
+			"./res/images/rabbitv3.png",
+			"./res/images/rabbitv3_ash.png",
+			"./res/images/rabbitv3_batman.png",
+			"./res/images/rabbitv3_bb8.png",
+			"./res/images/rabbitv3_frankenstein.png",
+			"./res/images/rabbitv3_neo.png",
+			"./res/images/rabbitv3_sonic.png",
+			"./res/images/rabbitv3_spidey.png",
+			"./res/images/rabbitv3_stormtrooper.png",
+			"./res/images/rabbitv3_superman.png",
+			"./res/images/rabbitv3_tron.png",
+			"./res/images/rabbitv3_wolverine.png",
 		]).unwrap();
 
 	let mut framebuffers: Option<Vec<Arc<Framebuffer<_,_>>>> = None;
