@@ -25,7 +25,7 @@ extern crate vulkano_win;
 use vulkano_win::VkSurfaceBuild;
 use vulkano::sync::GpuFuture;
 use vulkano::instance::{Instance, PhysicalDevice};
-use vulkano::device::{Device, DeviceExtensions};
+use vulkano::device::{Queue, Device, DeviceExtensions};
 use vulkano::swapchain::{
 	Swapchain,
 	SurfaceTransform,
@@ -98,7 +98,6 @@ fn main() {
 
 	println!("{:?}", caps);
 
-	let dimensions = caps.current_extent.unwrap_or([1024, 768]);
 	let format = caps.supported_formats[0].0;
 
 	let renderpass = single_pass_renderpass!(device.clone(),
@@ -162,33 +161,16 @@ fn main() {
 		(world, dispatcher)
 	};
 
-	let mut chain = {
-		let usage = caps.supported_usage_flags;
-		let alpha = caps.supported_composite_alpha.iter().next().unwrap();
-
-		let (swapchain, images) = Swapchain::new(
-				device.clone(), surface, caps.min_image_count,
-				format, dimensions, 1,
-				usage, &queue, SurfaceTransform::Identity,
-				alpha,
-				//PresentMode::Immediate,
-				PresentMode::Fifo,
-				true, None)
-			.expect("failed to create swapchain");
-
-		Chain {
-			dimensions,
-			physical,
-			window,
-			renderpass,
-
-			images,
-			swapchain,
-
-			framebuffers: None,
-			recreate_swapchain: false,
-		}
-	};
+	let mut chain = Chain::new(
+		renderpass,
+		caps,
+		device,
+		queue.clone(),
+		surface,
+		window,
+		physical,
+		format,
+	);
 
 	loop {
 		world.write_resource::<Box<GpuFuture + Send + Sync>>().cleanup_finished();
@@ -199,13 +181,13 @@ fn main() {
 		};
 
 		world.add_resource(fb);
-		world.add_resource(chain.dim());
 
 		temporarily_move_out::<Box<GpuFuture + Send + Sync>, _, _>(
 			world.write_resource(), |tmp| Box::new(tmp.join(sw_future)));
 
 		ticker.update();
 		world.add_resource(ticker.elapsed);
+		world.add_resource(chain.dim());
 
 		dispatcher.dispatch(&mut world.res);
 		world.maintain();

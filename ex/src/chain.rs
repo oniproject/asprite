@@ -1,11 +1,15 @@
 use super::*;
 use vulkano::framebuffer::RenderPassAbstract;
 use vulkano::image::swapchain::SwapchainImage;
+use vulkano::swapchain::Capabilities;
+use vulkano::swapchain::Surface;
+use vulkano_win::Window;
+use vulkano::format::Format;
 
 pub struct Chain<'a, Rp> {
 	pub recreate_swapchain: bool,
 	pub dimensions: [u32; 2],
-	pub window: vulkano_win::Window,
+	pub window: Window,
 	pub physical: PhysicalDevice<'a>,
 	pub renderpass: Arc<Rp>,
 	pub swapchain: Arc<Swapchain>,
@@ -17,6 +21,44 @@ pub struct Chain<'a, Rp> {
 impl<'a, Rp> Chain<'a, Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
+	pub fn new(
+		renderpass: Arc<Rp>,
+		caps: Capabilities,
+		device: Arc<Device>,
+		queue: Arc<Queue>,
+		surface: Arc<Surface>,
+		window: Window,
+		physical: PhysicalDevice<'a>,
+		format: Format,
+		) -> Self
+	{
+		let usage = caps.supported_usage_flags;
+		let alpha = caps.supported_composite_alpha.iter().next().unwrap();
+		let dimensions = caps.current_extent.unwrap_or([1024, 768]);
+
+		let (swapchain, images) = Swapchain::new(
+				device.clone(), surface, caps.min_image_count,
+				format, dimensions, 1,
+				usage, &queue, SurfaceTransform::Identity,
+				alpha,
+				//PresentMode::Immediate,
+				PresentMode::Fifo,
+				true, None)
+			.expect("failed to create swapchain");
+
+		Self {
+			dimensions,
+			physical,
+			window,
+			renderpass,
+
+			images,
+			swapchain,
+
+			framebuffers: None,
+			recreate_swapchain: false,
+		}
+	}
 	pub fn dim(&mut self) -> Vector2<f32> {
 		let w = self.dimensions[0] as f32;
 		let h = self.dimensions[1] as f32;
