@@ -1,4 +1,5 @@
 use super::*;
+use ui::*;
 use std::cell::Cell;
 
 pub type WidgetId = u16;
@@ -8,11 +9,16 @@ pub struct Panel<'a, R: Immediate + 'a> {
 	r: Rect<i16>,
 }
 
-impl<'a, R: Immediate + 'a> Graphics<i16, u32> for Panel<'a, R> {
+impl<'a, R: Immediate + 'a> GraphicsBase<i16, u32> for Panel<'a, R> {
 	fn command(&mut self, cmd: Command<i16, u32>) { self.render.command(cmd) }
-	fn text_size(&mut self, s: &str) -> (u32, u32) { self.render.text_size(s) }
-	fn image_size(&mut self, id: usize) -> (u32, u32) { self.render.image_size(id) }
 	fn channel(&mut self, ch: usize) { self.render.channel(ch) }
+}
+
+impl<'a, R: Immediate + 'a> ImageSize for Panel<'a, R> {
+	fn image_size(&mut self, id: usize) -> (u32, u32) { self.render.image_size(id) }
+}
+impl<'a, R: Immediate + 'a> TextSize for Panel<'a, R> {
+	fn text_size(&mut self, s: &str) -> (u32, u32) { self.render.text_size(s) }
 }
 
 impl<'a, R: Immediate + 'a> Immediate for Panel<'a, R> {
@@ -29,7 +35,7 @@ impl<'a, R: Immediate + 'a> Immediate for Panel<'a, R> {
 	}
 }
 
-pub trait Immediate: Sized + Graphics<i16, u32> {
+pub trait Immediate: Sized + GraphicsBase<i16, u32> {
 	fn widget(&mut self, id: WidgetId) -> Rect<i16>;
 	fn widget_rect(&self) -> Rect<i16>;
 

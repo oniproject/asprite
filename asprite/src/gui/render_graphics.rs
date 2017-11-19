@@ -8,7 +8,7 @@ pub use sdl2::gfx::primitives::DrawRenderer;
 use std::path::Path;
 use std::collections::HashMap;
 
-use ui::{Graphics, TextureManager, Command};
+use ui::*;
 
 use math::*;
 
@@ -51,9 +51,7 @@ impl<'t, 'ttf, 'rwops> RenderGraphics<'t, 'ttf, 'rwops, i16, u32> {
 		for buf in &mut self.cmd_buffer {
 			for cmd in buf.drain(..) {
 				match cmd {
-				Command::Line(start, end, color) => Self::line(&self.ctx, start, end, color),
 				Command::Fill(r, color) => Self::rect_filled(&self.ctx, r, color),
-				Command::Border(r, color) => Self::rect(&self.ctx, r, color),
 
 				Command::Image(id, p, zoom) => {
 					let &(ref texture, w, h) = &self.textures[&id];
@@ -90,47 +88,33 @@ impl<'t, 'ttf, 'rwops> RenderGraphics<'t, 'ttf, 'rwops, i16, u32> {
 		}
 	}
 
-	fn line(ctx: &Canvas<Window>, start: Point2<i16>, end: Point2<i16>, color: u32) {
-		ctx.line(
-			start.x, start.y,
-			end.x, end.y,
-			color.to_be()).unwrap()
-	}
-
 	fn rect_filled(ctx: &Canvas<Window>, r: Rect<i16>, color: u32) {
 		ctx.box_(
 			r.min.x, r.min.y,
 			r.max.x-1, r.max.y-1,
 			color.to_be()).unwrap()
 	}
-
-	fn rect(ctx: &Canvas<Window>, mut r: Rect<i16>, color: u32) {
-		r.max.x -= 1;
-		r.max.y -= 1;
-
-		let color = color.to_be();
-		let (x1, x2) = (r.min.x, r.max.x);
-		ctx.hline(x1, x2, r.min.y, color).unwrap();
-		ctx.hline(x1, x2, r.max.y, color).unwrap();
-		let (y1, y2) = (r.min.y, r.max.y);
-		ctx.vline(r.min.x, y1, y2, color).unwrap();
-		ctx.vline(r.max.x, y1, y2, color).unwrap();
-	}
 }
 
-impl<'t, 'ttf, 'rwops, N: BaseNum, C: Copy + 'static> Graphics<N, C> for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
+impl<'t, 'ttf, 'rwops, N: BaseNum, C: Copy + 'static> GraphicsBase<N, C> for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
 	fn command(&mut self, cmd: Command<N, C>) {
 		self.cmd_buffer[self.channel].push(cmd);
 	}
-	fn text_size(&mut self, s: &str) -> (u32, u32) {
-		let (w, h) = self.font.size_of(s).unwrap();
-		(w - 1, h - 1)
-	}
+	fn channel(&mut self, ch: usize) { self.channel = ch }
+}
+
+impl<'t, 'ttf, 'rwops, N: BaseNum, C: Copy + 'static> ImageSize for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
 	fn image_size(&mut self, id: usize) -> (u32, u32) {
 		let (_, w, h) = self.textures[&id];
 		(w, h)
 	}
-	fn channel(&mut self, ch: usize) { self.channel = ch }
+}
+
+impl<'t, 'ttf, 'rwops, N: BaseNum, C: Copy + 'static> TextSize for RenderGraphics<'t, 'ttf, 'rwops, N, C> {
+	fn text_size(&mut self, s: &str) -> (u32, u32) {
+		let (w, h) = self.font.size_of(s).unwrap();
+		(w - 1, h - 1)
+	}
 }
 
 impl<'t, 'ttf, 'rwops, N: BaseNum, C: Copy + 'static> TextureManager for RenderGraphics<'t, 'ttf, 'rwops, N, C> {

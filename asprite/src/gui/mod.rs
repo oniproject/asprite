@@ -80,11 +80,19 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 
 	pub fn mouse(&mut self, event: Mouse<i16>) {
 		match event {
-			Mouse::Move(p) => self.mouse.1 = p,
-			Mouse::Press(p) => self.mouse = (true, p),
-			Mouse::Release(p) => self.mouse = (false, p),
+			Mouse::Move(p) => {
+				self.mouse.1 = p;
+				self.win.event(Mouse::Move(p.cast()));
+			}
+			Mouse::Press(p) => {
+				self.mouse = (true, p);
+				self.win.event(Mouse::Press(p.cast()));
+			}
+			Mouse::Release(p) => {
+				self.mouse = (false, p);
+				self.win.event(Mouse::Release(p.cast()));
+			}
 		}
-		// FIXME: self.win.event(event);
 	}
 
 	pub fn prepare(&mut self, bg: u32) {
@@ -130,11 +138,17 @@ impl<'t, 'ttf, 'rwops> Render<'t, 'ttf, 'rwops> {
 	}
 
 }
-impl<'t, 'ttf, 'rwops> Graphics<i16, u32> for Render<'t, 'ttf, 'rwops> {
+impl<'t, 'ttf, 'rwops> GraphicsBase<i16, u32> for Render<'t, 'ttf, 'rwops> {
 	fn command(&mut self, cmd: Command<i16, u32>) { self.graph.command(cmd) }
-	fn text_size(&mut self, s: &str) -> (u32, u32) { self.graph.text_size(s) }
-	fn image_size(&mut self, id: usize) -> (u32, u32) { self.graph.image_size(id) }
 	fn channel(&mut self, ch: usize) { self.graph.channel(ch) }
+}
+
+impl<'t, 'ttf, 'rwops> TextSize for Render<'t, 'ttf, 'rwops> {
+	fn text_size(&mut self, s: &str) -> (u32, u32) { self.graph.text_size(s) }
+}
+
+impl<'t, 'ttf, 'rwops> ImageSize for Render<'t, 'ttf, 'rwops> {
+	fn image_size(&mut self, id: usize) -> (u32, u32) { self.graph.image_size(id) }
 }
 
 impl<'t, 'ttf, 'rwops> Immediate for Render<'t, 'ttf, 'rwops> {

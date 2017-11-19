@@ -1,4 +1,3 @@
-use rand;
 use rand::distributions::{IndependentSample, Range};
 use rand::{thread_rng, Rng};
 use math::Vector2;
@@ -34,7 +33,7 @@ impl Arena {
 	}
 
 	pub fn spawn_lazy<'a>(&self, e: &Entities<'a>, lazy: &Fetch<'a, LazyUpdate>) {
-		let mut rng = rand::thread_rng();
+		let mut rng = thread_rng();
 		let between = Range::new(0.0, 10.0);
 		let tex = Range::new(0, self.textures.len());
 

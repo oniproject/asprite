@@ -7,7 +7,6 @@ use math::*;
 #[macro_use] extern crate vulkano;
 #[macro_use] extern crate error_chain;
 #[macro_use] extern crate derivative;
-extern crate cgmath;
 extern crate image;
 
 extern crate unicode_normalization;

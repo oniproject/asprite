@@ -8,7 +8,7 @@ use vulkano::framebuffer::Subpass;
 use vulkano::image::SwapchainImage;
 use vulkano::sync::GpuFuture;
 
-use math::Vector2;
+use math::*;
 
 use std::sync::Arc;
 
@@ -97,16 +97,6 @@ impl<'a, 'sys, Rp> specs::System<'sys> for Batcher<'a, Rp>
 			.unwrap()
 			.begin_render_pass(fb.clone(), false, clear).unwrap();
 
-		{
-				let text = "A japanese poem:
-			Feel free to type out some text, and delete it with Backspace. You can also try resizing this window.";
-
-			let text = Text::new(&self.font, text, 24.0)
-				.lay(Vector2::new(0.0, 0.0), 500);
-
-			cb = self.renderer.text(cb, state.clone(), &text).unwrap();
-		}
-
 		for (sprite,) in (&sprites,).join() {
 			cb = self.renderer.texture_quad(cb, state.clone(),
 				sprite.texture.clone(),
@@ -114,7 +104,17 @@ impl<'a, 'sys, Rp> specs::System<'sys> for Batcher<'a, Rp>
 				sprite.pos, sprite.uv).unwrap();
 		}
 
-		cb = self.renderer.flush(cb, state).unwrap();
+		cb = self.renderer.flush(cb, state.clone()).unwrap();
+
+		{
+				let text = "A japanese poem:
+			Feel free to type out some text, and delete it with Backspace. You can also try resizing this window.";
+
+			let text = Text::new(&self.font, text, 24.0)
+				.lay(Vector2::new(100.0, 200.0), 500);
+
+			cb = self.renderer.text(cb, state.clone(), &text).unwrap();
+		}
 
 		let cb = cb
 			.end_render_pass().unwrap()

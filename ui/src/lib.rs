@@ -11,7 +11,7 @@ pub use self::flow::{Flow, FlowData};
 pub use self::button::Button;
 pub use self::label::Label;
 pub use self::root::Root;
-pub use self::graphics::{Graphics, Command, TextureManager};
+pub use self::graphics::*;
 
 use self::event::Event;
 

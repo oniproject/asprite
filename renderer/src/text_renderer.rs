@@ -4,6 +4,7 @@ use vulkano::image::ImageLayout;
 use vulkano::command_buffer::synced::*;
 use vulkano::command_buffer::sys::UnsafeCommandBufferBuilderBufferImageCopy;
 use vulkano::command_buffer::sys::UnsafeCommandBufferBuilderImageAspect;
+use vulkano::image::ImageAccess;
 
 use super::*;
 use text_shader::*;
@@ -84,7 +85,7 @@ impl<Rp> TextRenderer<Rp>
 	}
 
 	pub fn text<'a>(&mut self, cb: CmdBuild, state: DynamicState, text: &Text<'a>) -> Result<CmdBuild> {
-		self.glyphs(cb, state, &text.glyphs)
+		self.glyphs(cb, state, text.glyphs())
 	}
 
 	pub fn glyphs<'a>(&mut self, mut cb: CmdBuild, state: DynamicState, glyphs: &[PositionedGlyph<'a>]) -> Result<CmdBuild> {
@@ -185,7 +186,7 @@ impl<Rp> TextRenderer<Rp>
 					ImageLayout::TransferDstOptimal,
 					iter::once(copy),
 				) {
-					println!("{:?} :: {:?}, {:?} size({:?} for {})", err, rect, offset, size, data.len());
+					//println!("{:?} :: {:?}, {:?} size({:?} for {})", err, rect, offset, size, data.len());
 				}
 			}
 		}).unwrap();
