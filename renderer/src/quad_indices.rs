@@ -1,5 +1,7 @@
 use super::*;
 
+use vulkano::buffer::BufferAccess;
+
 #[derive(Clone)]
 pub struct QuadIBO<T>(Index<T>);
 

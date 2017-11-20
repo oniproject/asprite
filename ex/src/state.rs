@@ -27,31 +27,35 @@ pub trait State<C, E> {
 
 /// A simple stack-based state machine (pushdown automaton).
 #[derive(Derivative)]
-#[derivative(Debug, Default(new="true"))]
-pub struct StateMachine<'a, C, E> {
+pub struct StateMachine<C, E> {
 	running: bool,
-	#[derivative(Debug = "ignore")]
-	stack: Vec<Box<State<C, E> + 'a>>,
+	stack: Vec<Box<State<C, E>>>,
 }
 
-impl<'a, C, E> StateMachine<'a, C, E> {
+impl<C, E> StateMachine<C, E> {
+	pub fn new() -> Self {
+		Self {
+			running: false,
+			stack: Vec::new(),
+		}
+	}
 	/// Checks whether the state machine is running.
 	pub fn is_running(&self) -> bool {
 		self.running
 	}
 
-	pub fn restart<S: State<C, E> + 'a>(&mut self, ctx: &mut C, state: S) {
+	pub fn restart(&mut self, ctx: &mut C, state: Box<State<C, E>>) {
 		self.shutdown(ctx);
 		self.initialize(ctx, state);
 	}
 
 	/// Initializes the state machine.
-	pub fn initialize<S: State<C, E> + 'a>(&mut self, ctx: &mut C, mut state: S) {
+	pub fn initialize(&mut self, ctx: &mut C, mut state: Box<State<C, E>>) {
 		debug_assert!(!self.running);
 		self.running = true;
 
 		state.start(ctx);
-		self.stack.push(Box::new(state));
+		self.stack.push(state);
 	}
 
 	/// Shuts the state machine down.

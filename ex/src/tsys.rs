@@ -242,7 +242,7 @@ mod tests {
 		world.register::<Global>();
 		world.register::<Parent>();
 
-		(world, System::new())
+		(world, System::default())
 	}
 
 	#[test]

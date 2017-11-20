@@ -19,7 +19,7 @@ use vulkano::image::swapchain::SwapchainImage;
 
 use vulkano::buffer::immutable::ImmutableBuffer;
 use vulkano::buffer::cpu_pool::{CpuBufferPool, CpuBufferPoolChunk};
-use vulkano::buffer::{BufferUsage, BufferAccess};
+use vulkano::buffer::BufferUsage;
 use vulkano::buffer::BufferSlice;
 use vulkano::framebuffer::{RenderPassAbstract, Subpass};
 use vulkano::framebuffer::Framebuffer;
@@ -30,7 +30,6 @@ use vulkano::sync::GpuFuture;
 use vulkano::sync::now as vk_now;
 use vulkano::format::Format;
 
-use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::swapchain::{
 	Swapchain,
 	SurfaceTransform,

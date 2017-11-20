@@ -30,16 +30,15 @@ use vulkano::instance::{Instance, PhysicalDevice};
 
 use specs::World;
 
-use std::time::{Instant, Duration};
-
 use math::*;
 
 mod arena;
-mod input;
 mod sprite;
 mod tsys;
 mod state;
 mod sprite_batcher;
+
+mod time;
 
 use sprite::*;
 use renderer::*;
@@ -58,7 +57,23 @@ fn main() {
 
 	let physical = PhysicalDevice::enumerate(&instance)
 		.next().expect("no device available");
-	println!("Using device: {} (type: {:?})", physical.name(), physical.ty());
+
+	{
+		println!("Using device: {} (type: {:?})", physical.name(), physical.ty());
+		println!();
+		// Enumerating memory heaps.
+		for heap in physical.memory_heaps() {
+			println!("Heap #{:?} has a capacity of {:?} bytes", heap.id(), heap.size());
+		}
+		println!();
+		// Enumerating memory types.
+		for ty in physical.memory_types() {
+			println!("Memory type belongs to heap #{:?}", ty.heap().id());
+			println!("Host-accessible: {:?}", ty.is_host_visible());
+			println!("Device-local: {:?}", ty.is_device_local());
+		}
+		println!();
+	}
 
 	let events_loop = winit::EventsLoop::new();
 	let window = winit::WindowBuilder::new()
@@ -86,49 +101,166 @@ fn main() {
 		Texture::load_vec(chain.queue.clone(), &decoded.images).unwrap()
 	};
 
-	let (mut world, mut dispatcher) = {
-		println!("create world");
+	let mut app = {
+		println!("create app");
 
 		let mut world = World::new();
 		world.register::<Sprite>();
 		world.register::<SpriteTransform>();
 		world.register::<arena::Velocity>();
 
-		let arena = arena::Arena::new(textures.clone());
-		let input = input::InputSystem { events_loop, add: false };
-
 		let (buf, index_future) = Batcher::new(BATCH_CAPACITY, TEXTURE_COUNT, chain, &images);
 
 		let future: Box<GpuFuture + Send + Sync> = Box::new(textures_future.join(index_future));
 
+		{
+			let mut time = time::Time::default();
+			time.set_fixed_time(::std::time::Duration::new(0, 16666666*2));
+			world.add_resource(time);
+		}
+
 		world.add_resource(Future::new(future));
 		world.add_resource(BATCH_CAPACITY as usize);
 		world.add_resource(Vector2::new(1024.0f32, 786.0));
-		world.add_resource(Duration::default());
+		world.add_resource(time::Stopwatch::default());
 
 		let dispatcher = specs::DispatcherBuilder::new()
-			.add(arena, "mark", &[])
-			.add(input, "input", &[])
-			.add(SpriteSystem, "sprite", &["mark"])
+			.add(SpriteSystem, "sprite", &[])
 			.add(buf, "batcher", &["sprite"])
 			.build();
 
-		(world, dispatcher)
+		let states = state::StateMachine::new();
+		App { world, dispatcher, events_loop, states }
 	};
 
 	println!();
-	println!("start");
+	println!("run");
 
-	let mut ticker = Ticker::new();
-	loop {
-		ticker.update();
-		world.add_resource(ticker.elapsed);
+	let arena = arena::Scene { textures };
+	app.run(Box::new(arena));
+}
 
-		dispatcher.dispatch(&mut world.res);
-		world.maintain();
+#[derive(Clone)]
+pub enum Event {
+	Frame,
+	Fixed,
+	W(winit::WindowEvent),
+	D(winit::DeviceEvent),
+}
+
+struct App<'a, 'b> {
+	pub world: specs::World,
+	pub dispatcher: specs::Dispatcher<'a, 'b>,
+	pub states: state::StateMachine<World, Event>,
+	pub events_loop: winit::EventsLoop,
+}
+
+impl<'a, 'b> App<'a, 'b> {
+	pub fn run(&mut self, state: Box<state::State<World, Event>>) {
+		use time::{Time, Stopwatch};
+
+		self.states.initialize(&mut self.world, state);
+
+		self.world.write_resource::<Stopwatch>().start();
+
+		while self.states.is_running() {
+			self.advance();
+			// XXX: self.world.write_resource::<FrameLimiter>().wait();
+			{
+				let elapsed = self.world.read_resource::<Stopwatch>().elapsed();
+				let mut time = self.world.write_resource::<Time>();
+				time.increment_frame_number();
+				time.set_delta_time(elapsed);
+			}
+			let mut stopwatch = self.world.write_resource::<Stopwatch>();
+			stopwatch.stop();
+			stopwatch.restart();
+		}
+
+		::std::process::exit(0)
+	}
+
+	fn advance(&mut self) {
+		use time::Time;
+
+		/*
+		{
+			let world = &mut self.world;
+			let states = &mut self.states;
+			#[cfg(feature = "profiler")]
+			profile_scope!("handle_event");
+
+			let events = match world
+				.read_resource::<EventChannel<Event>>()
+				.lossy_read(&mut self.events_reader_id)
+			{
+				Ok(data) => data.cloned().collect(),
+				_ => Vec::default(),
+			};
+
+			for event in events {
+				states.handle_event(world, event.clone());
+				if !self.ignore_window_close {
+					if let &Event::WindowEvent {
+						event: WindowEvent::Closed,
+						..
+					} = &event
+					{
+						states.stop(world);
+					}
+				}
+			}
+		}
+		*/
+		{
+			let states = &mut self.states;
+			let world = &mut self.world;
+			self.events_loop.poll_events(|event| {
+				match event {
+					winit::Event::WindowEvent { event, .. } => {
+						states.event(world, Event::W(event));
+					}
+					_ => (),
+				}
+			});
+		}
+
+		{
+			let do_fixed = {
+				let time = self.world.write_resource::<Time>();
+				time.last_fixed_update.elapsed() >= time.fixed_time
+			};
+
+			#[cfg(feature = "profiler")] profile_scope!("fixed_update");
+			if do_fixed {
+				self.states.event(&mut self.world, Event::Fixed);
+				self.world.write_resource::<Time>().finish_fixed_update();
+			}
+
+			#[cfg(feature = "profiler")] profile_scope!("update");
+			self.states.event(&mut self.world, Event::Frame);
+		}
+
+		#[cfg(feature = "profiler")] profile_scope!("dispatch");
+		self.dispatcher.dispatch(&mut self.world.res);
+
+		/*
+		for local in &mut self.locals {
+			local.run_now(&self.world.res);
+		}
+		*/
+
+		#[cfg(feature = "profiler")] profile_scope!("maintain");
+		self.world.maintain();
+
+		// TODO: replace this with a more customizable method.
+		// TODO: effectively, the user should have more control over error handling here
+		// TODO: because right now the app will just exit in case of an error.
+		// XXX self.world.write_resource::<Errors>().print_and_exit();
 	}
 }
 
+/*
 struct Ticker {
 	now: Instant,
 	times: Vec<Duration>,
@@ -160,6 +292,7 @@ impl Ticker {
 		}
 	}
 }
+*/
 
 /*
 #[macro_use]

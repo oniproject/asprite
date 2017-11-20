@@ -14,3 +14,7 @@ spv:
 clean:
 	rm -f $(SVERT).spv $(SFRAG).spv
 	rm -f $(TVERT).spv $(TFRAG).spv
+
+vg:
+	# i use kcachegrind
+	valgrind --tool=callgrind --dump-instr=yes --collect-jumps=yes --simulate-cache=yes ./target/release/ex

@@ -11,8 +11,7 @@ use std::sync::Arc;
 
 use specs::{self, Entities, Fetch, FetchMut, Join, ReadStorage};
 
-use std::time::Duration;
-use arena::duration_to_secs;
+use time::*;
 
 use sprite::*;
 use renderer::*;
@@ -70,7 +69,7 @@ impl<'a, 'sys> specs::System<'sys> for Batcher<'a> {
 		FetchMut<'sys, Vector2<f32>>,
 		ReadStorage<'sys, Sprite>,
 		Entities<'sys>,
-		Fetch<'sys, Duration>,
+		Fetch<'sys, Time>,
 	);
 
 	fn running_time(&self) -> specs::RunningTime { specs::RunningTime::Long }
@@ -123,10 +122,9 @@ impl<'a, 'sys> specs::System<'sys> for Batcher<'a> {
 		future.then_execute(self.queue.clone(), cb.end_render_pass().unwrap().build().unwrap());
 
 		if true {
-			let dt = duration_to_secs(*dt);
+			let dt = dt.delta_seconds;
 			use specs::Join;
-			let text = format!("{} {} A japanese poem: 123 456 7890
-				Feel free to type out some text, and delete it with Backspace. You can also try resizing this window.",
+			let text = format!("count: {} ms: {}",
 			e.join().count(), dt);
 
 			let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(self.queue.device().clone(), self.queue.family())

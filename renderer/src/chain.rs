@@ -2,16 +2,13 @@ use super::*;
 use vulkano::framebuffer::RenderPassAbstract;
 use vulkano::image::swapchain::SwapchainImage;
 use vulkano::swapchain::Capabilities;
-use vulkano::swapchain::Surface;
 use vulkano_win::Window;
 use vulkano::format::Format;
 use vulkano::swapchain::SwapchainAcquireFuture;
 use vulkano::framebuffer::FramebufferAbstract;
 use vulkano::device::DeviceOwned;
 
-use vulkano_win::VkSurfaceBuild;
-use vulkano::sync::GpuFuture;
-use vulkano::instance::{Instance, PhysicalDevice};
+use vulkano::instance::PhysicalDevice;
 use vulkano::device::{Device, DeviceExtensions};
 
 pub struct Chain<'a> {
