@@ -9,6 +9,11 @@ use vulkano::swapchain::SwapchainAcquireFuture;
 use vulkano::framebuffer::FramebufferAbstract;
 use vulkano::device::DeviceOwned;
 
+use vulkano_win::VkSurfaceBuild;
+use vulkano::sync::GpuFuture;
+use vulkano::instance::{Instance, PhysicalDevice};
+use vulkano::device::{Device, DeviceExtensions};
+
 pub struct Chain<'a> {
 	pub recreate_swapchain: bool,
 	pub dimensions: [u32; 2],
@@ -16,18 +21,38 @@ pub struct Chain<'a> {
 	pub physical: PhysicalDevice<'a>,
 	pub swapchain: Arc<Swapchain>,
 	pub queue: Arc<Queue>,
+	pub device: Arc<Device>,
 }
 
 impl<'a> Chain<'a> {
-	pub fn new(
-		caps: Capabilities,
-		queue: Arc<Queue>,
-		surface: Arc<Surface>,
-		window: Window,
-		physical: PhysicalDevice<'a>,
-		format: Format,
-		) -> (Self, Vec<Arc<SwapchainImage>>)
+	pub fn new<F>(physical: PhysicalDevice<'a>, window: Window, fmt: F) -> (Self, Vec<Arc<SwapchainImage>>)
+		where F: FnOnce(&Capabilities) -> Format
 	{
+		let surface = window.surface().clone();
+
+		let queue = physical.queue_families()
+			.find(|&q| q.supports_graphics() && surface.is_supported(q).unwrap_or(false))
+			.expect("couldn't find a graphical queue family");
+
+		let device_ext = DeviceExtensions {
+			khr_swapchain: true,
+			.. DeviceExtensions::none()
+		};
+		let (device, mut queues) = Device::new(
+				physical, physical.supported_features(),
+				&device_ext, [(queue, 0.5)].iter().cloned())
+			.expect("failed to create device");
+		let queue = queues.next().unwrap();
+
+		let caps = surface
+			.capabilities(physical)
+			.expect("failed to get surface capabilities");
+
+		println!();
+		println!("{:?}", caps);
+		println!();
+
+		let format = fmt(&caps);
 		let usage = caps.supported_usage_flags;
 		let alpha = caps.supported_composite_alpha.iter().next().unwrap();
 		let dimensions = caps.current_extent.unwrap_or([1024, 768]);
@@ -42,15 +67,19 @@ impl<'a> Chain<'a> {
 				true, None)
 			.expect("failed to create swapchain");
 
-		(Self {
-			dimensions,
-			physical,
-			window,
-			swapchain,
-			queue,
+		(
+			Self {
+				dimensions,
+				physical,
+				window,
+				swapchain,
+				queue,
+				device,
 
-			recreate_swapchain: false,
-		}, images)
+				recreate_swapchain: false,
+			},
+			images
+		)
 	}
 	pub fn format(&self) -> Format {
 		self.swapchain.format()
@@ -94,12 +123,12 @@ impl<'a> Chain<'a> {
 	}
 }
 
-pub struct Fbr {
+pub struct Fb {
 	pub framebuffers: Vec<Arc<FramebufferAbstract + Send + Sync>>,
 	pub rp: Arc<RenderPassAbstract + Send + Sync>,
 }
 
-impl Fbr {
+impl Fb {
 	pub fn new(rp: Arc<RenderPassAbstract + Send + Sync>) -> Self {
 		Self {
 			rp,

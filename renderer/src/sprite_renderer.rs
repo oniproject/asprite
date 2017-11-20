@@ -11,7 +11,7 @@ pub struct SpriteRenderer {
 	uniform: CpuBufferPool<Uniform>,
 	proj_set: Projection,
 
-	pub fbr: Fbr,
+	pub fb: Fb,
 }
 
 impl SpriteRenderer {
@@ -23,8 +23,8 @@ impl SpriteRenderer {
 		let vs = shader.vert_entry_point();
 		let fs = shader.frag_entry_point(group_size);
 
-		let mut fbr = Fbr::simple(swapchain.clone());
-		fbr.fill(images);
+		let mut fb = Fb::simple(swapchain.clone());
+		fb.fill(images);
 
 		let pipeline = GraphicsPipeline::start()
 			.vertex_input_single_buffer::<sprite_shader::Vertex>()
@@ -33,7 +33,7 @@ impl SpriteRenderer {
 			.viewports_dynamic_scissors_irrelevant(1)
 			.fragment_shader(fs.0, fs.1)
 			.blend_alpha_blending()
-			.render_pass(Subpass::from(fbr.rp.clone(), 0).unwrap())
+			.render_pass(Subpass::from(fb.rp.clone(), 0).unwrap())
 			.build(device.clone())?;
 
 		let pipeline = Arc::new(pipeline);
@@ -52,11 +52,11 @@ impl SpriteRenderer {
 
 		let vbo = VBO::new(device.clone(), capacity);
 
-		Ok(Self { pipeline, uniform, proj_set, ibo, vbo, fbr })
+		Ok(Self { pipeline, uniform, proj_set, ibo, vbo, fb })
 	}
 
 	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
-		self.fbr.fill(images);
+		self.fb.fill(images);
 	}
 
 	pub fn flush(&mut self, cb: CmdBuild, state: DynamicState, textures: &[Texture]) -> Result<CmdBuild> {

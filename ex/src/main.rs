@@ -18,19 +18,18 @@ extern crate fnv;
 extern crate rayon;
 extern crate rand;
 
-extern crate winit;
 #[macro_use] extern crate derivative;
-#[macro_use] extern crate vulkano;
+
+extern crate winit;
+extern crate vulkano;
 extern crate vulkano_win;
 
 use vulkano_win::VkSurfaceBuild;
 use vulkano::sync::GpuFuture;
 use vulkano::instance::{Instance, PhysicalDevice};
-use vulkano::device::{Device, DeviceExtensions};
 
 use specs::World;
 
-use std::sync::Arc;
 use std::time::{Instant, Duration};
 
 use math::*;
@@ -52,6 +51,7 @@ pub const BATCH_CAPACITY: usize = 2_000;
 pub const RES: &str = "./ex/res.toml";
 
 fn main() {
+
 	let extensions = vulkano_win::required_extensions();
 	let instance = Instance::new(None, &extensions, &[])
 		.expect("failed to create instance");
@@ -65,31 +65,7 @@ fn main() {
 		.build_vk_surface(&events_loop, instance.clone())
 		.expect("can't build window");
 
-	let surface = window.surface().clone();
-
-	let queue = physical.queue_families()
-		.find(|&q| q.supports_graphics() && surface.is_supported(q).unwrap_or(false))
-		.expect("couldn't find a graphical queue family");
-
-	let device_ext = DeviceExtensions {
-		khr_swapchain: true,
-		.. DeviceExtensions::none()
-	};
-	let (device, mut queues) = Device::new(
-			physical, physical.supported_features(),
-			&device_ext, [(queue, 0.5)].iter().cloned())
-		.expect("failed to create device");
-	let queue = queues.next().unwrap();
-
-	let caps = surface
-		.capabilities(physical)
-		.expect("failed to get surface capabilities");
-
-	println!();
-	println!("{:?}", caps);
-	println!();
-
-	let format = caps.supported_formats[0].0;
+	let (chain, images) = Chain::new(physical, window, |caps| caps.supported_formats[0].0);
 
 	let (textures_future, textures) = {
 		use std::io::prelude::*;
@@ -107,7 +83,7 @@ fn main() {
 		let decoded: Assets = toml::from_slice(&buffer).unwrap();
 		println!("{:#?}", decoded);
 
-		Texture::load_vec(queue.clone(), &decoded.images).unwrap()
+		Texture::load_vec(chain.queue.clone(), &decoded.images).unwrap()
 	};
 
 	let (mut world, mut dispatcher) = {
@@ -120,15 +96,6 @@ fn main() {
 
 		let arena = arena::Arena::new(textures.clone());
 		let input = input::InputSystem { events_loop, add: false };
-
-		let (chain, images) = Chain::new(
-			caps,
-			queue.clone(),
-			surface,
-			window,
-			physical,
-			format,
-		);
 
 		let (buf, index_future) = Batcher::new(BATCH_CAPACITY, TEXTURE_COUNT, chain, &images);
 

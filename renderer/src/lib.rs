@@ -22,6 +22,7 @@ use vulkano::buffer::cpu_pool::{CpuBufferPool, CpuBufferPoolChunk};
 use vulkano::buffer::{BufferUsage, BufferAccess};
 use vulkano::buffer::BufferSlice;
 use vulkano::framebuffer::{RenderPassAbstract, Subpass};
+use vulkano::framebuffer::Framebuffer;
 use vulkano::command_buffer::AutoCommandBufferBuilder as CmdBuild;
 use vulkano::command_buffer::DynamicState;
 use vulkano::device::{Device, Queue};
@@ -38,7 +39,6 @@ use vulkano::swapchain::{
 	acquire_next_image,
 	AcquireError,
 };
-use vulkano::framebuffer::Framebuffer;
 
 use vulkano::memory::pool::StdMemoryPool;
 use vulkano::memory::pool::MemoryPool;

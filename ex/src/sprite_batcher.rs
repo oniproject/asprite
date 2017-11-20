@@ -2,8 +2,6 @@ use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::DynamicState;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::device::Queue;
-use vulkano::framebuffer::RenderPassAbstract;
-use vulkano::framebuffer::Subpass;
 use vulkano::image::SwapchainImage;
 use vulkano::sync::GpuFuture;
 
@@ -109,7 +107,7 @@ impl<'a, 'sys> specs::System<'sys> for Batcher<'a> {
 
 		let clear = vec![[0.0, 0.0, 1.0, 1.0].into()];
 
-		let fb = self.renderer.fbr.at(image_num);
+		let fb = self.renderer.fb.at(image_num);
 		let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(self.queue.device().clone(), self.queue.family())
 			.unwrap()
 			.begin_render_pass(fb.clone(), false, clear).unwrap();
@@ -124,24 +122,21 @@ impl<'a, 'sys> specs::System<'sys> for Batcher<'a> {
 		cb = self.renderer.flush(cb, state.clone()).unwrap();
 		future.then_execute(self.queue.clone(), cb.end_render_pass().unwrap().build().unwrap());
 
-		{
+		if true {
 			let dt = duration_to_secs(*dt);
 			use specs::Join;
 			let text = format!("{} {} A japanese poem: 123 456 7890
 				Feel free to type out some text, and delete it with Backspace. You can also try resizing this window.",
 			e.join().count(), dt);
 
-			let fb = self.renderer.text.fbr.at(image_num);
-
 			let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(self.queue.device().clone(), self.queue.family())
-				.unwrap()
-				.begin_render_pass(fb.clone(), false, Vec::new()).unwrap();
+				.unwrap();
 
 			let text = Text::new(&self.font, text, 24.0)
 				.lay(Vector2::new(100.0, 200.0), 500);
 
-			cb = self.renderer.text(cb, state.clone(), &text).unwrap();
-			future.then_execute(self.queue.clone(), cb.end_render_pass().unwrap().build().unwrap());
+			cb = self.renderer.text(cb, state.clone(), &text, image_num).unwrap();
+			future.then_execute(self.queue.clone(), cb.build().unwrap());
 		}
 
 		future.then_swapchain_present(self.queue.clone(), self.chain.swapchain.clone(), image_num);

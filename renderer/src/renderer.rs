@@ -6,14 +6,13 @@ pub struct Renderer {
 
 	pub group: Group,
 	pub empty: Texture,
-	pub fbr: Fbr,
+	pub fb: Fb,
 }
 
 impl Renderer {
 	pub fn new(queue: Arc<Queue>, swapchain: Arc<Swapchain>, images: &[Arc<SwapchainImage>], capacity: usize, group_size: u32)
 		-> Result<(Self, Box<GpuFuture + Send + Sync>)>
 	{
-		let device = queue.device().clone();
 		let (index, index_future) = QuadIBO::new(queue.clone(), capacity * INDEX_BY_SPRITE)?;
 
 		let group = Group::new(group_size as usize);
@@ -23,17 +22,17 @@ impl Renderer {
 		let sprite = SpriteRenderer::new(queue.clone(), index.clone(), swapchain.clone(), &images, capacity, group_size)?;
 		let text   =   TextRenderer::new(queue.clone(), index.clone(), swapchain.clone(), &images, 1024, 1024)?;
 
-		let mut fbr = Fbr::clear(swapchain.clone());
-		fbr.fill(&images);
+		let mut fb = Fb::clear(swapchain.clone());
+		fb.fill(&images);
 
 		Ok((
-			Self { empty, group, sprite, text, fbr },
+			Self { empty, group, sprite, text, fb },
 			Box::new(index_future)
 		))
 	}
 
 	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
-		self.fbr.fill(images);
+		self.fb.fill(images);
 		self.text.refill(images);
 		self.sprite.refill(images);
 	}
@@ -44,8 +43,8 @@ impl Renderer {
 		Ok(())
 	}
 
-	pub fn text<'a>(&mut self, cb: CmdBuild, state: DynamicState, text: &Text<'a>) -> Result<CmdBuild> {
-		Ok(self.text.text(cb, state, &text)?)
+	pub fn text<'a>(&mut self, cb: CmdBuild, state: DynamicState, text: &Text<'a>, image_num: usize) -> Result<CmdBuild> {
+		Ok(self.text.text(cb, state, &text, image_num)?)
 	}
 
 	pub fn flush(&mut self, cb: CmdBuild, state: DynamicState) -> Result<CmdBuild> {

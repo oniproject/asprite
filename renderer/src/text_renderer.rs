@@ -1,39 +1,40 @@
 use vulkano::format::R8Unorm;
-use vulkano::image::StorageImage;
+use vulkano::image::ImmutableImage;
 use vulkano::image::ImageLayout;
-use vulkano::command_buffer::synced::*;
-use vulkano::command_buffer::sys::UnsafeCommandBufferBuilderBufferImageCopy;
-use vulkano::command_buffer::sys::UnsafeCommandBufferBuilderImageAspect;
-use vulkano::image::ImageAccess;
+use vulkano::image::ImageUsage;
 
 use super::*;
 use text_shader::*;
 
-use std::iter;
-
 use rusttype::PositionedGlyph;
 use rusttype::gpu_cache::Cache;
 
+/*
 #[inline(always)]
 unsafe fn as_sync_cmd_buf<P>(cb: &mut CmdBuild<P>) -> &mut SyncCommandBufferBuilder<P> {
 	::std::mem::transmute::<&mut CmdBuild<P>, &mut SyncCommandBufferBuilder<P>>(cb)
 }
+*/
 
 pub struct TextRenderer {
 	vbo: VBO<text_shader::Vertex>,
 	ibo: QuadIBO<u16>,
 
+	queue: Arc<Queue>,
+
 	cache: Cache,
-	texture: Arc<StorageImage<R8Unorm>>,
+	cache_size: (usize, usize),
+	cache_pixel_buffer: Vec<u8>,
+
 	sampler: Arc<Sampler>,
 	pool: CpuBufferPool<u8>,
 
 	pipeline: ArcPipeline<text_shader::Vertex>,
 	uniform: CpuBufferPool<text_shader::Uniform>,
 
-	upload: bool,
+	upload: Option<Arc<ImmutableImage<R8Unorm>>>,
 
-	pub fbr: Fbr,
+	pub fb: Fb,
 
 	wh: Vector2<f32>,
 }
@@ -41,11 +42,6 @@ pub struct TextRenderer {
 impl TextRenderer {
 	pub fn new(queue: Arc<Queue>, ibo: QuadIBO<u16>, swapchain: Arc<Swapchain>, images: &[Arc<SwapchainImage>], width: u32, height: u32) -> Result<Self> {
 		let device = queue.device().clone();
-		let f = ::std::iter::once(queue.family());
-		let texture = StorageImage::new(
-			device.clone(),
-			Dimensions::Dim2d { width, height },
-			R8Unorm, f)?;
 
 		let sampler = Sampler::new(
 			device.clone(),
@@ -59,13 +55,16 @@ impl TextRenderer {
 		let pool = CpuBufferPool::upload(device.clone());
 		let cache = Cache::new(width, height, 0.1, 0.1);
 
+		let size = width*height;
+		let cache_pixel_buffer = vec![0; size as usize];
+
 		let shader = text_shader::Shader::load(device.clone())?;
 
 		let vs = shader.vert_entry_point();
 		let fs = shader.frag_entry_point();
 
-		let mut fbr = Fbr::simple(swapchain.clone());
-		fbr.fill(images);
+		let mut fb = Fb::simple(swapchain.clone());
+		fb.fill(images);
 
 		let pipeline = GraphicsPipeline::start()
 			.vertex_input_single_buffer::<text_shader::Vertex>()
@@ -74,7 +73,7 @@ impl TextRenderer {
 			.viewports_dynamic_scissors_irrelevant(1)
 			.fragment_shader(fs.0, fs.1)
 			.blend_alpha_blending()
-			.render_pass(Subpass::from(fbr.rp.clone(), 0).unwrap())
+			.render_pass(Subpass::from(fb.rp.clone(), 0).unwrap())
 			.build(device.clone())?;
 
 		let pipeline = Arc::new(pipeline);
@@ -85,23 +84,36 @@ impl TextRenderer {
 		let capacity = 2000;
 		let vbo = VBO::new(device.clone(), capacity);
 
-		Ok(Self { texture, sampler, cache, pool, pipeline, uniform, wh, vbo, ibo, upload: false, fbr })
+		Ok(Self {
+			queue,
+
+			//texture,
+			sampler,
+			cache, cache_pixel_buffer,
+			cache_size: (width as usize, height as usize),
+			pool, pipeline,
+			uniform,
+			wh, vbo,
+			ibo,
+			fb,
+			upload: None,
+		})
 	}
 
 	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
-		self.fbr.fill(images);
+		self.fb.fill(images);
 	}
 
-	pub fn text<'a>(&mut self, cb: CmdBuild, state: DynamicState, text: &Text<'a>) -> Result<CmdBuild> {
-		self.glyphs(cb, state, text.glyphs())
+	pub fn text<'a>(&mut self, cb: CmdBuild, state: DynamicState, text: &Text<'a>, image_num: usize) -> Result<CmdBuild> {
+		self.glyphs(cb, state, text.glyphs(), image_num)
 	}
 
-	pub fn glyphs<'a>(&mut self, mut cb: CmdBuild, state: DynamicState, glyphs: &[PositionedGlyph<'a>]) -> Result<CmdBuild> {
+	pub fn glyphs<'a>(&mut self, cb: CmdBuild, state: DynamicState, glyphs: &[PositionedGlyph<'a>], image_num: usize) -> Result<CmdBuild> {
 		for g in glyphs.iter().cloned() {
 			self.cache.queue_glyph(0, g);
 		}
 
-		self.cache_queued(&mut cb)?;
+		let (tex, cb) = self.cache_queued(cb)?;
 
 		let cache = &mut self.cache;
 		for (uv, pos) in glyphs.into_iter().filter_map(|g| cache.rect_for(0, g).unwrap()) {
@@ -140,66 +152,75 @@ impl TextRenderer {
 		};
 
 		let tset = PersistentDescriptorSet::start(self.pipeline.clone(), 1)
-			.add_sampled_image(self.texture.clone(), self.sampler.clone())?
+			.add_sampled_image(tex, self.sampler.clone())?
 			.build()?;
 
 		let set = (Arc::new(proj), Arc::new(tset));
 
-		if !self.upload {
-			Ok(cb.draw_indexed(self.pipeline.clone(), state, vbo, ibo, set, ())?)
-		} else {
-			self.upload = false;
-			Ok(cb)
-		}
+		Ok(cb
+			.begin_render_pass(self.fb.at(image_num).clone(), false, Vec::new())?
+			.draw_indexed(self.pipeline.clone(), state, vbo, ibo, set, ())?
+			.end_render_pass()?
+		)
 	}
 
-	fn cache_queued(&mut self, cb: &mut CmdBuild) -> Result<()> {
-		let pool = &mut self.pool;
-		let dst = self.texture.clone();
+	fn cache_queued(&mut self, cb: CmdBuild) -> Result<(Arc<ImmutableImage<R8Unorm>>, CmdBuild)> {
+		{
+			let upload = &mut self.upload;
 
-		let cb = unsafe { as_sync_cmd_buf(cb) };
+			let dst = &mut self.cache_pixel_buffer;
+			let stride = self.cache_size.0;
 
-		let upload = &mut self.upload;
+			self.cache.cache_queued(|rect, src| {
+				*upload = None;
 
-		self.cache.cache_queued(|rect, data| {
-			*upload = true;
+				let w = (rect.max.x - rect.min.x) as usize;
+				let h = (rect.max.y - rect.min.y) as usize;
+				let mut dst_index = rect.min.y as usize * stride + rect.min.x as usize;
+				let mut src_index = 0;
 
-			if data.is_empty() { return; }
+				for _ in 0..h {
+					let dst_slice = &mut dst[dst_index..dst_index+w];
+					let src_slice = &src[src_index..src_index+w];
+					dst_slice.copy_from_slice(src_slice);
 
-			let dst = dst.clone();
-			let src = pool.chunk(data.iter().cloned()).unwrap();
-
-			let offset = rect.min;
-			let size = rect.max - rect.min;
-
-			unsafe {
-				let copy = UnsafeCommandBufferBuilderBufferImageCopy {
-					buffer_offset: 0,
-					buffer_row_length: 0,
-					buffer_image_height: 0,
-					image_aspect: UnsafeCommandBufferBuilderImageAspect {
-						color: true,
-						depth: false,
-						stencil: false,
-					},
-					image_mip_level: 0,
-					image_base_array_layer: 0,
-					image_layer_count: 1,
-					image_offset: [offset.x as i32, offset.y as i32, 0],
-					image_extent: [size.x, size.y, 1],
-				};
-
-				if let Err(err) = cb.copy_buffer_to_image(
-					src, dst,
-					ImageLayout::TransferDstOptimal,
-					iter::once(copy),
-				) {
-					//println!("{:?} :: {:?}, {:?} size({:?} for {})", err, rect, offset, size, data.len());
+					dst_index += stride;
+					src_index += w;
 				}
-			}
-		}).unwrap();
+			}).unwrap();
+		}
 
-		Ok(())
+		let (tex, cb) = match self.upload {
+			Some(ref tex) => (tex.clone(), cb),
+			None => {
+				let device = self.queue.device().clone();
+
+				let buffer = self.pool.chunk(self.cache_pixel_buffer.iter().cloned())?;
+
+				let (cache_texture, cache_texture_write) = ImmutableImage::uninitialized(
+					device.clone(),
+					Dimensions::Dim2d {
+						width: self.cache_size.0 as u32,
+						height: self.cache_size.1 as u32,
+					},
+					R8Unorm,
+					1,
+					ImageUsage {
+						sampled: true,
+						transfer_destination: true,
+						.. ImageUsage::none()
+					},
+					ImageLayout::General,
+					Some(self.queue.family()),
+				)?;
+
+				self.upload = Some(cache_texture.clone());
+
+				(cache_texture, cb.copy_buffer_to_image(buffer.clone(), cache_texture_write)?)
+			}
+		};
+
+		Ok((tex, cb))
 	}
 
 	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
