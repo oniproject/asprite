@@ -2,6 +2,7 @@
 #![feature(rustc_attrs)]
 #![feature(derive_clone_copy)]
 #![feature(const_fn)]
+#![feature(conservative_impl_trait)]
 
 extern crate renderer;
 extern crate math;
@@ -25,23 +26,13 @@ extern crate vulkano_win;
 use vulkano_win::VkSurfaceBuild;
 use vulkano::sync::GpuFuture;
 use vulkano::instance::{Instance, PhysicalDevice};
-use vulkano::device::{Queue, Device, DeviceExtensions};
-use vulkano::swapchain::{
-	Swapchain,
-	SurfaceTransform,
-	PresentMode,
-	SwapchainCreationError,
-	acquire_next_image,
-	AcquireError,
-};
-use vulkano::framebuffer::Framebuffer;
+use vulkano::device::{Device, DeviceExtensions};
 
 use specs::World;
 
 use std::sync::Arc;
 use std::time::{Instant, Duration};
 
-use renderer::vertex::*;
 use math::*;
 
 mod arena;
@@ -50,9 +41,7 @@ mod sprite;
 mod tsys;
 mod state;
 mod sprite_batcher;
-mod chain;
 
-use chain::*;
 use sprite::*;
 use renderer::*;
 use sprite_batcher::*;
@@ -96,25 +85,11 @@ fn main() {
 		.capabilities(physical)
 		.expect("failed to get surface capabilities");
 
+	println!();
 	println!("{:?}", caps);
+	println!();
 
 	let format = caps.supported_formats[0].0;
-
-	let renderpass = single_pass_renderpass!(device.clone(),
-			attachments: {
-				color: {
-					load: Clear,
-					store: Store,
-					format: format,
-					samples: 1,
-				}
-			},
-			pass: {
-				color: [color],
-				depth_stencil: {}
-			}
-		).unwrap();
-	let renderpass = Arc::new(renderpass);
 
 	let (textures_future, textures) = {
 		use std::io::prelude::*;
@@ -132,11 +107,12 @@ fn main() {
 		let decoded: Assets = toml::from_slice(&buffer).unwrap();
 		println!("{:#?}", decoded);
 
-		Texture::load_vec(queue.clone(), device.clone(), &decoded.images).unwrap()
+		Texture::load_vec(queue.clone(), &decoded.images).unwrap()
 	};
 
-	let mut ticker = Ticker::new();
 	let (mut world, mut dispatcher) = {
+		println!("create world");
+
 		let mut world = World::new();
 		world.register::<Sprite>();
 		world.register::<SpriteTransform>();
@@ -145,11 +121,38 @@ fn main() {
 		let arena = arena::Arena::new(textures.clone());
 		let input = input::InputSystem { events_loop, add: false };
 
-		let (buf, index_future) = Batcher::new(device.clone(), queue.clone(), renderpass.clone(), BATCH_CAPACITY, TEXTURE_COUNT);
+		let renderpass = Arc::new(single_pass_renderpass!(device.clone(),
+				attachments: {
+					color: {
+						load: Clear,
+						store: Store,
+						format: format,
+						samples: 1,
+					}
+				},
+				pass: {
+					color: [color],
+					depth_stencil: {}
+				}
+			).unwrap());
+
+		let (chain, images) = Chain::new(
+			caps,
+			queue.clone(),
+			surface,
+			window,
+			physical,
+			format,
+		);
+
+		let (buf, index_future) = Batcher::new(queue.clone(), renderpass.clone(), BATCH_CAPACITY, TEXTURE_COUNT, chain, &images);
 
 		let future: Box<GpuFuture + Send + Sync> = Box::new(textures_future.join(index_future));
-		world.add_resource(future);
-		world.add_resource(BATCH_CAPACITY);
+
+		world.add_resource(Future::new(future));
+		world.add_resource(BATCH_CAPACITY as usize);
+		world.add_resource(Vector2::new(1024.0f32, 786.0));
+		world.add_resource(Duration::default());
 
 		let dispatcher = specs::DispatcherBuilder::new()
 			.add(arena, "mark", &[])
@@ -161,44 +164,16 @@ fn main() {
 		(world, dispatcher)
 	};
 
-	let mut chain = Chain::new(
-		renderpass,
-		caps,
-		device,
-		queue.clone(),
-		surface,
-		window,
-		physical,
-		format,
-	);
+	println!();
+	println!("start");
 
+	let mut ticker = Ticker::new();
 	loop {
-		world.write_resource::<Box<GpuFuture + Send + Sync>>().cleanup_finished();
-
-		let (fb, image_num, sw_future) = match chain.run() {
-			Some(fb) => fb,
-			None => continue,
-		};
-
-		world.add_resource(fb);
-
-		temporarily_move_out::<Box<GpuFuture + Send + Sync>, _, _>(
-			world.write_resource(), |tmp| Box::new(tmp.join(sw_future)));
-
 		ticker.update();
 		world.add_resource(ticker.elapsed);
-		world.add_resource(chain.dim());
 
 		dispatcher.dispatch(&mut world.res);
 		world.maintain();
-
-		temporarily_move_out::<Box<GpuFuture + Send + Sync>, _, _>(
-			world.write_resource(), |future| {
-				let future = future
-					.then_swapchain_present(queue.clone(), chain.swapchain.clone(), image_num)
-					.then_signal_fence_and_flush().unwrap();
-				Box::new(future)
-			});
 	}
 }
 

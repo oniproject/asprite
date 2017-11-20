@@ -2,7 +2,6 @@ use super::*;
 
 #[derive(Clone)]
 struct Share<Rp> {
-	device: Arc<Device>,
 	queue: Arc<Queue>,
 	index: QuadIBO<u16>,
 	pass: Subpass<Arc<Rp>>,
@@ -19,17 +18,18 @@ pub struct Renderer<Rp> {
 impl<Rp> Renderer<Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
-	pub fn new(device: Arc<Device>, queue: Arc<Queue>, pass: Subpass<Arc<Rp>>, capacity: usize, group_size: u32)
+	pub fn new(queue: Arc<Queue>, pass: Subpass<Arc<Rp>>, capacity: usize, group_size: u32)
 		-> Result<(Self, Box<GpuFuture + Send + Sync>)>
 	{
+		let device = queue.device().clone();
 		let (index, index_future) = QuadIBO::new(queue.clone(), capacity * INDEX_BY_SPRITE)?;
 
 		let group = Group::new(group_size as usize);
-		let (fu, empty) = Texture::one_white_pixel(queue.clone(), device.clone())?;
+		let (fu, empty) = Texture::one_white_pixel(queue.clone())?;
 		let index_future = index_future.join(fu);
 
-		let sprite = SpriteRenderer::new(device.clone(), index.clone(), pass.clone(), capacity, group_size)?;
-		let text = TextRenderer::new(device.clone(), queue.clone(), index.clone(), pass.clone(), 1024, 1024)?;
+		let sprite = SpriteRenderer::new(queue.clone(), index.clone(), pass.clone(), capacity, group_size)?;
+		let text   =   TextRenderer::new(queue.clone(), index.clone(), pass.clone(), 1024, 1024)?;
 
 		Ok((
 			Self { empty, group, sprite, text },

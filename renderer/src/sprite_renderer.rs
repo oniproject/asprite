@@ -15,7 +15,8 @@ pub struct SpriteRenderer<Rp> {
 impl<Rp> SpriteRenderer<Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
-	pub fn new(device: Arc<Device>, ibo: QuadIBO<u16>, pass: Subpass<Arc<Rp>>, capacity: usize, group_size: u32) -> Result<Self> {
+	pub fn new(queue: Arc<Queue>, ibo: QuadIBO<u16>, pass: Subpass<Arc<Rp>>, capacity: usize, group_size: u32) -> Result<Self> {
+		let device = queue.device().clone();
 		assert_eq!(group_size, 16);
 		let shader = Shader::load(device.clone())?;
 

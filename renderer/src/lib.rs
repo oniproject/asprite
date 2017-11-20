@@ -5,6 +5,9 @@ extern crate math;
 use math::*;
 
 #[macro_use] extern crate vulkano;
+extern crate winit;
+extern crate vulkano_win;
+
 #[macro_use] extern crate error_chain;
 #[macro_use] extern crate derivative;
 extern crate image;
@@ -23,6 +26,17 @@ use vulkano::device::{Device, Queue};
 use vulkano::sync::GpuFuture;
 use vulkano::sync::now as vk_now;
 use vulkano::format::Format;
+
+use vulkano::instance::{Instance, PhysicalDevice};
+use vulkano::swapchain::{
+	Swapchain,
+	SurfaceTransform,
+	PresentMode,
+	SwapchainCreationError,
+	acquire_next_image,
+	AcquireError,
+};
+use vulkano::framebuffer::Framebuffer;
 
 use vulkano::memory::pool::StdMemoryPool;
 use vulkano::memory::pool::MemoryPool;
@@ -123,6 +137,9 @@ mod text_renderer;
 mod sprite_shader;
 mod sprite_renderer;
 
+mod future;
+mod chain;
+
 use self::errors::*;
 use self::sprite_renderer::*;
 use self::text_renderer::*;
@@ -132,6 +149,8 @@ use self::vbo::*;
 
 use self::vertex::*;
 
+pub use self::chain::*;
+pub use self::future::*;
 pub use self::text::*;
 pub use self::texture::*;
 pub use self::renderer::*;

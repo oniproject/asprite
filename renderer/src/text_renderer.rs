@@ -39,7 +39,8 @@ pub struct TextRenderer<Rp> {
 impl<Rp> TextRenderer<Rp>
 	where Rp: RenderPassAbstract + Send + Sync + 'static
 {
-	pub fn new(device: Arc<Device>, queue: Arc<Queue>, ibo: QuadIBO<u16>, pass: Subpass<Arc<Rp>>, width: u32, height: u32) -> Result<Self> {
+	pub fn new(queue: Arc<Queue>, ibo: QuadIBO<u16>, pass: Subpass<Arc<Rp>>, width: u32, height: u32) -> Result<Self> {
+		let device = queue.device().clone();
 		let f = ::std::iter::once(queue.family());
 		let texture = StorageImage::new(
 			device.clone(),

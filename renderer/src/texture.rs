@@ -18,9 +18,10 @@ impl PartialEq for Texture {
 }
 
 impl Texture {
-	pub fn one_white_pixel(queue: Arc<Queue>, device: Arc<Device>) ->
+	pub fn one_white_pixel(queue: Arc<Queue>) ->
 		Result<(Box<GpuFuture + Send + Sync>, Self)>
 	{
+		let device = queue.device().clone();
 		let pixel = &[[0xFFu8; 4]; 1];
 
 		let (texture, future) = ImmutableImage::from_iter(
@@ -42,17 +43,18 @@ impl Texture {
 		Ok((future, Self { wh: (1, 1), texture, sampler }))
 	}
 
-	pub fn load_vec<P>(queue: Arc<Queue>, device: Arc<Device>, images: &[P]) ->
+	pub fn load_vec<P>(queue: Arc<Queue>, images: &[P]) ->
 		Result<(Box<GpuFuture + Send + Sync>, Vec<Self>)>
 		where P: AsRef<Path>
 	{
+		let device = queue.device().clone();
 		let mut future =
 			Box::new(vk_now(device.clone()))
 			as Box<GpuFuture + Send + Sync>;
 
 		let mut textures = Vec::with_capacity(images.len());
 		for m in images {
-			let (f, t) = Self::load(queue.clone(), device.clone(), m)?;
+			let (f, t) = Self::load(queue.clone(), m)?;
 			future = Box::new(future.join(f));
 			textures.push(t);
 		}
@@ -60,10 +62,11 @@ impl Texture {
 		Ok((future, textures))
 	}
 
-	pub fn load<P>(queue: Arc<Queue>, device: Arc<Device>, path: P) ->
+	pub fn load<P>(queue: Arc<Queue>, path: P) ->
 		Result<(Box<GpuFuture + Send + Sync>, Self)>
 		where P: AsRef<Path>
 	{
+		let device = queue.device().clone();
 		let sampler = Sampler::new(
 			device.clone(),
 			Filter::Nearest, Filter::Nearest,

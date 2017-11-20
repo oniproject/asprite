@@ -768,6 +768,8 @@ dependencies = [
  "rusttype 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicode-normalization 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "vulkano 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "vulkano-win 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winit 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

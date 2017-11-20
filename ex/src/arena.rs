@@ -61,6 +61,7 @@ impl Arena {
 	}
 }
 
+/*
 pub struct Time {
 	pub d: Duration,
 }
@@ -75,15 +76,18 @@ impl Time {
 		(self.d.as_secs() * 1_000_000_000) + self.d.subsec_nanos() as u64
 	}
 }
+*/
 
 #[inline(always)]
 fn duration_to_secs(d: Duration) -> f32 {
 	d.as_secs() as f32 + (d.subsec_nanos() as f32 / 1.0e9)
 }
+/*
 #[inline(always)]
 fn duration_to_nanos(d: Duration) -> u64 {
 	(d.as_secs() * 1_000_000_000) + d.subsec_nanos() as u64
 }
+*/
 
 impl<'a> System<'a> for Arena {
 	type SystemData = (
