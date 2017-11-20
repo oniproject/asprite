@@ -4,24 +4,27 @@ use sprite_shader::*;
 //vulkano::pipeline::vertex::SingleBufferDefinition<vertex::Vertex>:
 //vulkano::pipeline::vertex::VertexSource<vulkano::buffer::cpu_pool::CpuBufferPoolChunk<vertex::Vertex, A>>
 
-pub struct SpriteRenderer<Rp> {
+pub struct SpriteRenderer {
 	pub vbo: VBO<sprite_shader::Vertex>,
 	ibo: QuadIBO<u16>,
-	pipeline: Pipeline<Rp, sprite_shader::Vertex>,
+	pipeline: ArcPipeline<sprite_shader::Vertex>,
 	uniform: CpuBufferPool<Uniform>,
 	proj_set: Projection,
+
+	pub fbr: Fbr,
 }
 
-impl<Rp> SpriteRenderer<Rp>
-	where Rp: RenderPassAbstract + Send + Sync + 'static
-{
-	pub fn new(queue: Arc<Queue>, ibo: QuadIBO<u16>, pass: Subpass<Arc<Rp>>, capacity: usize, group_size: u32) -> Result<Self> {
+impl SpriteRenderer {
+	pub fn new(queue: Arc<Queue>, ibo: QuadIBO<u16>, swapchain: Arc<Swapchain>, images: &[Arc<SwapchainImage>], capacity: usize, group_size: u32) -> Result<Self> {
 		let device = queue.device().clone();
 		assert_eq!(group_size, 16);
 		let shader = Shader::load(device.clone())?;
 
 		let vs = shader.vert_entry_point();
 		let fs = shader.frag_entry_point(group_size);
+
+		let mut fbr = Fbr::simple(swapchain.clone());
+		fbr.fill(images);
 
 		let pipeline = GraphicsPipeline::start()
 			.vertex_input_single_buffer::<sprite_shader::Vertex>()
@@ -30,7 +33,7 @@ impl<Rp> SpriteRenderer<Rp>
 			.viewports_dynamic_scissors_irrelevant(1)
 			.fragment_shader(fs.0, fs.1)
 			.blend_alpha_blending()
-			.render_pass(pass)
+			.render_pass(Subpass::from(fbr.rp.clone(), 0).unwrap())
 			.build(device.clone())?;
 
 		let pipeline = Arc::new(pipeline);
@@ -49,7 +52,11 @@ impl<Rp> SpriteRenderer<Rp>
 
 		let vbo = VBO::new(device.clone(), capacity);
 
-		Ok(Self { pipeline, uniform, proj_set, ibo, vbo })
+		Ok(Self { pipeline, uniform, proj_set, ibo, vbo, fbr })
+	}
+
+	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
+		self.fbr.fill(images);
 	}
 
 	pub fn flush(&mut self, cb: CmdBuild, state: DynamicState, textures: &[Texture]) -> Result<CmdBuild> {

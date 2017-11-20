@@ -11,7 +11,10 @@ use math::*;
 
 use std::sync::Arc;
 
-use specs::{self, FetchMut, Join, ReadStorage};
+use specs::{self, Entities, Fetch, FetchMut, Join, ReadStorage};
+
+use std::time::Duration;
+use arena::duration_to_secs;
 
 use sprite::*;
 use renderer::*;
@@ -21,22 +24,16 @@ fn terminus() -> Font<'static> {
 	FontCollection::from_bytes(font as &[u8]).into_font().unwrap()
 }
 
-pub struct Batcher<'a, Rp> {
-	renderer: Renderer<Rp>,
+pub struct Batcher<'a> {
+	renderer: Renderer,
 	chain: Chain<'a>,
 	queue: Arc<Queue>,
 	last_wh: Vector2<f32>,
 	font: Font<'a>,
-
-	fbr: FbR<Rp>,
 }
 
-impl<'a, Rp> Batcher<'a, Rp>
-	where Rp: RenderPassAbstract + Send + Sync + 'static
-{
+impl<'a> Batcher<'a> {
 	pub fn new(
-		queue: Arc<Queue>,
-		renderpass: Arc<Rp>,
 		capacity: usize,
 		group_size: u32,
 		chain: Chain<'a>,
@@ -44,21 +41,17 @@ impl<'a, Rp> Batcher<'a, Rp>
 		)
 		-> (Self, Box<GpuFuture + Send + Sync>)
 	{
-		let pass = Subpass::from(renderpass.clone(), 0)
-			.expect("failure subpass creation");
-
+		let queue = chain.queue.clone();
 		let (renderer, index_future) =
 			Renderer::new(
 				queue.clone(),
-				pass.clone(),
+				chain.swapchain.clone(),
+				&images,
 				capacity, group_size).unwrap();
-
-		let mut fbr = FbR::new(renderpass.clone());
-		fbr.fill(&images);
 
 		let font = terminus();
 		(
-			Self { queue, renderer, last_wh: Vector2::new(0.0, 0.0), font, chain, fbr },
+			Self { queue, renderer, last_wh: Vector2::new(0.0, 0.0), font, chain },
 			Box::new(index_future)
 		)
 	}
@@ -73,29 +66,28 @@ impl<'a, Rp> Batcher<'a, Rp>
 	}
 }
 
-impl<'a, 'sys, Rp> specs::System<'sys> for Batcher<'a, Rp>
-	where Rp: RenderPassAbstract + Send + Sync + 'static
-{
+impl<'a, 'sys> specs::System<'sys> for Batcher<'a> {
 	type SystemData = (
 		FetchMut<'sys, Future>,
 		FetchMut<'sys, Vector2<f32>>,
 		ReadStorage<'sys, Sprite>,
+		Entities<'sys>,
+		Fetch<'sys, Duration>,
 	);
 
 	fn running_time(&self) -> specs::RunningTime { specs::RunningTime::Long }
 
-	fn run(&mut self, (mut future, mut wh, sprites,): Self::SystemData) {
+	fn run(&mut self, (mut future, mut wh, sprites, e, dt): Self::SystemData) {
 		future.cleanup_finished();
 
 		let (image_num, sw_future) = {
-			let fbr = &mut self.fbr;
-			match self.chain.run(|m| fbr.fill(m)) {
-				Some(fb) => fb,
+			let ren = &mut self.renderer;
+			match self.chain.run(|m| ren.refill(m)) {
+				Some(v) => v,
 				None => return,
 			}
 		};
 
-		let fb = self.fbr.at(image_num);
 		future.join(Box::new(sw_future));
 
 		let wh = {
@@ -117,6 +109,7 @@ impl<'a, 'sys, Rp> specs::System<'sys> for Batcher<'a, Rp>
 
 		let clear = vec![[0.0, 0.0, 1.0, 1.0].into()];
 
+		let fb = self.renderer.fbr.at(image_num);
 		let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(self.queue.device().clone(), self.queue.family())
 			.unwrap()
 			.begin_render_pass(fb.clone(), false, clear).unwrap();
@@ -129,18 +122,28 @@ impl<'a, 'sys, Rp> specs::System<'sys> for Batcher<'a, Rp>
 		}
 
 		cb = self.renderer.flush(cb, state.clone()).unwrap();
+		future.then_execute(self.queue.clone(), cb.end_render_pass().unwrap().build().unwrap());
 
 		{
-				let text = "A japanese poem:
-			Feel free to type out some text, and delete it with Backspace. You can also try resizing this window.";
+			let dt = duration_to_secs(*dt);
+			use specs::Join;
+			let text = format!("{} {} A japanese poem: 123 456 7890
+				Feel free to type out some text, and delete it with Backspace. You can also try resizing this window.",
+			e.join().count(), dt);
+
+			let fb = self.renderer.text.fbr.at(image_num);
+
+			let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(self.queue.device().clone(), self.queue.family())
+				.unwrap()
+				.begin_render_pass(fb.clone(), false, Vec::new()).unwrap();
 
 			let text = Text::new(&self.font, text, 24.0)
 				.lay(Vector2::new(100.0, 200.0), 500);
 
 			cb = self.renderer.text(cb, state.clone(), &text).unwrap();
+			future.then_execute(self.queue.clone(), cb.end_render_pass().unwrap().build().unwrap());
 		}
 
-		future.then_execute(self.queue.clone(), cb.end_render_pass().unwrap().build().unwrap());
 		future.then_swapchain_present(self.queue.clone(), self.chain.swapchain.clone(), image_num);
 		future.then_signal_fence_and_flush();
 	}

@@ -15,6 +15,8 @@ extern crate image;
 extern crate unicode_normalization;
 extern crate rusttype;
 
+use vulkano::image::swapchain::SwapchainImage;
+
 use vulkano::buffer::immutable::ImmutableBuffer;
 use vulkano::buffer::cpu_pool::{CpuBufferPool, CpuBufferPoolChunk};
 use vulkano::buffer::{BufferUsage, BufferAccess};
@@ -159,7 +161,9 @@ const VERTEX_BY_SPRITE: usize = 4;
 const INDEX_BY_SPRITE: usize = 6;
 
 type BoxPipelineLayout = Box<PipelineLayoutAbstract + Send + Sync + 'static>;
-type Pipeline<Rp, Vtx> = Arc<GraphicsPipeline<SingleBufferDefinition<Vtx>, BoxPipelineLayout, Arc<Rp>>>;
+type ArcRenderPass = Arc<RenderPassAbstract + Send + Sync + 'static>;
+type ArcPipeline<Vtx> = Arc<GraphicsPipeline<SingleBufferDefinition<Vtx>, BoxPipelineLayout, ArcRenderPass>>;
+
 type Index<T> = Arc<ImmutableBuffer<[T]>>;
 type Projection = Arc<DescriptorSet + Send + Sync + 'static>;
 

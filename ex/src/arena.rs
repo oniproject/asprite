@@ -79,7 +79,7 @@ impl Time {
 */
 
 #[inline(always)]
-fn duration_to_secs(d: Duration) -> f32 {
+pub fn duration_to_secs(d: Duration) -> f32 {
 	d.as_secs() as f32 + (d.subsec_nanos() as f32 / 1.0e9)
 }
 /*

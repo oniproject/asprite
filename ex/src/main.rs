@@ -121,21 +121,6 @@ fn main() {
 		let arena = arena::Arena::new(textures.clone());
 		let input = input::InputSystem { events_loop, add: false };
 
-		let renderpass = Arc::new(single_pass_renderpass!(device.clone(),
-				attachments: {
-					color: {
-						load: Clear,
-						store: Store,
-						format: format,
-						samples: 1,
-					}
-				},
-				pass: {
-					color: [color],
-					depth_stencil: {}
-				}
-			).unwrap());
-
 		let (chain, images) = Chain::new(
 			caps,
 			queue.clone(),
@@ -145,7 +130,7 @@ fn main() {
 			format,
 		);
 
-		let (buf, index_future) = Batcher::new(queue.clone(), renderpass.clone(), BATCH_CAPACITY, TEXTURE_COUNT, chain, &images);
+		let (buf, index_future) = Batcher::new(BATCH_CAPACITY, TEXTURE_COUNT, chain, &images);
 
 		let future: Box<GpuFuture + Send + Sync> = Box::new(textures_future.join(index_future));
 

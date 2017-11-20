@@ -6,6 +6,8 @@ use vulkano::swapchain::Surface;
 use vulkano_win::Window;
 use vulkano::format::Format;
 use vulkano::swapchain::SwapchainAcquireFuture;
+use vulkano::framebuffer::FramebufferAbstract;
+use vulkano::device::DeviceOwned;
 
 pub struct Chain<'a> {
 	pub recreate_swapchain: bool,
@@ -13,6 +15,7 @@ pub struct Chain<'a> {
 	pub window: Window,
 	pub physical: PhysicalDevice<'a>,
 	pub swapchain: Arc<Swapchain>,
+	pub queue: Arc<Queue>,
 }
 
 impl<'a> Chain<'a> {
@@ -44,11 +47,15 @@ impl<'a> Chain<'a> {
 			physical,
 			window,
 			swapchain,
+			queue,
 
 			recreate_swapchain: false,
 		}, images)
 	}
-	pub fn dim(&mut self) -> Vector2<f32> {
+	pub fn format(&self) -> Format {
+		self.swapchain.format()
+	}
+	pub fn dim(&self) -> Vector2<f32> {
 		let w = self.dimensions[0] as f32;
 		let h = self.dimensions[1] as f32;
 		Vector2::new(w, h)
@@ -87,24 +94,60 @@ impl<'a> Chain<'a> {
 	}
 }
 
-type Fb<Rp> = Arc<Framebuffer<Arc<Rp>, ((), Arc<SwapchainImage>)>>;
-
-pub struct FbR<Rp> {
-	pub framebuffers: Vec<Fb<Rp>>,
-	pub rp: Arc<Rp>,
+pub struct Fbr {
+	pub framebuffers: Vec<Arc<FramebufferAbstract + Send + Sync>>,
+	pub rp: Arc<RenderPassAbstract + Send + Sync>,
 }
 
-impl<Rp> FbR<Rp>
-	where Rp: RenderPassAbstract + Send + Sync + 'static,
-{
-	pub fn new(rp: Arc<Rp>) -> Self {
+impl Fbr {
+	pub fn new(rp: Arc<RenderPassAbstract + Send + Sync>) -> Self {
 		Self {
 			rp,
 			framebuffers: Vec::new(),
 		}
 	}
 
-	pub fn at(&self, num: usize) -> Fb<Rp> {
+	pub fn clear(swapchain: Arc<Swapchain>) -> Self {
+		let device = swapchain.device().clone();
+		let render_pass = Arc::new(single_pass_renderpass!(device,
+			attachments: {
+				color: {
+					load: Clear,
+					store: Store,
+					format: swapchain.format(),
+					samples: 1,
+				}
+			},
+			pass: {
+				color: [color],
+				depth_stencil: {}
+			}
+		).unwrap());
+
+		Self::new(render_pass)
+	}
+
+	pub fn simple(swapchain: Arc<Swapchain>) -> Self {
+		let device = swapchain.device().clone();
+		let render_pass = Arc::new(single_pass_renderpass!(device,
+			attachments: {
+				color: {
+					load: Load,
+					store: Store,
+					format: swapchain.format(),
+					samples: 1,
+				}
+			},
+			pass: {
+				color: [color],
+				depth_stencil: {}
+			}
+		).unwrap());
+
+		Self::new(render_pass)
+	}
+
+	pub fn at(&self, num: usize) -> Arc<FramebufferAbstract + Send + Sync> {
 		self.framebuffers[num].clone()
 	}
 
@@ -113,6 +156,7 @@ impl<Rp> FbR<Rp>
 		let rp = self.rp.clone();
 		self.framebuffers.extend(images.iter().cloned().map(move |image|
 			Arc::new(Framebuffer::start(rp.clone()).add(image).unwrap().build().unwrap())
+				as Arc<FramebufferAbstract + Send + Sync>
 		));
 	}
 }

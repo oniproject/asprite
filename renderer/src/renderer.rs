@@ -1,24 +1,16 @@
 use super::*;
 
-#[derive(Clone)]
-struct Share<Rp> {
-	queue: Arc<Queue>,
-	index: QuadIBO<u16>,
-	pass: Subpass<Arc<Rp>>,
+pub struct Renderer {
+	pub sprite: SpriteRenderer,
+	pub text: TextRenderer,
+
+	pub group: Group,
+	pub empty: Texture,
+	pub fbr: Fbr,
 }
 
-pub struct Renderer<Rp> {
-	sprite: SpriteRenderer<Rp>,
-	text: TextRenderer<Rp>,
-
-	group: Group,
-	empty: Texture,
-}
-
-impl<Rp> Renderer<Rp>
-	where Rp: RenderPassAbstract + Send + Sync + 'static
-{
-	pub fn new(queue: Arc<Queue>, pass: Subpass<Arc<Rp>>, capacity: usize, group_size: u32)
+impl Renderer {
+	pub fn new(queue: Arc<Queue>, swapchain: Arc<Swapchain>, images: &[Arc<SwapchainImage>], capacity: usize, group_size: u32)
 		-> Result<(Self, Box<GpuFuture + Send + Sync>)>
 	{
 		let device = queue.device().clone();
@@ -28,13 +20,22 @@ impl<Rp> Renderer<Rp>
 		let (fu, empty) = Texture::one_white_pixel(queue.clone())?;
 		let index_future = index_future.join(fu);
 
-		let sprite = SpriteRenderer::new(queue.clone(), index.clone(), pass.clone(), capacity, group_size)?;
-		let text   =   TextRenderer::new(queue.clone(), index.clone(), pass.clone(), 1024, 1024)?;
+		let sprite = SpriteRenderer::new(queue.clone(), index.clone(), swapchain.clone(), &images, capacity, group_size)?;
+		let text   =   TextRenderer::new(queue.clone(), index.clone(), swapchain.clone(), &images, 1024, 1024)?;
+
+		let mut fbr = Fbr::clear(swapchain.clone());
+		fbr.fill(&images);
 
 		Ok((
-			Self { empty, group, sprite, text },
+			Self { empty, group, sprite, text, fbr },
 			Box::new(index_future)
 		))
+	}
+
+	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
+		self.fbr.fill(images);
+		self.text.refill(images);
+		self.sprite.refill(images);
 	}
 
 	pub fn resize(&mut self, wh: Vector2<f32>) -> Result<()> {

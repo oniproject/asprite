@@ -19,7 +19,7 @@ unsafe fn as_sync_cmd_buf<P>(cb: &mut CmdBuild<P>) -> &mut SyncCommandBufferBuil
 	::std::mem::transmute::<&mut CmdBuild<P>, &mut SyncCommandBufferBuilder<P>>(cb)
 }
 
-pub struct TextRenderer<Rp> {
+pub struct TextRenderer {
 	vbo: VBO<text_shader::Vertex>,
 	ibo: QuadIBO<u16>,
 
@@ -28,18 +28,18 @@ pub struct TextRenderer<Rp> {
 	sampler: Arc<Sampler>,
 	pool: CpuBufferPool<u8>,
 
-	pipeline: Pipeline<Rp, text_shader::Vertex>,
+	pipeline: ArcPipeline<text_shader::Vertex>,
 	uniform: CpuBufferPool<text_shader::Uniform>,
 
 	upload: bool,
 
+	pub fbr: Fbr,
+
 	wh: Vector2<f32>,
 }
 
-impl<Rp> TextRenderer<Rp>
-	where Rp: RenderPassAbstract + Send + Sync + 'static
-{
-	pub fn new(queue: Arc<Queue>, ibo: QuadIBO<u16>, pass: Subpass<Arc<Rp>>, width: u32, height: u32) -> Result<Self> {
+impl TextRenderer {
+	pub fn new(queue: Arc<Queue>, ibo: QuadIBO<u16>, swapchain: Arc<Swapchain>, images: &[Arc<SwapchainImage>], width: u32, height: u32) -> Result<Self> {
 		let device = queue.device().clone();
 		let f = ::std::iter::once(queue.family());
 		let texture = StorageImage::new(
@@ -64,6 +64,9 @@ impl<Rp> TextRenderer<Rp>
 		let vs = shader.vert_entry_point();
 		let fs = shader.frag_entry_point();
 
+		let mut fbr = Fbr::simple(swapchain.clone());
+		fbr.fill(images);
+
 		let pipeline = GraphicsPipeline::start()
 			.vertex_input_single_buffer::<text_shader::Vertex>()
 			.vertex_shader(vs.0, vs.1)
@@ -71,7 +74,7 @@ impl<Rp> TextRenderer<Rp>
 			.viewports_dynamic_scissors_irrelevant(1)
 			.fragment_shader(fs.0, fs.1)
 			.blend_alpha_blending()
-			.render_pass(pass)
+			.render_pass(Subpass::from(fbr.rp.clone(), 0).unwrap())
 			.build(device.clone())?;
 
 		let pipeline = Arc::new(pipeline);
@@ -82,7 +85,11 @@ impl<Rp> TextRenderer<Rp>
 		let capacity = 2000;
 		let vbo = VBO::new(device.clone(), capacity);
 
-		Ok(Self { texture, sampler, cache, pool, pipeline, uniform, wh, vbo, ibo, upload: false, })
+		Ok(Self { texture, sampler, cache, pool, pipeline, uniform, wh, vbo, ibo, upload: false, fbr })
+	}
+
+	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
+		self.fbr.fill(images);
 	}
 
 	pub fn text<'a>(&mut self, cb: CmdBuild, state: DynamicState, text: &Text<'a>) -> Result<CmdBuild> {
