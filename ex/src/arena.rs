@@ -11,6 +11,8 @@ use sprite::*;
 
 use super::*;
 
+use winit::Event;
+
 pub struct Velocity {
 	pub vel: Vector2<f32>,
 }
@@ -21,30 +23,31 @@ impl Component for Velocity {
 
 pub struct Scene {
 	pub textures: Vec<Texture>,
+	pub add: bool,
 }
 
-impl state::State<World, Event> for Scene {
+impl state::State<World, Event, Update> for Scene {
 	fn start(&mut self, world: &mut World)  {
-		println!("start aren");
-		for _ in 0..2000 {
+		println!("start arena");
+		for _ in 0..BATCH_CAPACITY {
 			spawn(world, &self.textures);
 		}
 	}
-	fn stop(&mut self, _: &mut World)   { println!("stop arena") }
-	fn pause(&mut self, _: &mut World)  { println!("pause arena") }
-	fn resume(&mut self, _: &mut World) { println!("resume arena") }
-	fn event(&mut self, world: &mut World, event: Event) -> Option<state::Transition<World, Event>> {
-		static mut ADD: bool = false;
+
+	fn stop(&mut self, _: &mut World)   { println!("stop arena"); }
+	fn pause(&mut self, _: &mut World)  { println!("pause arena"); }
+	fn resume(&mut self, _: &mut World) { println!("resume arena"); }
+
+	fn update(&mut self, world: &mut World, event: Update) -> SceneTransition<Event> {
 		match event {
-			Event::Fixed => {
-				unsafe {
-					if ADD {
-						//*world.write_resource::<usize>() = usize;
-						for _ in 0..29 {
-							spawn(world, &self.textures);
-						}
+			Update::Frame => {
+				if self.add {
+					for _ in 0..29 {
+						spawn(world, &self.textures);
 					}
 				}
+			}
+			Update::Fixed => {
 				let gravity = 0.75;
 				let dt = world.read_resource::<Time>().fixed_seconds;
 				let size = *world.read_resource::<Vector2<f32>>();
@@ -53,7 +56,13 @@ impl state::State<World, Event> for Scene {
 				let sprites = world.write::<SpriteTransform>();
 				update(dt, size, gravity, speed, sprites);
 			}
-			Event::W(event) => {
+		}
+		None
+	}
+
+	fn event(&mut self, _: &mut World, event: Event) -> SceneTransition<Event> {
+		match event {
+			Event::WindowEvent { event, .. } => {
 				use winit::ElementState;
 				use winit::WindowEvent::*;
 				match event {
@@ -61,9 +70,7 @@ impl state::State<World, Event> for Scene {
 						return Some(state::Transition::Quit);
 					}
 					MouseInput { state, .. } => {
-						unsafe {
-							ADD = state == ElementState::Pressed;
-						}
+						self.add = state == ElementState::Pressed;
 					}
 					_ => (),
 				}

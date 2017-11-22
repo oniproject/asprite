@@ -2,8 +2,10 @@ use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::DynamicState;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::device::Queue;
-use vulkano::image::SwapchainImage;
 use vulkano::sync::GpuFuture;
+use vulkano::instance::PhysicalDevice;
+
+use vulkano_win::Window;
 
 use math::*;
 
@@ -22,22 +24,19 @@ fn terminus() -> Font<'static> {
 }
 
 pub struct Batcher<'a> {
-	renderer: Renderer,
-	chain: Chain<'a>,
-	queue: Arc<Queue>,
-	last_wh: Vector2<f32>,
-	font: Font<'a>,
+	pub renderer: Renderer,
+	pub chain: Chain<'a>,
+	pub queue: Arc<Queue>,
+	pub last_wh: Vector2<f32>,
+	pub font: Font<'a>,
 }
 
 impl<'a> Batcher<'a> {
-	pub fn new(
-		capacity: usize,
-		group_size: u32,
-		chain: Chain<'a>,
-		images: &[Arc<SwapchainImage>],
-		)
+	pub fn new(physical: PhysicalDevice<'a>, window: Window, capacity: usize, group_size: u32)
 		-> (Self, Box<GpuFuture + Send + Sync>)
 	{
+		let (chain, images) = Chain::new(physical, window, |caps| caps.supported_formats[0].0);
+
 		let queue = chain.queue.clone();
 		let (renderer, index_future) =
 			Renderer::new(
@@ -85,7 +84,7 @@ impl<'a, 'sys> specs::System<'sys> for Batcher<'a> {
 			}
 		};
 
-		future.join(Box::new(sw_future));
+		future.join(sw_future);
 
 		let wh = {
 			let dim = self.chain.dim();

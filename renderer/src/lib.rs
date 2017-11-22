@@ -122,7 +122,6 @@ macro_rules! def {
 }
 
 pub mod errors;
-pub mod vertex;
 
 mod renderer;
 mod quad_indices;
@@ -148,8 +147,6 @@ use self::quad_indices::*;
 use self::group::*;
 use self::vbo::*;
 
-use self::vertex::*;
-
 pub use self::chain::*;
 pub use self::future::*;
 pub use self::text::*;
@@ -170,3 +167,21 @@ type BoxFuture = Box<GpuFuture + Send + Sync>;
 
 //type ChunkVBO<T> = CpuBufferPoolChunk<T, Arc<StdMemoryPool>>;
 type ChunkIBO<T> = BufferSlice<[T], Index<T>>;
+
+#[inline(always)]
+pub const fn zero_uv() -> [[u16; 2]; 4] {
+	[
+		[0x0000, 0x0000],
+		[0xFFFF, 0x0000],
+		[0xFFFF, 0xFFFF],
+		[0x0000, 0xFFFF],
+	]
+}
+
+#[inline(always)]
+pub fn pack_uv(u: f32, v: f32) -> [u16; 2] {
+	let u = (u * 65535.0) as u16;
+	let v = (v * 65535.0) as u16;
+	[u, v]
+}
+
