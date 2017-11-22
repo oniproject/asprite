@@ -86,7 +86,7 @@ impl state::State<World, Event> for Scene {
 		let size = *world.read_resource::<Vector2<f32>>();
 
 		let mut speed = world.write::<Velocity>();
-		let mut sprites = world.write::<SpriteTransform>();
+		let mut sprites = world.write::<Local>();
 
 		let dt = dt * 50.0;
 		let between = Range::new(0.0, 10.0);
@@ -163,9 +163,13 @@ fn spawn(world: &mut World, textures: &[Texture]) {
 		vel: Vector2::new(x, y),
 	};
 
-	let transform = SpriteTransform::default();
+	let local = Local::default();
+	let global = Global::default();
 
 	world.create_entity()
-		.with(sprite).with(transform).with(speed)
+		.with(sprite)
+		.with(local)
+		.with(global)
+		.with(speed)
 		.build();
 }

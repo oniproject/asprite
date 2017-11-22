@@ -146,11 +146,6 @@ mod tests {
 	struct StateB;
 
 	impl State<(), ()> for StateA {
-		fn start(&mut self, _: &mut ())  { println!("A start") }
-		fn stop(&mut self, _: &mut ())   { println!("A stop") }
-		fn pause(&mut self, _: &mut ())  { println!("A pause") }
-		fn resume(&mut self, _: &mut ()) { println!("A resume") }
-
 		fn event(&mut self, _: &mut (), _: ()) -> Option<Transition<(), ()>> {
 			if self.0 > 0 {
 				self.0 -= 1;
@@ -162,11 +157,6 @@ mod tests {
 	}
 
 	impl State<(), ()> for StateB {
-		fn start(&mut self, _: &mut ())  { println!("B start") }
-		fn stop(&mut self, _: &mut ())   { println!("B stop") }
-		fn pause(&mut self, _: &mut ())  { println!("B pause") }
-		fn resume(&mut self, _: &mut ()) { println!("B resume") }
-
 		fn event(&mut self, _: &mut (), _: ()) -> Option<Transition<(), ()>> {
 			Some(Transition::Pop)
 		}
@@ -177,7 +167,7 @@ mod tests {
 		let mut ctx = ();
 
 		let mut sm = StateMachine::new();
-		sm.initialize(&mut ctx, StateA(7));
+		sm.initialize(&mut ctx, Box::new(StateA(7)));
 
 		for _ in 0..8 {
 			sm.event(&mut ctx, ());

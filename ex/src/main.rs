@@ -4,6 +4,8 @@
 #![feature(const_fn)]
 #![feature(conservative_impl_trait)]
 
+#[cfg(feature = "profiler")] extern crate thread_profile;
+
 extern crate renderer;
 extern crate math;
 
@@ -51,8 +53,10 @@ fn main() {
 		use std::sync::Arc;
 		let conf = rayon::Configuration::new();
 		let pool = Arc::new(rayon::ThreadPool::new(conf).unwrap());
+
 		let dispatcher = specs::DispatcherBuilder::new()
-			.with_pool(pool.clone());
+			.with_pool(pool.clone())
+			.add(sprite::TransformSystem::default(), "transform", &[]);
 
 		let mut world = specs::World::new();
 		world.register::<arena::Velocity>();

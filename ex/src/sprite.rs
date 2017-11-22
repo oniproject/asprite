@@ -13,11 +13,37 @@ pub struct Frame {
 }
 
 #[derive(Default)]
-pub struct SpriteTransform(pub Affine<f32>);
+pub struct Local(pub Affine<f32>);
 
-impl Component for SpriteTransform {
+#[derive(Default)]
+pub struct Global(pub Affine<f32>);
+
+impl Component for Global {
 	type Storage = FlaggedStorage<Self, VecStorage<Self>>;
-	//type Storage = DenseVecStorage<Self>;
+}
+
+impl Component for Local {
+	type Storage = FlaggedStorage<Self, VecStorage<Self>>;
+}
+
+pub type TransformSystem = ::tsys::System<Transform>;
+
+pub struct Transform;
+impl ::tsys::Transform for Transform {
+	type Local = Local;
+	type Global = Global;
+	#[inline]
+	fn convert(l: &Local) -> Global {
+		Global(l.0)
+	}
+	#[inline]
+	fn combine(a: &Global, b: &Global) -> Global {
+		Global(a.0 * b.0)
+	}
+	#[inline]
+	fn rewrite(dst: &mut Global, src: &Global) {
+		dst.0 = src.0
+	}
 }
 
 pub struct Sprite {
@@ -50,7 +76,7 @@ pub struct SpriteSystem;
 
 impl<'a> System<'a> for SpriteSystem {
 	type SystemData = (
-		ReadStorage<'a, SpriteTransform>,
+		ReadStorage<'a, Global>,
 		WriteStorage<'a, Sprite>,
 	);
 	fn run(&mut self, (tr, mut sprites): Self::SystemData) {
@@ -120,7 +146,7 @@ impl Sprite {
 	}
 
 	#[inline(always)]
-	pub fn recalc_pos(&mut self, aff: &SpriteTransform) {
+	pub fn recalc_pos(&mut self, aff: &Global) {
 		let w1 = -self.anchor.x * self.size.x;
 		let w0 = w1 + self.size.x;
 

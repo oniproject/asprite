@@ -69,8 +69,7 @@ impl<'a, T, L, G, LS, GS> specs::System<'a> for System<T>
 		WriteStorage<'a, G>,
 	);
 	fn run(&mut self, (entities, mut locals, mut parents, mut globals): Self::SystemData) {
-		//#[cfg(feature = "profiler")]
-		//profile_scope!("transform_system");
+		#[cfg(feature = "profiler")] profile_scope!("transform_system");
 
 		// Clear dirty flags on `Transform` storage, before updates go in
 		(&mut globals).open().1.clear_flags();

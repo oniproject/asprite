@@ -64,11 +64,15 @@ impl<'a, 'b> Bundle<'a, 'b> for BatcherBundle<'a> {
 		let Self { future, batcher } = self;
 
 		world.register::<Sprite>();
-		world.register::<SpriteTransform>();
+
+		world.register::<tsys::Parent>();
+		world.register::<Global>();
+		world.register::<Local>();
 		world.add_resource(future);
 		world.add_resource(Vector2::new(1024.0f32, 786.0));
 
-		dispatcher.add(SpriteSystem, "sprite", &[])
+		dispatcher
+			.add(SpriteSystem, "sprite", &["transform"])
 			.add(batcher, "batcher", &["sprite"])
 	}
 }
