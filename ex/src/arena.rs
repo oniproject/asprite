@@ -1,17 +1,19 @@
 use rand::distributions::{IndependentSample, Range};
 use rand::{thread_rng, Rng};
 use math::Vector2;
-use specs::{Component, VecStorage};
-use specs::Join;
-
-use time::*;
-
-use renderer::*;
-use sprite::*;
-
-use super::*;
+use specs::*;
+use std::sync::Arc;
+use vulkano::device::Queue;
 
 use winit::Event;
+use time::*;
+use renderer::*;
+use sprite::*;
+use app::*;
+use state;
+use toml;
+
+pub const RES: &str = "./ex/res.toml";
 
 pub struct Velocity {
 	pub vel: Vector2<f32>,
@@ -23,20 +25,50 @@ impl Component for Velocity {
 
 pub struct Scene {
 	pub textures: Vec<Texture>,
+	pub queue: Arc<Queue>,
 	pub add: bool,
 }
 
 impl state::State<World, Event> for Scene {
-	fn start(&mut self, world: &mut World)  {
-		println!("start arena");
-		for _ in 0..BATCH_CAPACITY {
-			spawn(world, &self.textures);
+	fn switch(&mut self, world: &mut World, event: state::ExecEvent) {
+		use state::ExecEvent::*;
+		println!("arena state change event: {:?}", event);
+		match event {
+			Start | Resume => {
+				if self.textures.is_empty() {
+					let (future, textures) = {
+						use std::io::prelude::*;
+						use std::fs::File;
+
+						#[derive(Debug, Deserialize)]
+						struct Assets {
+							images: Vec<String>,
+						}
+
+						let mut f = File::open(RES).unwrap();
+						let mut buffer = Vec::new();
+						f.read_to_end(&mut buffer).unwrap();
+
+						let decoded: Assets = toml::from_slice(&buffer).unwrap();
+						println!("{:#?}", decoded);
+
+						Texture::load_vec(self.queue.clone(), &decoded.images).unwrap()
+					};
+
+					self.textures = textures;
+
+					world.write_resource::<Future>().join(future);
+				};
+
+				for _ in 0..300 {
+					spawn(world, &self.textures);
+				}
+			}
+			Stop | Pause => {
+				world.delete_all();
+			}
 		}
 	}
-
-	fn stop(&mut self, _: &mut World)   { println!("stop arena"); }
-	fn pause(&mut self, _: &mut World)  { println!("pause arena"); }
-	fn resume(&mut self, _: &mut World) { println!("resume arena"); }
 
 	fn update(&mut self, world: &mut World) -> SceneTransition<Event> {
 		if self.add {
@@ -59,6 +91,7 @@ impl state::State<World, Event> for Scene {
 		let dt = dt * 50.0;
 		let between = Range::new(0.0, 10.0);
 
+		//use rayon::prelude::*;
 		(&mut speed, &mut sprites).join().for_each(|(speed, sprite)| {
 			let sprite = &mut sprite.0;
 			let speed = &mut speed.vel;
@@ -95,7 +128,7 @@ impl state::State<World, Event> for Scene {
 				use winit::WindowEvent::*;
 				match event {
 					Closed => {
-						return Some(state::Transition::Quit);
+						return Some(state::Transition::Pop);
 					}
 					MouseInput { state, .. } => {
 						self.add = state == ElementState::Pressed;

@@ -19,18 +19,11 @@ extern crate rayon;
 extern crate rand;
 
 #[macro_use] extern crate derivative;
+#[macro_use] extern crate lazy_static;
 
 extern crate winit;
 extern crate vulkano;
 extern crate vulkano_win;
-
-use vulkano_win::VkSurfaceBuild;
-use vulkano::sync::GpuFuture;
-use vulkano::instance::{Instance, PhysicalDevice};
-
-use specs::World;
-
-use math::*;
 
 mod app;
 mod arena;
@@ -42,51 +35,15 @@ mod sprite_batcher;
 mod time;
 
 use app::*;
-use sprite::*;
-use renderer::*;
 use sprite_batcher::*;
 
 pub const TEXTURE_COUNT: u32 = 16;
 pub const BATCH_CAPACITY: usize = 2_000;
 
-pub const RES: &str = "./ex/res.toml";
-
 fn main() {
-	let extensions = vulkano_win::required_extensions();
-	let instance = Instance::new(None, &extensions, &[])
-		.expect("failed to create instance");
+	let (mut events_loop, b) = BatcherBundle::new();
 
-	let physical = PhysicalDevice::enumerate(&instance)
-		.next().expect("no device available");
-
-	println!("Using device: {} (type: {:?})", physical.name(), physical.ty());
-	println!();
-
-	let mut events_loop = winit::EventsLoop::new();
-	let window = winit::WindowBuilder::new()
-		.build_vk_surface(&events_loop, instance.clone())
-		.expect("can't build window");
-
-	let (batcher, index_future) = Batcher::new(physical, window, BATCH_CAPACITY, TEXTURE_COUNT);
-
-	let (textures_future, textures) = {
-		use std::io::prelude::*;
-		use std::fs::File;
-
-		#[derive(Debug, Deserialize)]
-		struct Assets {
-			images: Vec<String>,
-		}
-
-		let mut f = File::open(RES).unwrap();
-		let mut buffer = Vec::new();
-		f.read_to_end(&mut buffer).unwrap();
-
-		let decoded: Assets = toml::from_slice(&buffer).unwrap();
-		println!("{:#?}", decoded);
-
-		Texture::load_vec(batcher.queue.clone(), &decoded.images).unwrap()
-	};
+	let queue = b.batcher.queue.clone();
 
 	let mut app = {
 		println!("create app");
@@ -95,30 +52,23 @@ fn main() {
 		let conf = rayon::Configuration::new();
 		let pool = Arc::new(rayon::ThreadPool::new(conf).unwrap());
 		let dispatcher = specs::DispatcherBuilder::new()
-			.with_pool(pool.clone())
-			.add(SpriteSystem, "sprite", &[])
-			.add_thread_local(batcher)
-			.build();
+			.with_pool(pool.clone());
 
-		let mut world = World::new();
-		world.register::<Sprite>();
-		world.register::<SpriteTransform>();
+		let mut world = specs::World::new();
 		world.register::<arena::Velocity>();
-
-		let future = Future::new(textures_future.join(index_future));
-		world.add_resource(future);
-		world.add_resource(Vector2::new(1024.0f32, 786.0));
 		world.add_resource(pool);
 
-		App::new(world, dispatcher)
+		let dispatcher = b.bundle(&mut world, dispatcher);
+
+		App::new(world, dispatcher.build())
 	};
 
-	app.world.write_resource::<time::Time>().set_fixed_time(::std::time::Duration::new(0, 16666666*2));
+	app.world.write_resource::<time::Time>().set_fixed_time(::std::time::Duration::new(0, 16666666*4));
 
 	println!();
 	println!("run");
 
-	let arena = arena::Scene { textures, add: false };
+	let arena = arena::Scene { textures: Vec::new(), queue, add: false };
 	app.run(Box::new(arena), |world, states|
 		events_loop.poll_events(|event| states.event(world, event))
 	);

@@ -161,7 +161,7 @@ type ArcRenderPass = Arc<RenderPassAbstract + Send + Sync + 'static>;
 type ArcPipeline<Vtx> = Arc<GraphicsPipeline<SingleBufferDefinition<Vtx>, BoxPipelineLayout, ArcRenderPass>>;
 
 type Index<T> = Arc<ImmutableBuffer<[T]>>;
-type Projection = Arc<DescriptorSet + Send + Sync + 'static>;
+type DescSet = Arc<DescriptorSet + Send + Sync + 'static>;
 
 type BoxFuture = Box<GpuFuture + Send + Sync>;
 

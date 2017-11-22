@@ -30,13 +30,13 @@ pub struct TextRenderer {
 	pool: CpuBufferPool<u8>,
 
 	pipeline: ArcPipeline<text_shader::Vertex>,
-	uniform: CpuBufferPool<text_shader::Uniform>,
 
-	upload: Option<Arc<ImmutableImage<R8Unorm>>>,
+	upload: Option<(DescSet, Arc<ImmutableImage<R8Unorm>>)>,
+
+	uniform: CpuBufferPool<text_shader::Uniform>,
+	proj_set: DescSet,
 
 	pub fb: Fb,
-
-	wh: Vector2<f32>,
 }
 
 impl TextRenderer {
@@ -79,7 +79,16 @@ impl TextRenderer {
 		let pipeline = Arc::new(pipeline);
 
 		let uniform = CpuBufferPool::uniform_buffer(device.clone());
-		let wh = Vector2::zero();
+
+		let proj_set = {
+			let uniform_buffer_subbuffer = uniform.next(Uniform {
+				proj: Matrix4::identity().into(),
+			})?;
+			let set = PersistentDescriptorSet::start(pipeline.clone(), 0)
+				.add_buffer(uniform_buffer_subbuffer)?
+				.build()?;
+			Arc::new(set)
+		};
 
 		let capacity = 2000;
 		let vbo = VBO::new(device.clone(), capacity);
@@ -87,13 +96,13 @@ impl TextRenderer {
 		Ok(Self {
 			queue,
 
-			//texture,
 			sampler,
 			cache, cache_pixel_buffer,
 			cache_size: (width as usize, height as usize),
 			pool, pipeline,
 			uniform,
-			wh, vbo,
+			proj_set,
+			vbo,
 			ibo,
 			fb,
 			upload: None,
@@ -113,49 +122,37 @@ impl TextRenderer {
 			self.cache.queue_glyph(0, g);
 		}
 
-		let (tex, cb) = self.cache_queued(cb)?;
+		let (set, _tex, cb) = self.cache_queued(cb)?;
+		let set = (self.proj_set.clone(), set);
 
 		let cache = &mut self.cache;
+		let color = [0xFF; 4];
 		for (uv, pos) in glyphs.into_iter().filter_map(|g| cache.rect_for(0, g).unwrap()) {
 			self.vbo.push(Vertex {
 				uv: pack_uv(uv.min.x, uv.min.y),
 				position: [pos.min.x as f32, pos.min.y as f32],
+				color,
 			});
 			self.vbo.push(Vertex {
 				uv: pack_uv(uv.max.x, uv.min.y),
 				position: [pos.max.x as f32, pos.min.y as f32],
+				color,
 			});
 			self.vbo.push(Vertex {
 				uv: pack_uv(uv.max.x, uv.max.y),
 				position: [pos.max.x as f32, pos.max.y as f32],
+				color,
 			});
 			self.vbo.push(Vertex {
 				uv: pack_uv(uv.min.x, uv.max.y),
 				position: [pos.min.x as f32, pos.max.y as f32],
+				color,
 			});
 		}
 
 		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
 		let ibo = self.ibo.slice(count).expect("failure index buffer slice");
 		let vbo = self.vbo.flush()?;
-
-		let proj = {
-			let proj = Affine::projection(self.wh.x, self.wh.y).uniform4();
-			let uniform_buffer_subbuffer = self.uniform.next(Uniform {
-				proj: proj.into(),
-				color: [1.0, 1.0, 1.0, 1.0],
-			})?;
-			let set = PersistentDescriptorSet::start(self.pipeline.clone(), 0)
-				.add_buffer(uniform_buffer_subbuffer)?
-				.build()?;
-			set
-		};
-
-		let tset = PersistentDescriptorSet::start(self.pipeline.clone(), 1)
-			.add_sampled_image(tex, self.sampler.clone())?
-			.build()?;
-
-		let set = (Arc::new(proj), Arc::new(tset));
 
 		Ok(cb
 			.begin_render_pass(self.fb.at(image_num).clone(), false, Vec::new())?
@@ -164,7 +161,7 @@ impl TextRenderer {
 		)
 	}
 
-	fn cache_queued(&mut self, cb: CmdBuild) -> Result<(Arc<ImmutableImage<R8Unorm>>, CmdBuild)> {
+	fn cache_queued(&mut self, cb: CmdBuild) -> Result<(DescSet, Arc<ImmutableImage<R8Unorm>>, CmdBuild)> {
 		{
 			let upload = &mut self.upload;
 
@@ -190,14 +187,14 @@ impl TextRenderer {
 			}).unwrap();
 		}
 
-		let (tex, cb) = match self.upload {
-			Some(ref tex) => (tex.clone(), cb),
+		let (tset, tex, cb) = match self.upload {
+			Some((ref tset, ref tex)) => (tset.clone(), tex.clone(), cb),
 			None => {
 				let device = self.queue.device().clone();
 
 				let buffer = self.pool.chunk(self.cache_pixel_buffer.iter().cloned())?;
 
-				let (cache_texture, cache_texture_write) = ImmutableImage::uninitialized(
+				let (tex, write) = ImmutableImage::uninitialized(
 					device.clone(),
 					Dimensions::Dim2d {
 						width: self.cache_size.0 as u32,
@@ -214,17 +211,28 @@ impl TextRenderer {
 					Some(self.queue.family()),
 				)?;
 
-				self.upload = Some(cache_texture.clone());
+				let tset = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 1)
+					.add_sampled_image(tex.clone(), self.sampler.clone())?
+					.build()?) as DescSet;
 
-				(cache_texture, cb.copy_buffer_to_image(buffer.clone(), cache_texture_write)?)
+				self.upload = Some((tset.clone(), tex.clone()));
+
+				(tset, tex, cb.copy_buffer_to_image(buffer.clone(), write)?)
 			}
 		};
 
-		Ok((tex, cb))
+		Ok((tset, tex, cb))
 	}
 
 	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
-		self.wh = wh;
+		let proj = Affine::projection(wh.x, wh.y).uniform4();
+		let uniform_buffer_subbuffer = self.uniform.next(Uniform {
+			proj: proj.into(),
+		})?;
+		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 0)
+			.add_buffer(uniform_buffer_subbuffer)?
+			.build()?;
+		self.proj_set = Arc::new(set);
 		Ok(())
 	}
 }

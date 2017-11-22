@@ -3,14 +3,16 @@ use super::*;
 #[derive(Derivative, Clone, Copy)]
 #[derivative(Default)]
 pub struct Vertex {
-	// (2*4 + 2*2) * 4 = 48 bytes per sprite instead 128
+	// (2*4 + 2*2 + 4) * 4 = 64 bytes per sprite instead 128
 	#[derivative(Default(value="[0.0; 2]"))]
 	pub position: [f32; 2],
 	#[derivative(Default(value="[0; 2]"))]
 	pub uv: [u16; 2],
+	#[derivative(Default(value="[0xFF; 4]"))]
+	pub color: [u8; 4],
 }
 
-impl_vertex!(Vertex, position, uv);
+impl_vertex!(Vertex, position, uv, color);
 
 def!(Vert2Frag Vert2FragIter
 	tex_coords => Format::R32G32Sfloat,
@@ -24,13 +26,13 @@ def!(FragOutput FragOutputIter
 def!(VertInput VertInputIter
 	position => Format::R32G32Sfloat,
 	uv => Format::R16G16Unorm,
+	color => Format::R8G8B8A8Unorm,
 );
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Uniform {
 	pub proj: [[f32; 4]; 4],
-	pub color: [f32; 4],
 }
 
 pub struct Shader {

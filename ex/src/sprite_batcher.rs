@@ -3,24 +3,74 @@ use vulkano::command_buffer::DynamicState;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::device::Queue;
 use vulkano::sync::GpuFuture;
-use vulkano::instance::PhysicalDevice;
 
 use vulkano_win::Window;
 
-use math::*;
+use vulkano_win::VkSurfaceBuild;
+use vulkano::instance::{Instance, PhysicalDevice};
 
 use std::sync::Arc;
 
-use specs::{self, Entities, Fetch, FetchMut, Join, ReadStorage};
+use specs::*;
 
+use super::*;
+
+use math::*;
 use time::*;
-
+use app::Bundle;
 use sprite::*;
 use renderer::*;
 
 fn terminus() -> Font<'static> {
 	let font = include_bytes!("../../res/TerminusTTF-4.46.0.ttf");
 	FontCollection::from_bytes(font as &[u8]).into_font().unwrap()
+}
+
+lazy_static! {
+	static ref INSTANCE: Arc<Instance> = {
+		let extensions = vulkano_win::required_extensions();
+		Instance::new(None, &extensions, &[])
+			.expect("failed to create instance")
+	};
+}
+
+pub struct BatcherBundle<'a> {
+	pub future: Future,
+	pub batcher: Batcher<'a>,
+}
+
+impl<'a> BatcherBundle<'a> {
+	pub fn new() -> (winit::EventsLoop, Self) {
+		let physical = PhysicalDevice::enumerate(&INSTANCE)
+			.next().expect("no device available");
+
+		println!("Using device: {} (type: {:?})", physical.name(), physical.ty());
+		println!();
+
+		let events_loop = winit::EventsLoop::new();
+		let window = winit::WindowBuilder::new()
+			.build_vk_surface(&events_loop, INSTANCE.clone())
+			.expect("can't build window");
+
+		let (batcher, index_future) = Batcher::new(physical, window, BATCH_CAPACITY, TEXTURE_COUNT);
+
+		let future = Future::new(index_future);
+		(events_loop, Self { future, batcher })
+	}
+}
+
+impl<'a, 'b> Bundle<'a, 'b> for BatcherBundle<'a> {
+	fn bundle(self, world: &mut World, dispatcher: DispatcherBuilder<'a, 'b>) -> DispatcherBuilder<'a, 'b> {
+		let Self { future, batcher } = self;
+
+		world.register::<Sprite>();
+		world.register::<SpriteTransform>();
+		world.add_resource(future);
+		world.add_resource(Vector2::new(1024.0f32, 786.0));
+
+		dispatcher.add(SpriteSystem, "sprite", &[])
+			.add(batcher, "batcher", &["sprite"])
+	}
 }
 
 pub struct Batcher<'a> {
@@ -62,7 +112,7 @@ impl<'a> Batcher<'a> {
 	}
 }
 
-impl<'a, 'sys> specs::System<'sys> for Batcher<'a> {
+impl<'a, 'sys> System<'sys> for Batcher<'a> {
 	type SystemData = (
 		FetchMut<'sys, Future>,
 		FetchMut<'sys, Vector2<f32>>,
@@ -71,7 +121,7 @@ impl<'a, 'sys> specs::System<'sys> for Batcher<'a> {
 		Fetch<'sys, Time>,
 	);
 
-	fn running_time(&self) -> specs::RunningTime { specs::RunningTime::Long }
+	fn running_time(&self) -> RunningTime { RunningTime::Long }
 
 	fn run(&mut self, (mut future, mut wh, sprites, e, dt): Self::SystemData) {
 		future.cleanup_finished();

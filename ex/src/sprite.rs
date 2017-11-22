@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 use math::*;
-use specs::{self, Component, VecStorage, Join};
-use specs::{DenseVecStorage, FlaggedStorage};
+use specs::*;
 
 use math::d8::*;
 use renderer::*;
@@ -17,7 +16,8 @@ pub struct Frame {
 pub struct SpriteTransform(pub Affine<f32>);
 
 impl Component for SpriteTransform {
-	type Storage = FlaggedStorage<Self, DenseVecStorage<Self>>;
+	type Storage = FlaggedStorage<Self, VecStorage<Self>>;
+	//type Storage = DenseVecStorage<Self>;
 }
 
 pub struct Sprite {
@@ -48,14 +48,15 @@ impl Component for Sprite {
 
 pub struct SpriteSystem;
 
-impl<'a> specs::System<'a> for SpriteSystem {
+impl<'a> System<'a> for SpriteSystem {
 	type SystemData = (
-		specs::ReadStorage<'a, SpriteTransform>,
-		specs::WriteStorage<'a, Sprite>,
+		ReadStorage<'a, SpriteTransform>,
+		WriteStorage<'a, Sprite>,
 	);
 	fn run(&mut self, (tr, mut sprites): Self::SystemData) {
-		((&tr).open().1, &mut sprites).join()
-			.for_each(|(t, s)| s.recalc_pos(t))
+		//use rayon::prelude::*;
+		((&tr).open().1, &mut sprites).join().for_each(|(t, s)| s.recalc_pos(t))
+		//(&tr, &mut sprites).par_join().for_each(|(t, s)| s.recalc_pos(t))
 	}
 }
 

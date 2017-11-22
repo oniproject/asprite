@@ -9,7 +9,7 @@ pub struct SpriteRenderer {
 	ibo: QuadIBO<u16>,
 	pipeline: ArcPipeline<sprite_shader::Vertex>,
 	uniform: CpuBufferPool<Uniform>,
-	proj_set: Projection,
+	proj_set: DescSet,
 
 	pub fb: Fb,
 }
