@@ -2,7 +2,7 @@ use rand::distributions::{IndependentSample, Range};
 use rand::{thread_rng, Rng};
 use math::Vector2;
 use specs::{Component, VecStorage};
-use specs::{WriteStorage, Join};
+use specs::Join;
 
 use time::*;
 

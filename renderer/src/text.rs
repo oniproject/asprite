@@ -10,7 +10,7 @@ pub struct Text<'a> {
 }
 
 impl<'a> Text<'a> {
-	pub fn new<S>(font: &'a Font, text: S, size: f32) -> Self
+	pub fn new<S>(font: &'a Font, size: f32, text: S) -> Self
 		where S: ToString
 	{
 		Self {

@@ -76,15 +76,16 @@ impl<'a, 'sys> specs::System<'sys> for Batcher<'a> {
 	fn run(&mut self, (mut future, mut wh, sprites, e, dt): Self::SystemData) {
 		future.cleanup_finished();
 
-		let (image_num, sw_future) = {
+		let image_num = {
 			let ren = &mut self.renderer;
 			match self.chain.run(|m| ren.refill(m)) {
-				Some(v) => v,
+				Some((num, sw_future)) => {
+					future.join(sw_future);
+					num
+				},
 				None => return,
 			}
 		};
-
-		future.join(sw_future);
 
 		let wh = {
 			let dim = self.chain.dim();
@@ -123,13 +124,12 @@ impl<'a, 'sys> specs::System<'sys> for Batcher<'a> {
 		if true {
 			let dt = dt.delta_seconds;
 			use specs::Join;
-			let text = format!("count: {} ms: {}",
-			e.join().count(), dt);
 
 			let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(self.queue.device().clone(), self.queue.family())
 				.unwrap();
 
-			let text = Text::new(&self.font, text, 24.0)
+			let text = format!("count: {} ms: {}", e.join().count(), dt);
+			let text = Text::new(&self.font, 24.0, text)
 				.lay(Vector2::new(100.0, 200.0), 500);
 
 			cb = self.renderer.text(cb, state.clone(), &text, image_num).unwrap();
