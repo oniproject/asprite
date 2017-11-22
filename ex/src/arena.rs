@@ -26,7 +26,7 @@ pub struct Scene {
 	pub add: bool,
 }
 
-impl state::State<World, Event, Update> for Scene {
+impl state::State<World, Event> for Scene {
 	fn start(&mut self, world: &mut World)  {
 		println!("start arena");
 		for _ in 0..BATCH_CAPACITY {
@@ -38,25 +38,53 @@ impl state::State<World, Event, Update> for Scene {
 	fn pause(&mut self, _: &mut World)  { println!("pause arena"); }
 	fn resume(&mut self, _: &mut World) { println!("resume arena"); }
 
-	fn update(&mut self, world: &mut World, event: Update) -> SceneTransition<Event> {
-		match event {
-			Update::Frame => {
-				if self.add {
-					for _ in 0..29 {
-						spawn(world, &self.textures);
-					}
-				}
-			}
-			Update::Fixed => {
-				let gravity = 0.75;
-				let dt = world.read_resource::<Time>().fixed_seconds;
-				let size = *world.read_resource::<Vector2<f32>>();
-
-				let speed = world.write::<Velocity>();
-				let sprites = world.write::<SpriteTransform>();
-				update(dt, size, gravity, speed, sprites);
+	fn update(&mut self, world: &mut World) -> SceneTransition<Event> {
+		if self.add {
+			for _ in 0..29 {
+				spawn(world, &self.textures);
 			}
 		}
+		None
+	}
+
+	fn fixed_update(&mut self, world: &mut World) -> SceneTransition<Event> {
+		let gravity = 0.75;
+
+		let dt = world.read_resource::<Time>().fixed_seconds;
+		let size = *world.read_resource::<Vector2<f32>>();
+
+		let mut speed = world.write::<Velocity>();
+		let mut sprites = world.write::<SpriteTransform>();
+
+		let dt = dt * 50.0;
+		let between = Range::new(0.0, 10.0);
+
+		(&mut speed, &mut sprites).join().for_each(|(speed, sprite)| {
+			let sprite = &mut sprite.0;
+			let speed = &mut speed.vel;
+			sprite.t += *speed * dt;
+			speed.y += gravity * dt;
+
+			if sprite.t.x > size.x {
+				speed.x *= -1.0;
+				sprite.t.x = size.x;
+			} else if sprite.t.x < 0.0 {
+				speed.x *= -1.0;
+				sprite.t.x = 0.0;
+			}
+
+			if sprite.t.y > size.y {
+				speed.y *= -0.85;
+				sprite.t.y = size.y;
+				let mut rng = thread_rng();
+				if rng.gen() {
+					speed.y -= between.ind_sample(&mut rng);
+				}
+			} else if sprite.t.y < 0.0 {
+				speed.y = 0.0;
+				sprite.t.y = 0.0;
+			}
+		});
 		None
 	}
 
@@ -80,41 +108,6 @@ impl state::State<World, Event, Update> for Scene {
 		}
 		None
 	}
-}
-
-fn update<'a>(
-	dt: f32, size: Vector2<f32>, gravity: f32,
-	mut speed: WriteStorage<'a, Velocity>, mut sprites: WriteStorage<'a, SpriteTransform>)
-{
-	let dt = dt * 50.0;
-	let between = Range::new(0.0, 10.0);
-
-	(&mut speed, &mut sprites).join().for_each(|(speed, sprite)| {
-		let sprite = &mut sprite.0;
-		let speed = &mut speed.vel;
-		sprite.t += *speed * dt;
-		speed.y += gravity * dt;
-
-		if sprite.t.x > size.x {
-			speed.x *= -1.0;
-			sprite.t.x = size.x;
-		} else if sprite.t.x < 0.0 {
-			speed.x *= -1.0;
-			sprite.t.x = 0.0;
-		}
-
-		if sprite.t.y > size.y {
-			speed.y *= -0.85;
-			sprite.t.y = size.y;
-			let mut rng = thread_rng();
-			if rng.gen() {
-				speed.y -= between.ind_sample(&mut rng);
-			}
-		} else if sprite.t.y < 0.0 {
-			speed.y = 0.0;
-			sprite.t.y = 0.0;
-		}
-	});
 }
 
 fn spawn(world: &mut World, textures: &[Texture]) {
@@ -143,4 +136,3 @@ fn spawn(world: &mut World, textures: &[Texture]) {
 		.with(sprite).with(transform).with(speed)
 		.build();
 }
-

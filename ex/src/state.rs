@@ -1,19 +1,19 @@
 #![allow(dead_code)]
 /// Types of state transitions.
-pub enum Transition<C, E, U> {
+pub enum Transition<C, E> {
 	/// Remove the active state and resume the next
 	/// state on the stack or stop if there are none.
 	Pop,
 	/// Pause the active state and push a new state onto the stack.
-	Push(Box<State<C, E, U>>),
+	Push(Box<State<C, E>>),
 	/// Remove the current state on the stack and insert a different one.
-	Switch(Box<State<C, E, U>>),
+	Switch(Box<State<C, E>>),
 	/// Stop and remove all states and shut down the ctx.
 	Quit,
 }
 
 /// A trait which defines states that can be used by the state machine.
-pub trait State<C, E, U> {
+pub trait State<C, E> {
 	/// Executed when the state begins.
 	fn start(&mut self, &mut C) {}
 	/// Executed when the state exits.
@@ -23,17 +23,20 @@ pub trait State<C, E, U> {
 	/// Executed when the application returns to this state once again.
 	fn resume(&mut self, &mut C) {}
 
-	fn update(&mut self, &mut C, U) -> Option<Transition<C, E, U>> { None }
-	fn event(&mut self, &mut C, E) -> Option<Transition<C, E, U>> { None }
+	fn update(&mut self, &mut C) -> Option<Transition<C, E>> { None }
+	fn late_update(&mut self, &mut C) -> Option<Transition<C, E>> { None }
+	fn fixed_update(&mut self, &mut C) -> Option<Transition<C, E>> { None }
+
+	fn event(&mut self, &mut C, E) -> Option<Transition<C, E>> { None }
 }
 
 /// A simple stack-based state machine (pushdown automaton).
-pub struct StateMachine<C, E, U> {
+pub struct StateMachine<C, E> {
 	running: bool,
-	stack: Vec<Box<State<C, E, U>>>,
+	stack: Vec<Box<State<C, E>>>,
 }
 
-impl<C, E, U> StateMachine<C, E, U> {
+impl<C, E> StateMachine<C, E> {
 	pub fn new() -> Self {
 		Self {
 			running: false,
@@ -45,13 +48,13 @@ impl<C, E, U> StateMachine<C, E, U> {
 		self.running
 	}
 
-	pub fn restart(&mut self, ctx: &mut C, state: Box<State<C, E, U>>) {
+	pub fn restart(&mut self, ctx: &mut C, state: Box<State<C, E>>) {
 		self.shutdown(ctx);
 		self.initialize(ctx, state);
 	}
 
 	/// Initializes the state machine.
-	pub fn initialize(&mut self, ctx: &mut C, mut state: Box<State<C, E, U>>) {
+	pub fn initialize(&mut self, ctx: &mut C, mut state: Box<State<C, E>>) {
 		debug_assert!(!self.running);
 		self.running = true;
 
@@ -68,11 +71,11 @@ impl<C, E, U> StateMachine<C, E, U> {
 		self.running = false;
 	}
 
-	/// Passes a single event to the active state to handle.
-	pub fn update(&mut self, ctx: &mut C, event: U) {
+	pub fn update_run<F>(&mut self, ctx: &mut C, f: F)
+		where F: FnOnce(&mut C, &mut Box<State<C, E>>) -> Option<Transition<C, E>> + 'static
+	{
 		if self.running {
-			let trans = self.stack.last_mut()
-				.and_then(|state| state.update(ctx, event));
+			let trans = self.stack.last_mut().and_then(|s| f(ctx, s));
 			self.transition(ctx, trans);
 		}
 	}
@@ -87,7 +90,7 @@ impl<C, E, U> StateMachine<C, E, U> {
 	}
 
 	/// Performs a state transition.
-	pub fn transition(&mut self, ctx: &mut C, request: Option<Transition<C, E, U>>) {
+	pub fn transition(&mut self, ctx: &mut C, request: Option<Transition<C, E>>) {
 		if self.running {
 			match request {
 				Some(Transition::Pop) => self.pop(ctx),
@@ -100,7 +103,7 @@ impl<C, E, U> StateMachine<C, E, U> {
 	}
 
 	/// Removes the current state on the stack and inserts a different one.
-	pub fn switch(&mut self, ctx: &mut C, state: Box<State<C, E, U>>) {
+	pub fn switch(&mut self, ctx: &mut C, state: Box<State<C, E>>) {
 		if self.running {
 			if let Some(mut state) = self.stack.pop() {
 				state.stop(ctx);
@@ -112,7 +115,7 @@ impl<C, E, U> StateMachine<C, E, U> {
 	}
 
 	/// Pauses the active state and pushes a new state onto the state stack.
-	pub fn push(&mut self, ctx: &mut C, state: Box<State<C, E, U>>) {
+	pub fn push(&mut self, ctx: &mut C, state: Box<State<C, E>>) {
 		if self.running {
 			if let Some(state) = self.stack.last_mut() {
 				state.pause(ctx);
