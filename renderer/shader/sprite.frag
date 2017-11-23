@@ -9,5 +9,9 @@ layout (constant_id = 0) const uint TEXTURE_COUNT = 16;
 layout(set = 1, binding = 0) uniform sampler2D tex[TEXTURE_COUNT];
 
 void main() {
-	f_color = texture(tex[tex_id], tex_coords) * tex_color;
+	if (tex_id < TEXTURE_COUNT) {
+		f_color = texture(tex[tex_id], tex_coords) * tex_color;
+	} else {
+		f_color = tex_color;
+	}
 }

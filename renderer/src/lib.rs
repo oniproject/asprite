@@ -1,8 +1,15 @@
 #![feature(const_fn)]
 #![feature(conservative_impl_trait)]
+#![feature(collection_placement)]
+#![feature(placement_in_syntax)]
+
+#[cfg(feature = "profiler")]
+#[macro_use] extern crate thread_profiler;
 
 extern crate math;
 use math::*;
+
+extern crate smallvec;
 
 #[macro_use] extern crate vulkano;
 extern crate winit;
@@ -50,6 +57,7 @@ use vulkano::descriptor::descriptor::{DescriptorDesc, DescriptorDescTy};
 use vulkano::descriptor::descriptor::{DescriptorImageDesc, DescriptorImageDescDimensions, DescriptorImageDescArray};
 
 use vulkano::pipeline::GraphicsPipeline;
+use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::vertex::SingleBufferDefinition;
 use vulkano::pipeline::shader::SpecializationConstants as SpecConstsTrait;
 use vulkano::pipeline::shader::SpecializationMapEntry;
@@ -140,6 +148,8 @@ mod sprite_renderer;
 mod future;
 mod chain;
 
+mod xbuf;
+
 use self::errors::*;
 use self::sprite_renderer::*;
 use self::text_renderer::*;
@@ -162,6 +172,27 @@ type ArcPipeline<Vtx> = Arc<GraphicsPipeline<SingleBufferDefinition<Vtx>, BoxPip
 
 type Index<T> = Arc<ImmutableBuffer<[T]>>;
 type DescSet = Arc<DescriptorSet + Send + Sync + 'static>;
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct Uniform {
+	pub proj: [[f32; 4]; 4],
+}
+
+#[inline]
+fn projection<L, P>(uniform: &CpuBufferPool<Uniform>, pipeline: L, proj: P) -> Result<DescSet>
+	where
+		L: PipelineLayoutAbstract + Send + Sync + 'static,
+		P: Into<[[f32;4]; 4]> + 'static,
+{
+	let uniform_buffer_subbuffer = uniform.next(Uniform {
+		proj: proj.into(),
+	})?;
+	let set = PersistentDescriptorSet::start(pipeline, 0)
+		.add_buffer(uniform_buffer_subbuffer)?
+		.build()?;
+	Ok(Arc::new(set))
+}
 
 type BoxFuture = Box<GpuFuture + Send + Sync>;
 

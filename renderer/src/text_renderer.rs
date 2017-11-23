@@ -33,7 +33,7 @@ pub struct TextRenderer {
 
 	upload: Option<(DescSet, Arc<ImmutableImage<R8Unorm>>)>,
 
-	uniform: CpuBufferPool<text_shader::Uniform>,
+	uniform: CpuBufferPool<Uniform>,
 	proj_set: DescSet,
 
 	pub fb: Fb,
@@ -79,16 +79,7 @@ impl TextRenderer {
 		let pipeline = Arc::new(pipeline);
 
 		let uniform = CpuBufferPool::uniform_buffer(device.clone());
-
-		let proj_set = {
-			let uniform_buffer_subbuffer = uniform.next(Uniform {
-				proj: Matrix4::identity().into(),
-			})?;
-			let set = PersistentDescriptorSet::start(pipeline.clone(), 0)
-				.add_buffer(uniform_buffer_subbuffer)?
-				.build()?;
-			Arc::new(set)
-		};
+		let proj_set = projection(&uniform, pipeline.clone(), Matrix4::identity())?;
 
 		let capacity = 2000;
 		let vbo = VBO::new(device.clone(), capacity);
@@ -226,13 +217,7 @@ impl TextRenderer {
 
 	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
 		let proj = Affine::projection(wh.x, wh.y).uniform4();
-		let uniform_buffer_subbuffer = self.uniform.next(Uniform {
-			proj: proj.into(),
-		})?;
-		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 0)
-			.add_buffer(uniform_buffer_subbuffer)?
-			.build()?;
-		self.proj_set = Arc::new(set);
+		self.proj_set = projection(&self.uniform, self.pipeline.clone(), proj)?;
 		Ok(())
 	}
 }

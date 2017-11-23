@@ -34,29 +34,38 @@ impl<'a, 'b, E: 'static> App<'a, 'b, E> {
 	pub fn run<F>(&mut self, state: Box<State<World, E>>, mut events: F) -> !
 		where F: FnMut(&mut World, &mut StateMachine<World, E>)
 	{
+		#[cfg(feature = "profiler")]
+		::thread_profiler::register_thread_with_profiler("Main".into());
+
 		self.states.initialize(&mut self.world, state);
 
 		self.world.write_resource::<Stopwatch>().start();
 
 		while self.states.is_running() {
-			#[cfg(feature = "profiler")] profile_scope!("handle_event");
+			#[cfg(feature = "profiler")] profile_scope!("frame");
 			{
+				#[cfg(feature = "profiler")] profile_scope!("handle_event");
 				let states = &mut self.states;
 				let world = &mut self.world;
 				events(world, states);
 			}
 
-			#[cfg(feature = "profiler")] profile_scope!("fixed_update");
 			self.fixed_update();
 
-			#[cfg(feature = "profiler")] profile_scope!("update");
-			self.states.update_run(&mut self.world, |w, s| s.update(w));
+			{
+				#[cfg(feature = "profiler")] profile_scope!("update");
+				self.states.update_run(&mut self.world, |w, s| s.update(w));
+			}
 
-			#[cfg(feature = "profiler")] profile_scope!("dispatch");
-			self.dispatcher.dispatch(&mut self.world.res);
+			{
+				#[cfg(feature = "profiler")] profile_scope!("dispatch");
+				self.dispatcher.dispatch(&mut self.world.res);
+			}
 
-			#[cfg(feature = "profiler")] profile_scope!("late_update");
-			self.states.update_run(&mut self.world, |w, s| s.late_update(w));
+			{
+				#[cfg(feature = "profiler")] profile_scope!("late_update");
+				self.states.update_run(&mut self.world, |w, s| s.late_update(w));
+			}
 
 			/*
 			for local in &mut self.locals {
@@ -64,8 +73,10 @@ impl<'a, 'b, E: 'static> App<'a, 'b, E> {
 			}
 			*/
 
-			#[cfg(feature = "profiler")] profile_scope!("maintain");
-			self.world.maintain();
+			{
+				#[cfg(feature = "profiler")] profile_scope!("maintain");
+				self.world.maintain();
+			}
 
 			// TODO: replace this with a more customizable method.
 			// TODO: effectively, the user should have more control over error handling here
@@ -78,11 +89,18 @@ impl<'a, 'b, E: 'static> App<'a, 'b, E> {
 			self.advance_time();
 		}
 
+		#[cfg(feature = "profiler")]
+		{
+			::thread_profiler::write_profile("./prof.json");
+			println!("end");
+		}
+		println!("end X");
 		::std::process::exit(0)
 	}
 
 	#[inline]
 	fn fixed_update(&mut self) {
+		#[cfg(feature = "profiler")] profile_scope!("fixed_update");
 		let do_fixed = {
 			let time = self.world.write_resource::<Time>();
 			time.last_fixed_update.elapsed() >= time.fixed_time

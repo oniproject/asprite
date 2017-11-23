@@ -6,6 +6,7 @@ authors = ["Lain-dono <lain.dono@gmail.com>"]
 [dependencies]
 renderer = { path = "../renderer" }
 math = { path = "../math" }
+ui = { path = "../ui" }
 
 vulkano = "0.7"
 vulkano-shader-derive = "0.7"
@@ -26,7 +27,11 @@ serde_derive = "1"
 
 lazy_static = "^0.2"
 
-thread_profiler = "0.1"
+thread_profiler = { version = "0.1", optional = true }
+
+[features]
+#default = ["profiler"]
+profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies.specs]
 version = "0.10"

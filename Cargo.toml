@@ -12,6 +12,12 @@ members = [
 	"math",
 ]
 
+[features]
+profiler = ["thread_profiler/thread_profiler"]
+
+[dependencies]
+thread_profiler = { version = "0.1", optional = true }
+
 [profile.release]
 lto = true
 panic = 'abort'

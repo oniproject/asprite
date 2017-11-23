@@ -14,6 +14,7 @@ impl QuadIBO<u16> {
 		)?;
 		Ok((QuadIBO(index), Box::new(future)))
 	}
+	#[inline(always)]
 	pub fn slice(&self, count: usize) -> Option<ChunkIBO<u16>> {
 		self.0.clone().into_buffer_slice().slice(0..count)
 	}

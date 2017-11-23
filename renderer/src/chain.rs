@@ -59,8 +59,8 @@ impl<'a> Chain<'a> {
 				format, dimensions, 1,
 				usage, &queue, SurfaceTransform::Identity,
 				alpha,
-				//PresentMode::Immediate,
-				PresentMode::Fifo,
+				PresentMode::Immediate,
+				//PresentMode::Fifo,
 				true, None)
 			.expect("failed to create swapchain");
 
@@ -90,7 +90,7 @@ impl<'a> Chain<'a> {
 		where F: FnOnce(&[Arc<SwapchainImage>])
 	{
 		if self.recreate_swapchain {
-			println!("recreate_swapchain");
+			#[cfg(feature = "profiler")] profile_scope!("recreate_swapchain");
 			self.dimensions = self.window.surface()
 				.capabilities(self.physical)
 				.expect("failed to get surface capabilities")

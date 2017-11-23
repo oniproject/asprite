@@ -29,12 +29,6 @@ def!(VertInput VertInputIter
 	color => Format::R8G8B8A8Unorm,
 );
 
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct Uniform {
-	pub proj: [[f32; 4]; 4],
-}
-
 pub struct Shader {
 	pub frag: Arc<ShaderModule>,
 	pub vert: Arc<ShaderModule>,

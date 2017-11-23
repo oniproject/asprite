@@ -4,10 +4,12 @@
 #![feature(const_fn)]
 #![feature(conservative_impl_trait)]
 
-#[cfg(feature = "profiler")] extern crate thread_profile;
+#[cfg(feature = "profiler")]
+#[macro_use] extern crate thread_profiler;
 
 extern crate renderer;
 extern crate math;
+extern crate ui;
 
 extern crate toml;
 extern crate serde;
@@ -42,8 +44,30 @@ use sprite_batcher::*;
 pub const TEXTURE_COUNT: u32 = 16;
 pub const BATCH_CAPACITY: usize = 2_000;
 
+/*
+fn draw() {
+	fn draw_indexed(
+		//&mut self,
+		index_count: u32,
+		instance_count: u32,
+		first_index: u32,
+		vertex_offset: i32,
+		first_instance: u32
+	) {}
+
+	let from = N;
+	let count = N;
+
+	let index_offset = from * INDEX_BY_QUAD;
+	let vertex_offset = from * VERTEX_BY_QUAD;
+
+	draw_indexed(count, 1, index_offset, vertex_offset, 0);
+}
+*/
+
 fn main() {
 	let (mut events_loop, b) = BatcherBundle::new();
+
 
 	let queue = b.batcher.queue.clone();
 
@@ -51,7 +75,14 @@ fn main() {
 		println!("create app");
 
 		use std::sync::Arc;
-		let conf = rayon::Configuration::new();
+		let conf = rayon::Configuration::new()
+			.start_handler(|n| {
+				#[cfg(feature = "profiler")]
+				{
+					let name = format!("th#{}", n);
+					::thread_profiler::register_thread_with_profiler(name.into());
+				}
+			});
 		let pool = Arc::new(rayon::ThreadPool::new(conf).unwrap());
 
 		let dispatcher = specs::DispatcherBuilder::new()
@@ -67,7 +98,7 @@ fn main() {
 		App::new(world, dispatcher.build())
 	};
 
-	app.world.write_resource::<time::Time>().set_fixed_time(::std::time::Duration::new(0, 16666666*4));
+	// app.world.write_resource::<time::Time>().set_fixed_time(::std::time::Duration::new(0, 16666666*4));
 
 	println!();
 	println!("run");

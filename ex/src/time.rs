@@ -85,7 +85,7 @@ impl Time {
 	///
 	/// This should only be called by the engine.
 	/// Bad things might happen if you call this in your game.
-	pub fn set_delta_seconds(&mut self, secs: f32) {
+	pub(crate) fn set_delta_seconds(&mut self, secs: f32) {
 		self.delta_seconds = secs * self.time_scale;
 		self.delta_time = secs_to_duration(secs * self.time_scale);
 		self.delta_real_seconds = secs;
@@ -99,7 +99,7 @@ impl Time {
 	///
 	/// This should only be called by the engine.
 	/// Bad things might happen if you call this in your game.
-	pub fn set_delta_time(&mut self, time: Duration) {
+	pub(crate) fn set_delta_time(&mut self, time: Duration) {
 		self.delta_seconds = duration_to_secs(time) * self.time_scale;
 		self.delta_time = secs_to_duration(duration_to_secs(time) * self.time_scale);
 		self.delta_real_seconds = duration_to_secs(time);
@@ -125,7 +125,7 @@ impl Time {
 	///
 	/// This should only be called by the engine.
 	/// Bad things might happen if you call this in your game.
-	pub fn increment_frame_number(&mut self) {
+	pub(crate) fn increment_frame_number(&mut self) {
 		self.frame_number += 1;
 	}
 
@@ -145,7 +145,7 @@ impl Time {
 	///
 	/// This should only be called by the engine.
 	/// Bad things might happen if you call this in your game.
-	pub fn finish_fixed_update(&mut self) {
+	pub(crate) fn finish_fixed_update(&mut self) {
 		self.last_fixed_update += self.fixed_time
 	}
 }

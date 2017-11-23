@@ -3,6 +3,7 @@ use sprite_shader::*;
 
 //vulkano::pipeline::vertex::SingleBufferDefinition<vertex::Vertex>:
 //vulkano::pipeline::vertex::VertexSource<vulkano::buffer::cpu_pool::CpuBufferPoolChunk<vertex::Vertex, A>>
+//use vulkano::descriptor::descriptor_set::FixedSizeDescriptorSetsPool;
 
 pub struct SpriteRenderer {
 	pub vbo: VBO<sprite_shader::Vertex>,
@@ -10,6 +11,8 @@ pub struct SpriteRenderer {
 	pipeline: ArcPipeline<sprite_shader::Vertex>,
 	uniform: CpuBufferPool<Uniform>,
 	proj_set: DescSet,
+
+	//pool: FixedSizeDescriptorSetsPool<ArcPipeline<sprite_shader::Vertex>>,
 
 	pub fb: Fb,
 }
@@ -39,18 +42,11 @@ impl SpriteRenderer {
 		let pipeline = Arc::new(pipeline);
 
 		let uniform = CpuBufferPool::new(device.clone(), BufferUsage::all());
-
-		let proj_set = {
-			let uniform_buffer_subbuffer = uniform.next(Uniform {
-				proj: Matrix4::identity().into(),
-			})?;
-			let set = PersistentDescriptorSet::start(pipeline.clone(), 0)
-				.add_buffer(uniform_buffer_subbuffer)?
-				.build()?;
-			Arc::new(set)
-		};
+		let proj_set = projection(&uniform, pipeline.clone(), Matrix4::identity())?;
 
 		let vbo = VBO::new(device.clone(), capacity);
+
+		//let pool = FixedSizeDescriptorSetsPool::new(pipeline.clone(), 1);
 
 		Ok(Self { pipeline, uniform, proj_set, ibo, vbo, fb })
 	}
@@ -66,12 +62,13 @@ impl SpriteRenderer {
 
 		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
 		let ibo = self.ibo.slice(count).expect("failure index buffer slice");
-		let vbo: CpuBufferPoolChunk<sprite_shader::Vertex, Arc<StdMemoryPool>> = self.vbo.flush()?;
+		let vbo = self.vbo.flush()?;
 
 		let count = sprite_shader::TextureCount { count: textures.len() as u32 };
 
 		let t = textures;
 		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 1)
+		//let set = self.pool.next()
 			.enter_array()?
 
 			.add_sampled_image(t[ 0].texture.clone(), t[ 0].sampler.clone())?
@@ -104,13 +101,7 @@ impl SpriteRenderer {
 
 	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
 		let proj = Affine::projection(wh.x, wh.y).uniform4();
-		let uniform_buffer_subbuffer = self.uniform.next(Uniform {
-			proj: proj.into(),
-		})?;
-		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 0)
-			.add_buffer(uniform_buffer_subbuffer)?
-			.build()?;
-		self.proj_set = Arc::new(set);
+		self.proj_set = projection(&self.uniform, self.pipeline.clone(), proj)?;
 		Ok(())
 	}
 }

@@ -35,6 +35,7 @@ impl Future {
 
 	#[inline(always)]
 	pub fn cleanup_finished(&mut self) {
+		#[cfg(feature = "profiler")] profile_scope!("cleanup_finished");
 		self.future.cleanup_finished()
 	}
 

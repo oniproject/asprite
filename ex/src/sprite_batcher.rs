@@ -1,6 +1,4 @@
 use vulkano::command_buffer::AutoCommandBufferBuilder;
-use vulkano::command_buffer::DynamicState;
-use vulkano::pipeline::viewport::Viewport;
 use vulkano::device::Queue;
 use vulkano::sync::GpuFuture;
 
@@ -128,12 +126,15 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 	fn running_time(&self) -> RunningTime { RunningTime::Long }
 
 	fn run(&mut self, (mut future, mut wh, sprites, e, dt): Self::SystemData) {
+		#[cfg(feature = "profiler")] profile_scope!("rendering");
 		future.cleanup_finished();
 
 		let image_num = {
+			#[cfg(feature = "profiler")] profile_scope!("swap");
 			let ren = &mut self.renderer;
 			match self.chain.run(|m| ren.refill(m)) {
 				Some((num, sw_future)) => {
+					#[cfg(feature = "profiler")] profile_scope!("join fu");
 					future.join(sw_future);
 					num
 				},
@@ -148,15 +149,6 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 		};
 
 		self.proj_set(wh);
-		let state = DynamicState {
-			line_width: None,
-			viewports: Some(vec![Viewport {
-				origin: [0.0, 0.0],
-				dimensions: wh.into(),
-				depth_range: 0.0 .. 1.0,
-			}]),
-			scissors: None,
-		};
 
 		let clear = vec![[0.0, 0.0, 1.0, 1.0].into()];
 
@@ -165,17 +157,33 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 			.unwrap()
 			.begin_render_pass(fb.clone(), false, clear).unwrap();
 
-		for (sprite,) in (&sprites,).join() {
-			cb = self.renderer.texture_quad(cb, state.clone(),
-				sprite.texture.clone(),
-				sprite.color,
-				sprite.pos, sprite.uv).unwrap();
+		{
+			#[cfg(feature = "profiler")] profile_scope!("push_sprite");
+			for (sprite,) in (&sprites,).join() {
+				cb = self.renderer.texture_quad(cb,
+					sprite.texture.clone(),
+					sprite.color,
+					&sprite.pos, &sprite.uv).unwrap();
+			}
 		}
 
-		cb = self.renderer.flush(cb, state.clone()).unwrap();
-		future.then_execute(self.queue.clone(), cb.end_render_pass().unwrap().build().unwrap());
+		cb = self.renderer.color_quad(cb,
+			Vector2::new(100.0, 200.0),
+			Vector2::new(600.0, 300.0),
+			[0xFF, 0, 0, 0xAA]
+		).unwrap();
+
+		cb = self.renderer.flush(cb).unwrap();
+
+		{
+			#[cfg(feature = "profiler")] profile_scope!("esp");
+			future.then_execute(self.queue.clone(), cb.end_render_pass().unwrap().build().unwrap());
+		}
 
 		if true {
+			#[cfg(feature = "profiler")] profile_scope!("text");
+
+			future.cleanup_finished();
 			let dt = dt.delta_seconds;
 			use specs::Join;
 
@@ -185,12 +193,17 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 			let text = format!("count: {} ms: {}", e.join().count(), dt);
 			let text = Text::new(&self.font, 24.0, text)
 				.lay(Vector2::new(100.0, 200.0), 500);
-
-			cb = self.renderer.text(cb, state.clone(), &text, image_num).unwrap();
+			cb = self.renderer.text(cb, &text, image_num).unwrap();
+			{
+			#[cfg(feature = "profiler")] profile_scope!("etxt");
 			future.then_execute(self.queue.clone(), cb.build().unwrap());
+			}
 		}
 
-		future.then_swapchain_present(self.queue.clone(), self.chain.swapchain.clone(), image_num);
-		future.then_signal_fence_and_flush();
+		{
+			#[cfg(feature = "profiler")] profile_scope!("end");
+			future.then_swapchain_present(self.queue.clone(), self.chain.swapchain.clone(), image_num);
+			future.then_signal_fence_and_flush();
+		}
 	}
 }
