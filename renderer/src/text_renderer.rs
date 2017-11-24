@@ -67,6 +67,8 @@ impl TextRenderer {
 		let mut fb = Fb::simple(swapchain.clone());
 		fb.fill(images);
 
+		let sub = Subpass::from(fb.rp.clone(), 0).ok_or_else(|| ErrorKind::NoneError)?;
+
 		let pipeline = GraphicsPipeline::start()
 			.vertex_input_single_buffer::<text_shader::Vertex>()
 			.vertex_shader(vs.0, vs.1)
@@ -74,7 +76,7 @@ impl TextRenderer {
 			.viewports_dynamic_scissors_irrelevant(1)
 			.fragment_shader(fs.0, fs.1)
 			.blend_alpha_blending()
-			.render_pass(Subpass::from(fb.rp.clone(), 0).unwrap())
+			.render_pass(sub)
 			.build(device.clone())?;
 
 		let pipeline = Arc::new(pipeline);
@@ -123,7 +125,9 @@ impl TextRenderer {
 
 		let cache = &mut self.cache;
 		let color = [0xFF; 4];
-		for (uv, pos) in glyphs.into_iter().filter_map(|g| cache.rect_for(0, g).unwrap()) {
+		let iter = glyphs.into_iter()
+			.filter_map(|g| cache.rect_for(0, g).unwrap());
+		for (uv, pos) in iter {
 			self.vbo.push(Vertex {
 				uv: pack_uv(uv.min.x, uv.min.y),
 				position: [pos.min.x as f32, pos.min.y as f32],
@@ -147,7 +151,7 @@ impl TextRenderer {
 		}
 
 		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
-		let ibo = self.ibo.slice(count).expect("failure index buffer slice");
+		let ibo = self.ibo.slice(count).ok_or_else(|| ErrorKind::NoneError)?;
 		let vbo = self.vbo.flush()?;
 
 		Ok(cb
@@ -180,7 +184,8 @@ impl TextRenderer {
 					dst_index += stride;
 					src_index += w;
 				}
-			}).unwrap();
+			})
+			.map_err(|e| ErrorKind::CacheWriteErr(e))?;
 		}
 
 		let (tset, tex, cb) = match self.upload {

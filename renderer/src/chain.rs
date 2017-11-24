@@ -1,17 +1,32 @@
 use super::*;
 use math::*;
 
+use vulkano_win::Window;
+use vulkano_win::VkSurfaceBuild;
+
 use vulkano::framebuffer::RenderPassAbstract;
 use vulkano::image::swapchain::SwapchainImage;
 use vulkano::swapchain::Capabilities;
-use vulkano_win::Window;
 use vulkano::format::Format;
 use vulkano::swapchain::SwapchainAcquireFuture;
 use vulkano::framebuffer::FramebufferAbstract;
 use vulkano::device::DeviceOwned;
 
-use vulkano::instance::PhysicalDevice;
+use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::device::{Device, DeviceExtensions};
+
+lazy_static! {
+	static ref INSTANCE: Arc<Instance> = {
+		let extensions = vulkano_win::required_extensions();
+		Instance::new(None, &extensions, &[])
+			.expect("failed to create instance")
+	};
+}
+
+pub struct ChainConfig {
+	pub format: Format,
+	pub present_mode: PresentMode,
+}
 
 pub struct Chain<'a> {
 	pub recreate_swapchain: bool,
@@ -24,9 +39,20 @@ pub struct Chain<'a> {
 }
 
 impl<'a> Chain<'a> {
-	pub fn new<F>(physical: PhysicalDevice<'a>, window: Window, fmt: F) -> (Self, Vec<Arc<SwapchainImage>>)
-		where F: FnOnce(&Capabilities) -> Format
+	pub fn new<F>(fmt: F) -> (Self, Vec<Arc<SwapchainImage>>, winit::EventsLoop)
+		where F: FnOnce(&Capabilities) -> ChainConfig
 	{
+		let physical = PhysicalDevice::enumerate(&INSTANCE)
+			.next().expect("no device available");
+
+		println!("Using device: {} (type: {:?})", physical.name(), physical.ty());
+		println!();
+
+		let events_loop = winit::EventsLoop::new();
+		let window = winit::WindowBuilder::new()
+			.build_vk_surface(&events_loop, INSTANCE.clone())
+			.expect("can't build window");
+
 		let surface = window.surface().clone();
 
 		let queue = physical.queue_families()
@@ -51,18 +77,18 @@ impl<'a> Chain<'a> {
 		println!("{:?}", caps);
 		println!();
 
-		let format = fmt(&caps);
+		let conf = fmt(&caps);
+
 		let usage = caps.supported_usage_flags;
 		let alpha = caps.supported_composite_alpha.iter().next().unwrap();
 		let dimensions = caps.current_extent.unwrap_or([1024, 768]);
 
 		let (swapchain, images) = Swapchain::new(
 				queue.device().clone(), surface, caps.min_image_count,
-				format, dimensions, 1,
+				conf.format, dimensions, 1,
 				usage, &queue, SurfaceTransform::Identity,
 				alpha,
-				PresentMode::Immediate,
-				//PresentMode::Fifo,
+				conf.present_mode,
 				true, None)
 			.expect("failed to create swapchain");
 
@@ -77,7 +103,7 @@ impl<'a> Chain<'a> {
 
 				recreate_swapchain: false,
 			},
-			images
+			images, events_loop,
 		)
 	}
 	pub fn format(&self) -> Format {

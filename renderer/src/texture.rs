@@ -62,6 +62,14 @@ impl Texture {
 		Ok((future, textures))
 	}
 
+	pub fn join_load<P>(future: &mut Future, queue: Arc<Queue>, name: P) -> Result<Self>
+		where P: AsRef<Path>
+	{
+		let (fu, tex) = Self::load(queue, name)?;
+		future.join(fu);
+		Ok(tex)
+	}
+
 	pub fn load<P>(queue: Arc<Queue>, path: P) ->
 		Result<(Box<GpuFuture + Send + Sync>, Self)>
 		where P: AsRef<Path>

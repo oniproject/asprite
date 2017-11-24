@@ -4,9 +4,12 @@
 #![feature(conservative_impl_trait)]
 #![feature(collection_placement)]
 #![feature(placement_in_syntax)]
+#![feature(try_trait)]
 
 #[cfg(feature = "profiler")]
 #[macro_use] extern crate thread_profiler;
+
+#[macro_use] extern crate lazy_static;
 
 extern crate math;
 

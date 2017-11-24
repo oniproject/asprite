@@ -31,7 +31,7 @@ impl Group {
 		self.array.push(v);
 	}
 
-	#[inline]
+	#[inline(always)]
 	pub fn position(&self, v: &Texture) -> Option<usize> {
 		self.array.iter().position(|q| Arc::ptr_eq(&q.texture, &v.texture))
 	}

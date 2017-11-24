@@ -30,6 +30,8 @@ impl SpriteRenderer {
 		let mut fb = Fb::simple(swapchain.clone());
 		fb.fill(images);
 
+		let sub = Subpass::from(fb.rp.clone(), 0).ok_or_else(|| ErrorKind::NoneError)?;
+
 		let pipeline = GraphicsPipeline::start()
 			.vertex_input_single_buffer::<sprite_shader::Vertex>()
 			.vertex_shader(vs.0, vs.1)
@@ -37,7 +39,7 @@ impl SpriteRenderer {
 			.viewports_dynamic_scissors_irrelevant(1)
 			.fragment_shader(fs.0, fs.1)
 			.blend_alpha_blending()
-			.render_pass(Subpass::from(fb.rp.clone(), 0).unwrap())
+			.render_pass(sub)
 			.build(device.clone())?;
 
 		let pipeline = Arc::new(pipeline);
@@ -63,7 +65,7 @@ impl SpriteRenderer {
 		}
 
 		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
-		let ibo = self.ibo.slice(count).expect("failure index buffer slice");
+		let ibo = self.ibo.slice(count).ok_or_else(|| ErrorKind::NoneError)?;
 		let vbo = self.vbo.flush()?;
 
 		let count = sprite_shader::TextureCount { count: textures.len() as u32 };

@@ -1,4 +1,14 @@
 error_chain! {
+	errors {
+		NoneError {
+			description("NoneError")
+			display("NoneError")
+		}
+		CacheWriteErr(err: ::rusttype::gpu_cache::CacheWriteErr) {
+			description("CacheWriteErr")
+			display("CacheWriteErr: {:?}", err)
+		}
+	}
 	foreign_links {
 		//NoneError(::std::option::NoneError);
 		//CacheWriteErr(::rusttype::gpu_cache::CacheWriteErr);

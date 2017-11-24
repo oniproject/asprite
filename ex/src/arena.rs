@@ -29,6 +29,51 @@ pub struct Scene {
 	pub add: bool,
 }
 
+/*
+pub trait Format {
+	type Options: Clone + Send + Sync + 'static;
+
+	fn import(&self, bytes: Vec<u8>, options: Self::Options) -> Result<A::Data>;
+}
+*/
+
+use std::io::prelude::*;
+use std::fs::File;
+use std::path::Path;
+
+
+error_chain! {
+	foreign_links {
+		Io(::std::io::Error);
+		TomlDe(::toml::de::Error);
+	}
+}
+
+struct TextureFormat;
+
+impl TextureFormat {
+	fn load<P>(path: P, mut options: (&mut Future, Arc<Queue>)) -> Result<Vec<Texture>>
+		where P: AsRef<Path>
+	{
+		#[derive(Debug, Deserialize)]
+		struct Assets {
+			images: Vec<String>,
+		}
+
+		let mut f = File::open(path)?;
+		let mut buffer = Vec::new();
+		f.read_to_end(&mut buffer)?;
+
+		let decoded: Assets = toml::from_slice(&buffer)?;
+		println!("{:#?}", decoded);
+		let iter = decoded.images.iter()
+			.map(|name| Texture::join_load(&mut options.0, options.1.clone(), name))
+			.map(|t| t.unwrap());
+
+		Ok(iter.collect())
+	}
+}
+
 impl state::State<World, Event> for Scene {
 	fn switch(&mut self, world: &mut World, event: state::ExecEvent) {
 		use state::ExecEvent::*;
@@ -36,28 +81,11 @@ impl state::State<World, Event> for Scene {
 		match event {
 			Start | Resume => {
 				if self.textures.is_empty() {
-					let (future, textures) = {
-						use std::io::prelude::*;
-						use std::fs::File;
+					let mut future = world.write_resource::<Future>();
 
-						#[derive(Debug, Deserialize)]
-						struct Assets {
-							images: Vec<String>,
-						}
+					let iter = TextureFormat::load(RES, (&mut future, self.queue.clone())).unwrap();
 
-						let mut f = File::open(RES).unwrap();
-						let mut buffer = Vec::new();
-						f.read_to_end(&mut buffer).unwrap();
-
-						let decoded: Assets = toml::from_slice(&buffer).unwrap();
-						println!("{:#?}", decoded);
-
-						Texture::load_vec(self.queue.clone(), &decoded.images).unwrap()
-					};
-
-					self.textures = textures;
-
-					world.write_resource::<Future>().join(future);
+					self.textures = iter;
 				};
 
 				for _ in 0..300 {

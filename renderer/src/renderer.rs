@@ -11,6 +11,8 @@ pub struct Renderer {
 	pub empty: Texture,
 	pub fb: Fb,
 	pub state: DynamicState,
+
+	pub last_wh: Vector2<f32>,
 }
 
 impl Renderer {
@@ -35,8 +37,10 @@ impl Renderer {
 			scissors: None,
 		};
 
+		let last_wh = Vector2::zero();
+
 		Ok((
-			Self { empty, group, sprite, text, fb, state },
+			Self { empty, group, sprite, text, fb, state, last_wh },
 			Box::new(index_future)
 		))
 	}
@@ -48,7 +52,13 @@ impl Renderer {
 		self.sprite.refill(images);
 	}
 
+	#[inline]
 	pub fn resize(&mut self, wh: Vector2<f32>) -> Result<()> {
+		if self.last_wh == wh {
+			return Ok(());
+		}
+		self.last_wh = wh;
+
 		self.state = DynamicState {
 			line_width: None,
 			viewports: Some(vec![Viewport {
@@ -105,12 +115,12 @@ impl Renderer {
 		];
 
 		for i in 0..4 {
-			self.sprite.vbo.push(sprite_shader::Vertex {
+			self.sprite.vbo.vertices.place_back() <- sprite_shader::Vertex {
 				position: pos[i].into(),
 				uv: UV[i],
 				color: color,
 				texture: EMPTY_TEXTURE_ID,
-			});
+			};
 		}
 
 		Ok(cb)
