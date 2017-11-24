@@ -1,4 +1,3 @@
-use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::device::Queue;
 use vulkano::sync::GpuFuture;
 use vulkano::swapchain::PresentMode;
@@ -101,18 +100,20 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 		#[cfg(feature = "profiler")] profile_scope!("rendering");
 		future.cleanup_finished();
 
-		let image_num = {
+		let (image_num, cb) = {
 			#[cfg(feature = "profiler")] profile_scope!("swap");
 			let ren = &mut self.renderer;
 			match self.chain.run(|m| ren.refill(m)) {
 				Some((num, sw_future)) => {
-					#[cfg(feature = "profiler")] profile_scope!("join fu");
 					future.join(sw_future);
-					num
+					ren.set_num(num);
+					(num, ren.clear().unwrap())
 				},
 				None => return,
 			}
 		};
+
+		let font_size = 24.0;
 
 		{
 			let dim = self.chain.dim();
@@ -121,58 +122,141 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 		}
 
 		let cb = {
-			let clear = vec![[0.0, 0.0, 1.0, 1.0].into()];
+			#[cfg(feature = "profiler")] profile_scope!("sprites");
 
-			let fb = self.renderer.fb.at(image_num);
-			AutoCommandBufferBuilder::new(self.queue.device().clone(), self.queue.family())
-				.unwrap()
-				.begin_render_pass(fb.clone(), false, clear).unwrap()
-				.end_render_pass().unwrap()
+			let mut cb = self.renderer.start_sprites(cb).unwrap();
+			{
+				for sprite in sprites.join() {
+					cb = self.renderer.texture_quad(cb,
+						sprite.texture.clone(),
+						sprite.color,
+						&sprite.pos, &sprite.uv).unwrap();
+				}
+			}
+
+			let cb = self.renderer.color_quad(cb,
+				Vector2::new(100.0, 200.0),
+				Vector2::new(600.0, 200.0 + font_size),
+				[0xFF, 0, 0, 0xAA]
+			).unwrap();
+
+			self.renderer.end_sprites(cb).unwrap()
 		};
 
-		let fb = self.renderer.sprite.fb.at(image_num);
-		let mut cb = cb.begin_render_pass(fb.clone(), false, Vec::new()).unwrap();
+		let cb = {
+			use math::Transform;
+			#[cfg(feature = "profiler")] profile_scope!("vg");
+			let min = Vector2::new(100.0, 300.0);
+			let max = Vector2::new(600.0, 400.0);
+			let color = [0xFF, 0xFF, 0, 0xAA];
 
-		{
-			#[cfg(feature = "profiler")] profile_scope!("push_sprite");
-			for sprite in sprites.join() {
-				cb = self.renderer.texture_quad(cb,
-					sprite.texture.clone(),
-					sprite.color,
-					&sprite.pos, &sprite.uv).unwrap();
-			}
-		}
+			let mut cb = self.renderer.start_vg(cb).unwrap();
+			let cb = self.renderer.x_quad(cb, min, max, color).unwrap();
 
-		cb = self.renderer.color_quad(cb,
-			Vector2::new(100.0, 200.0),
-			Vector2::new(600.0, 300.0),
-			[0xFF, 0, 0, 0xAA]
-		).unwrap();
+			let mut proj = Affine::one();
+			proj.scale(5.0, 5.0);
+			proj.translate(150.0, 100.0);
+			let color = [0, 0, 0, 0xAA];
+			let mesh = build_lyon(proj, color);
+			let cb = self.renderer.path(cb, &mesh.vertices, &mesh.indices).unwrap();
 
-		cb = self.renderer.flush(cb).unwrap();
+			self.renderer.end_vg(cb).unwrap()
+		};
 
-		{
-			#[cfg(feature = "profiler")] profile_scope!("esp");
-			future.then_execute(self.queue.clone(), cb.end_render_pass().unwrap().build().unwrap());
-		}
-
-		if true {
+		let cb = {
 			#[cfg(feature = "profiler")] profile_scope!("text");
 
-			//future.cleanup_finished();
 			let dt = dt.delta.seconds;
 
-			let text = format!("count: {} ms: {}", e.join().count(), dt);
-			let text = Text::new(&self.font, 24.0, text)
-				.lay(Vector2::new(100.0, 200.0), 500);
-			let cb = self.renderer.text(&text, image_num).unwrap();
-			future.then_execute(self.queue.clone(), cb);
-		}
+			let text = format!("count: {} ms: {:.4}", e.join().count(), dt);
+			let lay: Vec<_> = self.renderer.text_lay(&self.font, font_size, &text, 100.0, 200.0 + font_size).collect();
+
+			self.renderer.glyphs(cb, &lay, [0xFF; 4]).unwrap()
+		};
 
 		{
 			#[cfg(feature = "profiler")] profile_scope!("end");
+			future.then_execute(self.queue.clone(), cb.build().unwrap());
 			future.then_swapchain_present(self.queue.clone(), self.chain.swapchain.clone(), image_num);
 			future.then_signal_fence_and_flush();
 		}
 	}
 }
+
+pub fn build_lyon(proj: Affine<f32>, color: [u8; 4])
+	-> lyon::tessellation::geometry_builder::VertexBuffers<::renderer::vg::Vertex>
+{
+	use lyon::extra::rust_logo::build_logo_path;
+	use lyon::path_builder::*;
+	use lyon::math::*;
+	use lyon::tessellation::geometry_builder::{VertexConstructor, VertexBuffers, BuffersBuilder};
+	use lyon::tessellation::geometry_builder::simple_builder;
+	use lyon::tessellation::{FillTessellator, FillOptions};
+	use lyon::tessellation::FillVertex;
+	use lyon::tessellation;
+	use lyon::path::Path;
+
+	use math::Transform;
+
+	let mut builder = SvgPathBuilder::new(Path::builder());
+	if true {
+		build_logo_path(&mut builder);
+	} else {
+		builder.move_to(point(0.0, 0.0));
+		builder.line_to(point(1.0, 0.0));
+		builder.quadratic_bezier_to(point(2.0, 0.0), point(2.0, 1.0));
+		builder.cubic_bezier_to(point(1.0, 1.0), point(0.0, 1.0), point(0.0, 0.0));
+		builder.close();
+	}
+
+	let path = builder.build();
+
+	let mut tessellator = FillTessellator::new();
+
+	let mut mesh = VertexBuffers::new();
+
+	{
+		tessellator.tessellate_path(
+			path.path_iter(),
+			&FillOptions::tolerance(0.01),
+			//&mut vertex_builder,
+			&mut BuffersBuilder::new(&mut mesh, VertexCtor {
+				aff: proj,
+				color,
+			}),
+		).unwrap();
+	}
+
+	/*
+	println!(" -- {} vertices {} indices",
+		mesh.vertices.len(),
+		mesh.indices.len()
+	);
+	*/
+
+	mesh
+}
+
+
+type GpuFillVertex = ::renderer::vg::Vertex;
+
+#[derive(Clone)]
+struct VertexCtor {
+	pub aff: Affine<f32>,
+	pub color: [u8; 4],
+}
+impl lyon::tessellation::geometry_builder::VertexConstructor<lyon::tessellation::FillVertex, GpuFillVertex> for VertexCtor {
+	fn new_vertex(&mut self, vertex: lyon::tessellation::FillVertex) -> GpuFillVertex {
+		use math::Transform;
+
+		debug_assert!(!vertex.position.x.is_nan());
+		debug_assert!(!vertex.position.y.is_nan());
+		let position = Vector2::new(vertex.position.x, vertex.position.y);
+		let position = self.aff.transform_vector(position).into();
+		GpuFillVertex {
+			position,
+			color: self.color,
+		}
+	}
+}
+

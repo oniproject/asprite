@@ -1,6 +1,16 @@
-use super::*;
-
+use vulkano::device::Queue;
 use vulkano::buffer::BufferAccess;
+use vulkano::buffer::BufferUsage;
+use vulkano::buffer::BufferSlice;
+use vulkano::buffer::ImmutableBuffer;
+
+use std::sync::Arc;
+
+use super::BoxFuture;
+use errors::*;
+
+pub type Index<T> = Arc<ImmutableBuffer<[T]>>;
+pub type ChunkIBO<T> = BufferSlice<[T], Index<T>>;
 
 #[derive(Clone)]
 pub struct QuadIBO<T>(Index<T>);

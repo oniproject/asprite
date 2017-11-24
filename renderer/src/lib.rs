@@ -8,11 +8,11 @@
 
 #[cfg(feature = "profiler")]
 #[macro_use] extern crate thread_profiler;
-
 #[macro_use] extern crate lazy_static;
 
 extern crate math;
 
+extern crate lyon;
 extern crate smallvec;
 
 #[macro_use] extern crate vulkano;
@@ -28,19 +28,13 @@ extern crate rusttype;
 
 use vulkano::image::swapchain::SwapchainImage;
 
-use vulkano::buffer::immutable::ImmutableBuffer;
-use vulkano::buffer::cpu_pool::{CpuBufferPool, CpuBufferPoolChunk};
-use vulkano::buffer::BufferUsage;
-use vulkano::buffer::BufferSlice;
-use vulkano::framebuffer::{RenderPassAbstract, Subpass};
-use vulkano::framebuffer::Framebuffer;
-use vulkano::command_buffer::AutoCommandBuffer;
+use vulkano::buffer::cpu_pool::CpuBufferPool;
+use vulkano::framebuffer::RenderPassAbstract;
 use vulkano::command_buffer::AutoCommandBufferBuilder as CmdBuild;
 use vulkano::command_buffer::DynamicState;
-use vulkano::device::{Device, Queue};
+use vulkano::device::Queue;
 use vulkano::sync::GpuFuture;
 use vulkano::sync::now as vk_now;
-use vulkano::format::Format;
 
 use vulkano::swapchain::{
 	Swapchain,
@@ -51,24 +45,12 @@ use vulkano::swapchain::{
 	AcquireError,
 };
 
-use vulkano::memory::pool::StdMemoryPool;
-use vulkano::memory::pool::MemoryPool;
-
 use vulkano::descriptor::PipelineLayoutAbstract;
 use vulkano::descriptor::descriptor_set::{DescriptorSet, PersistentDescriptorSet};
-use vulkano::descriptor::pipeline_layout::{PipelineLayoutDesc, PipelineLayoutDescPcRange};
-use vulkano::descriptor::descriptor::{DescriptorBufferDesc, ShaderStages};
-use vulkano::descriptor::descriptor::{DescriptorDesc, DescriptorDescTy};
-use vulkano::descriptor::descriptor::{DescriptorImageDesc, DescriptorImageDescDimensions, DescriptorImageDescArray};
 
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::vertex::SingleBufferDefinition;
-use vulkano::pipeline::shader::SpecializationConstants as SpecConstsTrait;
-use vulkano::pipeline::shader::SpecializationMapEntry;
-use vulkano::pipeline::shader::ShaderModule;
-use vulkano::pipeline::shader::GraphicsEntryPoint;
-use vulkano::pipeline::shader::GraphicsShaderType;
 
 use vulkano::sampler::{Sampler, Filter, MipmapMode, SamplerAddressMode};
 use vulkano::image::ImmutableImage;
@@ -90,7 +72,7 @@ macro_rules! def {
 			return Some($crate::vulkano::pipeline::shader::ShaderInterfaceDefEntry {
 				location: $idx..$idx+1,
 				format: $format,
-				name: Some(Cow::Borrowed(stringify!($name))),
+				name: Some($crate::Cow::Borrowed(stringify!($name))),
 			});
 		}
 		def!(@step $idx + 1, $self, $($_name => $_format,)*)
@@ -138,13 +120,14 @@ pub mod errors;
 
 mod renderer;
 mod quad_indices;
-mod group;
 mod vbo;
+mod fbo;
 
 mod texture;
 
-mod text;
-mod sprite;
+pub mod text;
+pub mod sprite;
+pub mod vg;
 
 mod future;
 mod chain;
@@ -152,15 +135,12 @@ mod chain;
 mod xbuf;
 
 use self::errors::*;
-use self::sprite::*;
-use self::text::*;
 use self::quad_indices::*;
-use self::group::*;
 use self::vbo::*;
+use self::fbo::*;
 
 pub use self::chain::*;
 pub use self::future::*;
-pub use self::text::*;
 pub use self::texture::*;
 pub use self::renderer::*;
 
@@ -171,7 +151,6 @@ type BoxPipelineLayout = Box<PipelineLayoutAbstract + Send + Sync + 'static>;
 type ArcRenderPass = Arc<RenderPassAbstract + Send + Sync + 'static>;
 type ArcPipeline<Vtx> = Arc<GraphicsPipeline<SingleBufferDefinition<Vtx>, BoxPipelineLayout, ArcRenderPass>>;
 
-type Index<T> = Arc<ImmutableBuffer<[T]>>;
 type DescSet = Arc<DescriptorSet + Send + Sync + 'static>;
 
 #[repr(C)]
@@ -196,9 +175,6 @@ fn projection<L, P>(uniform: &CpuBufferPool<Uniform>, pipeline: L, proj: P) -> R
 }
 
 type BoxFuture = Box<GpuFuture + Send + Sync>;
-
-//type ChunkVBO<T> = CpuBufferPoolChunk<T, Arc<StdMemoryPool>>;
-type ChunkIBO<T> = BufferSlice<[T], Index<T>>;
 
 #[inline(always)]
 pub const fn zero_uv() -> [[u16; 2]; 4] {

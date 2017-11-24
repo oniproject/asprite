@@ -4,12 +4,10 @@ use math::*;
 use vulkano_win::Window;
 use vulkano_win::VkSurfaceBuild;
 
-use vulkano::framebuffer::RenderPassAbstract;
 use vulkano::image::swapchain::SwapchainImage;
 use vulkano::swapchain::Capabilities;
 use vulkano::format::Format;
 use vulkano::swapchain::SwapchainAcquireFuture;
-use vulkano::framebuffer::FramebufferAbstract;
 use vulkano::device::DeviceOwned;
 
 use vulkano::instance::{Instance, PhysicalDevice};
@@ -106,14 +104,19 @@ impl<'a> Chain<'a> {
 			images, events_loop,
 		)
 	}
+
+	#[inline]
 	pub fn format(&self) -> Format {
 		self.swapchain.format()
 	}
+	#[inline]
 	pub fn dim(&self) -> Vector2<f32> {
 		let w = self.dimensions[0] as f32;
 		let h = self.dimensions[1] as f32;
 		Vector2::new(w, h)
 	}
+
+	#[inline]
 	pub fn run<F>(&mut self, recreate: F) -> Option<(usize, SwapchainAcquireFuture)>
 		where F: FnOnce(&[Arc<SwapchainImage>])
 	{
@@ -145,72 +148,5 @@ impl<'a> Chain<'a> {
 		};
 
 		Some(ret)
-	}
-}
-
-pub struct Fb {
-	pub framebuffers: Vec<Arc<FramebufferAbstract + Send + Sync>>,
-	pub rp: Arc<RenderPassAbstract + Send + Sync>,
-}
-
-impl Fb {
-	pub fn new(rp: Arc<RenderPassAbstract + Send + Sync>) -> Self {
-		Self {
-			rp,
-			framebuffers: Vec::new(),
-		}
-	}
-
-	pub fn clear(swapchain: Arc<Swapchain>) -> Self {
-		let device = swapchain.device().clone();
-		let render_pass = Arc::new(single_pass_renderpass!(device,
-			attachments: {
-				color: {
-					load: Clear,
-					store: Store,
-					format: swapchain.format(),
-					samples: 1,
-				}
-			},
-			pass: {
-				color: [color],
-				depth_stencil: {}
-			}
-		).unwrap());
-
-		Self::new(render_pass)
-	}
-
-	pub fn simple(swapchain: Arc<Swapchain>) -> Self {
-		let device = swapchain.device().clone();
-		let render_pass = Arc::new(single_pass_renderpass!(device,
-			attachments: {
-				color: {
-					load: Load,
-					store: Store,
-					format: swapchain.format(),
-					samples: 1,
-				}
-			},
-			pass: {
-				color: [color],
-				depth_stencil: {}
-			}
-		).unwrap());
-
-		Self::new(render_pass)
-	}
-
-	pub fn at(&self, num: usize) -> Arc<FramebufferAbstract + Send + Sync> {
-		self.framebuffers[num].clone()
-	}
-
-	pub fn fill(&mut self, images: &[Arc<SwapchainImage>]) {
-		self.framebuffers.clear();
-		let rp = self.rp.clone();
-		self.framebuffers.extend(images.iter().cloned().map(move |image|
-			Arc::new(Framebuffer::start(rp.clone()).add(image).unwrap().build().unwrap())
-				as Arc<FramebufferAbstract + Send + Sync>
-		));
 	}
 }

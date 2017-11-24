@@ -1,7 +1,5 @@
 use super::errors::*;
 use super::{
-	Texture,
-	zero_uv,
 	projection,
 	VERTEX_BY_SPRITE,
 	INDEX_BY_SPRITE,
@@ -16,7 +14,6 @@ use super::{
 
 mod shader;
 mod renderer;
-mod group;
 
 pub use self::renderer::*;
 pub use self::shader::Vertex;

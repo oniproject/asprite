@@ -16,6 +16,8 @@ error-chain = "0.11"
 unicode-normalization = "0.1.5"
 rusttype = "0.2.3"
 
+lyon = "0.8"
+
 lazy_static = "^0.2"
 
 smallvec = "^0.4"

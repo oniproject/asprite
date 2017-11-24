@@ -82,7 +82,7 @@ impl<'a> System<'a> for SpriteSystem {
 	);
 	fn run(&mut self, (tr, mut sprites): Self::SystemData) {
 		//use rayon::prelude::*;
-		((&tr).open().1, &mut sprites).join().for_each(|(t, s)| s.recalc_pos(t))
+		((&tr).open().1, &mut sprites).join().for_each(|(t, s)| s.recalc_pos(&t.0))
 		//(&tr, &mut sprites).par_join().for_each(|(t, s)| s.recalc_pos(t))
 	}
 }
@@ -147,16 +147,16 @@ impl Sprite {
 	}
 
 	#[inline(always)]
-	pub fn recalc_pos(&mut self, aff: &Global) {
+	pub fn recalc_pos(&mut self, aff: &Affine<f32>) {
 		let w1 = -self.anchor.x * self.size.x;
 		let w0 = w1 + self.size.x;
 
 		let h1 = -self.anchor.y * self.size.y;
 		let h0 = h1 + self.size.y;
 
-		self.pos[0] = (aff.0.m * Vector2::new(w1, h1) + aff.0.t).into();
-		self.pos[1] = (aff.0.m * Vector2::new(w0, h1) + aff.0.t).into();
-		self.pos[2] = (aff.0.m * Vector2::new(w0, h0) + aff.0.t).into();
-		self.pos[3] = (aff.0.m * Vector2::new(w1, h0) + aff.0.t).into();
+		self.pos[0] = aff.transform_vector(Vector2::new(w1, h1)).into();
+		self.pos[1] = aff.transform_vector(Vector2::new(w0, h1)).into();
+		self.pos[2] = aff.transform_vector(Vector2::new(w0, h0)).into();
+		self.pos[3] = aff.transform_vector(Vector2::new(w1, h0)).into();
 	}
 }

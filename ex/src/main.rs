@@ -9,6 +9,8 @@
 
 #[macro_use] extern crate error_chain;
 
+extern crate lyon;
+
 extern crate renderer;
 extern crate math;
 extern crate ui;

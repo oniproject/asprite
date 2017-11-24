@@ -3,6 +3,23 @@ use vulkano::image::ImmutableImage;
 use vulkano::image::ImageLayout;
 use vulkano::image::ImageUsage;
 
+use vulkano::image::swapchain::SwapchainImage;
+
+use vulkano::buffer::cpu_pool::CpuBufferPool;
+use vulkano::framebuffer::Subpass;
+use vulkano::command_buffer::AutoCommandBufferBuilder as CmdBuild;
+use vulkano::command_buffer::DynamicState;
+use vulkano::device::Queue;
+
+use vulkano::swapchain::Swapchain;
+
+use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
+
+use vulkano::pipeline::GraphicsPipeline;
+
+use vulkano::sampler::{Sampler, Filter, MipmapMode, SamplerAddressMode};
+use vulkano::image::Dimensions;
+
 use rusttype::PositionedGlyph;
 use rusttype::gpu_cache::Cache;
 
@@ -11,6 +28,8 @@ use math::*;
 
 use super::shader::*;
 
+use std::sync::Arc;
+
 /*
 #[inline(always)]
 unsafe fn as_sync_cmd_buf<P>(cb: &mut CmdBuild<P>) -> &mut SyncCommandBufferBuilder<P> {
@@ -18,7 +37,7 @@ unsafe fn as_sync_cmd_buf<P>(cb: &mut CmdBuild<P>) -> &mut SyncCommandBufferBuil
 }
 */
 
-pub struct TextRenderer {
+pub struct Renderer {
 	vbo: VBO<Vertex>,
 	ibo: QuadIBO<u16>,
 
@@ -38,10 +57,10 @@ pub struct TextRenderer {
 	uniform: CpuBufferPool<Uniform>,
 	proj_set: DescSet,
 
-	pub fb: Fb,
+	pub fbo: FBO,
 }
 
-impl TextRenderer {
+impl Renderer {
 	pub fn new(queue: Arc<Queue>, ibo: QuadIBO<u16>, swapchain: Arc<Swapchain>, images: &[Arc<SwapchainImage>], width: u32, height: u32) -> Result<Self> {
 		let device = queue.device().clone();
 
@@ -65,10 +84,10 @@ impl TextRenderer {
 		let vs = shader.vert_entry_point();
 		let fs = shader.frag_entry_point();
 
-		let mut fb = Fb::simple(swapchain.clone());
-		fb.fill(images);
+		let mut fbo = FBO::simple(swapchain.clone());
+		fbo.fill(images);
 
-		let sub = Subpass::from(fb.rp.clone(), 0).ok_or_else(|| ErrorKind::NoneError)?;
+		let sub = Subpass::from(fbo.rp.clone(), 0).ok_or_else(|| ErrorKind::NoneError)?;
 
 		let pipeline = GraphicsPipeline::start()
 			.vertex_input_single_buffer::<Vertex>()
@@ -99,17 +118,17 @@ impl TextRenderer {
 			proj_set,
 			vbo,
 			ibo,
-			fb,
+			fbo,
 			upload: None,
 		})
 	}
 
 	#[inline]
 	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
-		self.fb.fill(images);
+		self.fbo.fill(images);
 	}
 
-	pub fn glyphs<'a>(&mut self, cb: CmdBuild, state: DynamicState, glyphs: &[PositionedGlyph<'a>], color: [u8; 4], image_num: usize) -> Result<CmdBuild> {
+	pub fn glyphs<'a>(&mut self, cb: CmdBuild, state: &DynamicState, glyphs: &[PositionedGlyph<'a>], color: [u8; 4], image_num: usize) -> Result<CmdBuild> {
 		for g in glyphs.iter().cloned() {
 			self.cache.queue_glyph(0, g);
 		}
@@ -149,8 +168,8 @@ impl TextRenderer {
 		let ibo = self.ibo.slice(count).ok_or_else(|| ErrorKind::NoneError)?;
 		let vbo = self.vbo.flush()?;
 
-		let cb = cb.begin_render_pass(self.fb.at(image_num), false, Vec::new())?;
-		let cb = cb.draw_indexed(self.pipeline.clone(), state, vbo, ibo, set, ())?;
+		let cb = cb.begin_render_pass(self.fbo.at(image_num), false, Vec::new())?;
+		let cb = cb.draw_indexed(self.pipeline.clone(), state.clone(), vbo, ibo, set, ())?;
 		let cb = cb.end_render_pass()?;
 		Ok(cb)
 	}

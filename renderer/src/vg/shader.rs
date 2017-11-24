@@ -1,4 +1,5 @@
 use super::*;
+
 use std::sync::Arc;
 
 use vulkano::device::Device;
@@ -7,7 +8,6 @@ use vulkano::format::Format;
 use vulkano::descriptor::pipeline_layout::{PipelineLayoutDesc, PipelineLayoutDescPcRange};
 use vulkano::descriptor::descriptor::{DescriptorBufferDesc, ShaderStages};
 use vulkano::descriptor::descriptor::{DescriptorDesc, DescriptorDescTy};
-use vulkano::descriptor::descriptor::{DescriptorImageDesc, DescriptorImageDescDimensions, DescriptorImageDescArray};
 
 use vulkano::pipeline::shader::ShaderModule;
 use vulkano::pipeline::shader::GraphicsEntryPoint;
@@ -16,19 +16,17 @@ use vulkano::pipeline::shader::GraphicsShaderType;
 #[derive(Derivative, Clone, Copy)]
 #[derivative(Default)]
 pub struct Vertex {
-	// (2*4 + 2*2 + 4) * 4 = 64 bytes per sprite instead 128
+	// 4*2 + 2*2 + 4*1 + 4 = 20
+	// 20 * 4 = 80 bytes per sprite instead 128
 	#[derivative(Default(value="[0.0; 2]"))]
 	pub position: [f32; 2],
-	#[derivative(Default(value="[0; 2]"))]
-	pub uv: [u16; 2],
 	#[derivative(Default(value="[0xFF; 4]"))]
 	pub color: [u8; 4],
 }
 
-impl_vertex!(Vertex, position, uv, color);
+impl_vertex!(Vertex, position, color);
 
 def!(Vert2Frag Vert2FragIter
-	tex_coords => Format::R32G32Sfloat,
 	tex_color => Format::R32G32B32A32Sfloat,
 );
 
@@ -38,7 +36,6 @@ def!(FragOutput FragOutputIter
 
 def!(VertInput VertInputIter
 	position => Format::R32G32Sfloat,
-	uv => Format::R16G16Unorm,
 	color => Format::R8G8B8A8Unorm,
 );
 
@@ -74,8 +71,7 @@ impl Shader {
 							..ShaderStages::none()
 						}),
 				GraphicsShaderType::Vertex)
-		},
-		())
+		}, ())
 	}
 
 	/// Returns a logical struct describing the entry point named `main`.
@@ -87,38 +83,25 @@ impl Shader {
 				FragOutput,
 				FragmentLayout(ShaderStages { fragment: true, ..ShaderStages::none() }),
 				GraphicsShaderType::Fragment)
-		},
-		())
+		}, ())
 	}
 }
 
 #[derive(Clone, Debug)]
 pub struct FragmentLayout(pub ShaderStages);
+
 unsafe impl PipelineLayoutDesc for FragmentLayout {
 	fn num_sets(&self) -> usize {
-		2
+		1
 	}
 	fn num_bindings_in_set(&self, set: usize) -> Option<usize> {
 		match set {
 			0 => Some(0),
-			1 => Some(1),
 			_ => None,
 		}
 	}
 	fn descriptor(&self, set: usize, binding: usize) -> Option<DescriptorDesc> {
 		match (set, binding) {
-			(1, 0) => Some(DescriptorDesc {
-				ty: DescriptorDescTy::CombinedImageSampler(DescriptorImageDesc{
-					sampled: true,
-					dimensions: DescriptorImageDescDimensions::TwoDimensional,
-					format: None,
-					multisampled: false,
-					array_layers: DescriptorImageDescArray::NonArrayed,
-				}),
-				array_count: 1,
-				stages: self.0.clone(),
-				readonly: true,
-			}),
 			_ => None,
 		}
 	}
@@ -130,10 +113,10 @@ unsafe impl PipelineLayoutDesc for FragmentLayout {
 			return None;
 		}
 		Some(PipelineLayoutDescPcRange {
-				offset: 0,
-				size: 0,
-				stages: ShaderStages::all(),
-			})
+			offset: 0,
+			size: 0,
+			stages: ShaderStages::all(),
+		})
 	}
 }
 

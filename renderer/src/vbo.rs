@@ -1,4 +1,13 @@
-use super::*;
+use vulkano::buffer::CpuBufferPool;
+use vulkano::buffer::BufferUsage;
+use vulkano::buffer::cpu_pool::CpuBufferPoolChunk;
+use vulkano::memory::MemoryPool;
+use vulkano::memory::pool::StdMemoryPool;
+use vulkano::device::Device;
+
+use std::sync::Arc;
+
+use errors::*;
 
 pub struct VBO<T, A = Arc<StdMemoryPool>>
 	where A: MemoryPool
@@ -11,6 +20,13 @@ impl<T> VBO<T> {
 	#[inline]
 	pub fn new(device: Arc<Device>, capacity: usize) -> Self {
 		let vertex = CpuBufferPool::vertex_buffer(device);
+		let vertices = Vec::with_capacity(capacity);
+		Self { vertex, vertices }
+	}
+
+	#[inline]
+	pub fn with_usage(device: Arc<Device>, usage: BufferUsage, capacity: usize) -> Self {
+		let vertex = CpuBufferPool::new(device, usage);
 		let vertices = Vec::with_capacity(capacity);
 		Self { vertex, vertices }
 	}
