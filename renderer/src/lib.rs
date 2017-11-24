@@ -142,13 +142,9 @@ mod group;
 mod vbo;
 
 mod texture;
+
 mod text;
-
-mod text_shader;
-mod text_renderer;
-
-mod sprite_shader;
-mod sprite_renderer;
+mod sprite;
 
 mod future;
 mod chain;
@@ -156,8 +152,8 @@ mod chain;
 mod xbuf;
 
 use self::errors::*;
-use self::sprite_renderer::*;
-use self::text_renderer::*;
+use self::sprite::*;
+use self::text::*;
 use self::quad_indices::*;
 use self::group::*;
 use self::vbo::*;

@@ -1,19 +1,20 @@
 use super::*;
-use sprite_shader::*;
 use math::*;
+
+use super::shader::*;
 
 //vulkano::pipeline::vertex::SingleBufferDefinition<vertex::Vertex>:
 //vulkano::pipeline::vertex::VertexSource<vulkano::buffer::cpu_pool::CpuBufferPoolChunk<vertex::Vertex, A>>
 //use vulkano::descriptor::descriptor_set::FixedSizeDescriptorSetsPool;
 
 pub struct SpriteRenderer {
-	pub vbo: VBO<sprite_shader::Vertex>,
+	pub vbo: VBO<Vertex>,
 	ibo: QuadIBO<u16>,
-	pipeline: ArcPipeline<sprite_shader::Vertex>,
+	pipeline: ArcPipeline<Vertex>,
 	uniform: CpuBufferPool<Uniform>,
 	proj_set: DescSet,
 
-	//pool: FixedSizeDescriptorSetsPool<ArcPipeline<sprite_shader::Vertex>>,
+	//pool: FixedSizeDescriptorSetsPool<ArcPipeline<Vertex>>,
 
 	pub fb: Fb,
 }
@@ -33,7 +34,7 @@ impl SpriteRenderer {
 		let sub = Subpass::from(fb.rp.clone(), 0).ok_or_else(|| ErrorKind::NoneError)?;
 
 		let pipeline = GraphicsPipeline::start()
-			.vertex_input_single_buffer::<sprite_shader::Vertex>()
+			.vertex_input_single_buffer::<Vertex>()
 			.vertex_shader(vs.0, vs.1)
 			.triangle_list()
 			.viewports_dynamic_scissors_irrelevant(1)
@@ -68,7 +69,7 @@ impl SpriteRenderer {
 		let ibo = self.ibo.slice(count).ok_or_else(|| ErrorKind::NoneError)?;
 		let vbo = self.vbo.flush()?;
 
-		let count = sprite_shader::TextureCount { count: textures.len() as u32 };
+		let count = TextureCount { count: textures.len() as u32 };
 
 		let t = textures;
 		let set = PersistentDescriptorSet::start(self.pipeline.clone(), 1)

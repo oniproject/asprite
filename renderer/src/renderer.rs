@@ -3,6 +3,8 @@ use math::*;
 
 const EMPTY_TEXTURE_ID: u32 = 666;
 
+use rusttype::PositionedGlyph;
+
 pub struct Renderer {
 	pub sprite: SpriteRenderer,
 	pub text: TextRenderer,
@@ -12,7 +14,11 @@ pub struct Renderer {
 	pub fb: Fb,
 	pub state: DynamicState,
 
+	pub queue: Arc<Queue>,
+
 	pub last_wh: Vector2<f32>,
+
+	pub num: usize,
 }
 
 impl Renderer {
@@ -40,9 +46,13 @@ impl Renderer {
 		let last_wh = Vector2::zero();
 
 		Ok((
-			Self { empty, group, sprite, text, fb, state, last_wh },
+			Self { empty, group, sprite, text, fb, state, last_wh, queue, num: 0, },
 			Box::new(index_future)
 		))
+	}
+
+	pub fn set_num(&mut self, num: usize) {
+		self.num = num;
 	}
 
 	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
@@ -74,8 +84,39 @@ impl Renderer {
 	}
 
 	#[inline]
-	pub fn text<'a>(&mut self, text: &Text<'a>, image_num: usize) -> Result<AutoCommandBuffer> {
-		Ok(self.text.text(self.state.clone(), &text, image_num)?)
+	pub fn text_lay<'a, 'font, 'text>(&mut self, font: &'font Font<'a>, size: f32, text: &'text str, x: f32, y: f32)
+		-> ::rusttype::LayoutIter<'font, 'text>
+		where 'text: 'font,
+	{
+		let size = ::rusttype::Scale::uniform(size);
+		let pos = ::rusttype::point(x, y);
+		font.layout(text, size, pos)
+	}
+
+	#[inline]
+	pub fn clear(&mut self) -> Result<CmdBuild> {
+		let clear = vec![[0.0, 0.0, 1.0, 1.0].into()];
+		let fb = self.fb.at(self.num);
+		let cb = CmdBuild::new(self.queue.device().clone(), self.queue.family())?
+			.begin_render_pass(fb.clone(), false, clear)?
+			.end_render_pass()?;
+		Ok(cb)
+	}
+
+	#[inline]
+	pub fn start(&mut self, cb: CmdBuild) -> Result<CmdBuild> {
+		let fb = self.sprite.fb.at(self.num);
+		Ok(cb.begin_render_pass(fb, false, Vec::new())?)
+	}
+
+	#[inline]
+	pub fn end(&mut self, cb: CmdBuild) -> Result<CmdBuild> {
+		Ok(self.flush(cb)?.end_render_pass()?)
+	}
+
+	#[inline]
+	pub fn glyphs<'a>(&mut self, cb: CmdBuild, text: &[PositionedGlyph<'a>], color: [u8; 4]) -> Result<CmdBuild> {
+		Ok(self.text.glyphs(cb, self.state.clone(), text, color, self.num)?)
 	}
 
 	#[inline]
@@ -115,7 +156,7 @@ impl Renderer {
 		];
 
 		for i in 0..4 {
-			self.sprite.vbo.vertices.place_back() <- sprite_shader::Vertex {
+			self.sprite.vbo.vertices.place_back() <- sprite::Vertex {
 				position: pos[i].into(),
 				uv: UV[i],
 				color: color,
@@ -156,7 +197,7 @@ impl Renderer {
 		{
 			//#[cfg(feature = "profiler")] profile_scope!("push");
 			for i in 0..4 {
-				self.sprite.vbo.vertices.place_back() <- sprite_shader::Vertex {
+				self.sprite.vbo.vertices.place_back() <- sprite::Vertex {
 					position: pos[i].into(),
 					uv: uv[i],
 					color: color,

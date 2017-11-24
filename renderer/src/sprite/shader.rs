@@ -3,20 +3,24 @@ use super::*;
 #[derive(Derivative, Clone, Copy)]
 #[derivative(Default)]
 pub struct Vertex {
-	// (2*4 + 2*2 + 4) * 4 = 64 bytes per sprite instead 128
+	// 4*2 + 2*2 + 4*1 + 4 = 20
+	// 20 * 4 = 80 bytes per sprite instead 128
 	#[derivative(Default(value="[0.0; 2]"))]
 	pub position: [f32; 2],
 	#[derivative(Default(value="[0; 2]"))]
 	pub uv: [u16; 2],
 	#[derivative(Default(value="[0xFF; 4]"))]
 	pub color: [u8; 4],
+	#[derivative(Default(value="0"))]
+	pub texture: u32,
 }
 
-impl_vertex!(Vertex, position, uv, color);
+impl_vertex!(Vertex, position, uv, color, texture);
 
 def!(Vert2Frag Vert2FragIter
 	tex_coords => Format::R32G32Sfloat,
 	tex_color => Format::R32G32B32A32Sfloat,
+	tex_id => Format::R32Uint,
 );
 
 def!(FragOutput FragOutputIter
@@ -27,6 +31,7 @@ def!(VertInput VertInputIter
 	position => Format::R32G32Sfloat,
 	uv => Format::R16G16Unorm,
 	color => Format::R8G8B8A8Unorm,
+	texture => Format::R32Uint,
 );
 
 pub struct Shader {
@@ -38,8 +43,8 @@ impl Shader {
 	/// Loads the shader in Vulkan as a `ShaderModule`.
 	pub fn load(device: Arc<Device>) -> Result<Shader> {
 		unsafe {
-			let frag = include_bytes!("../shader/text.frag.spv");
-			let vert = include_bytes!("../shader/text.vert.spv");
+			let frag = include_bytes!("./shader.frag.spv");
+			let vert = include_bytes!("./shader.vert.spv");
 
 			let frag = ShaderModule::new(device.clone(), &frag[..])?;
 			let vert = ShaderModule::new(device, &vert[..])?;
@@ -66,21 +71,47 @@ impl Shader {
 	}
 
 	/// Returns a logical struct describing the entry point named `main`.
-	pub fn frag_entry_point(&self) -> (GraphicsEntryPoint<(), Vert2Frag, FragOutput, FragmentLayout>, ()) {
+	pub fn frag_entry_point(&self, count: u32) -> (GraphicsEntryPoint<TextureCount, Vert2Frag, FragOutput, FragmentLayout>, TextureCount) {
 		(unsafe {
 			self.frag.graphics_entry_point(
 				::std::ffi::CStr::from_ptr(MAIN.as_ptr() as *const _),
 				Vert2Frag,
 				FragOutput,
-				FragmentLayout(ShaderStages { fragment: true, ..ShaderStages::none() }),
+				FragmentLayout{
+					stages: ShaderStages { fragment: true, ..ShaderStages::none() },
+					count,
+				},
 				GraphicsShaderType::Fragment)
 		},
-		())
+		TextureCount { count })
 	}
 }
 
 #[derive(Clone, Debug)]
-pub struct FragmentLayout(pub ShaderStages);
+pub struct FragmentLayout {
+	pub stages: ShaderStages,
+	pub count: u32,
+}
+
+impl FragmentLayout {
+	#[inline]
+	pub fn frag_desc(&self) -> DescriptorDesc {
+		DescriptorDesc {
+			ty: DescriptorDescTy::CombinedImageSampler(DescriptorImageDesc{
+				sampled: true,
+				dimensions: DescriptorImageDescDimensions::TwoDimensional,
+				format: None,
+				multisampled: false,
+				array_layers: DescriptorImageDescArray::NonArrayed,
+			}),
+			array_count: self.count,
+			stages: self.stages.clone(),
+			readonly: true,
+		}
+	}
+}
+
+
 unsafe impl PipelineLayoutDesc for FragmentLayout {
 	fn num_sets(&self) -> usize {
 		2
@@ -94,18 +125,7 @@ unsafe impl PipelineLayoutDesc for FragmentLayout {
 	}
 	fn descriptor(&self, set: usize, binding: usize) -> Option<DescriptorDesc> {
 		match (set, binding) {
-			(1, 0) => Some(DescriptorDesc {
-				ty: DescriptorDescTy::CombinedImageSampler(DescriptorImageDesc{
-					sampled: true,
-					dimensions: DescriptorImageDescDimensions::TwoDimensional,
-					format: None,
-					multisampled: false,
-					array_layers: DescriptorImageDescArray::NonArrayed,
-				}),
-				array_count: 1,
-				stages: self.0.clone(),
-				readonly: true,
-			}),
+			(1, 0) => Some(self.frag_desc()),
 			_ => None,
 		}
 	}
@@ -164,5 +184,23 @@ unsafe impl PipelineLayoutDesc for VertexLayout {
 				size: 0,
 				stages: ShaderStages::all(),
 			})
+	}
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct TextureCount {
+	pub count: u32,
+}
+unsafe impl SpecConstsTrait for TextureCount {
+	fn descriptors() -> &'static [SpecializationMapEntry] {
+		static DESCRIPTORS: [SpecializationMapEntry; 1] = [
+			SpecializationMapEntry {
+				constant_id: 0,
+				offset: 0,
+				size: 4,
+			},
+		];
+		&DESCRIPTORS
 	}
 }

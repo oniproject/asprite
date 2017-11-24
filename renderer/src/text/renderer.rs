@@ -3,12 +3,13 @@ use vulkano::image::ImmutableImage;
 use vulkano::image::ImageLayout;
 use vulkano::image::ImageUsage;
 
-use super::*;
-use math::*;
-use text_shader::*;
-
 use rusttype::PositionedGlyph;
 use rusttype::gpu_cache::Cache;
+
+use super::*;
+use math::*;
+
+use super::shader::*;
 
 /*
 #[inline(always)]
@@ -18,7 +19,7 @@ unsafe fn as_sync_cmd_buf<P>(cb: &mut CmdBuild<P>) -> &mut SyncCommandBufferBuil
 */
 
 pub struct TextRenderer {
-	vbo: VBO<text_shader::Vertex>,
+	vbo: VBO<Vertex>,
 	ibo: QuadIBO<u16>,
 
 	queue: Arc<Queue>,
@@ -30,7 +31,7 @@ pub struct TextRenderer {
 	sampler: Arc<Sampler>,
 	pool: CpuBufferPool<u8>,
 
-	pipeline: ArcPipeline<text_shader::Vertex>,
+	pipeline: ArcPipeline<Vertex>,
 
 	upload: Option<(DescSet, Arc<ImmutableImage<R8Unorm>>)>,
 
@@ -59,7 +60,7 @@ impl TextRenderer {
 		let size = width*height;
 		let cache_pixel_buffer = vec![0; size as usize];
 
-		let shader = text_shader::Shader::load(device.clone())?;
+		let shader = Shader::load(device.clone())?;
 
 		let vs = shader.vert_entry_point();
 		let fs = shader.frag_entry_point();
@@ -70,7 +71,7 @@ impl TextRenderer {
 		let sub = Subpass::from(fb.rp.clone(), 0).ok_or_else(|| ErrorKind::NoneError)?;
 
 		let pipeline = GraphicsPipeline::start()
-			.vertex_input_single_buffer::<text_shader::Vertex>()
+			.vertex_input_single_buffer::<Vertex>()
 			.vertex_shader(vs.0, vs.1)
 			.triangle_list()
 			.viewports_dynamic_scissors_irrelevant(1)
@@ -108,14 +109,7 @@ impl TextRenderer {
 		self.fb.fill(images);
 	}
 
-	#[inline]
-	pub fn text<'a>(&mut self, state: DynamicState, text: &Text<'a>, image_num: usize) -> Result<AutoCommandBuffer> {
-		let cb = CmdBuild::new(self.queue.device().clone(), self.queue.family())?;
-		let cb = self.glyphs(cb, state, text.glyphs(), image_num)?;
-		Ok(cb.build()?)
-	}
-
-	pub fn glyphs<'a>(&mut self, cb: CmdBuild, state: DynamicState, glyphs: &[PositionedGlyph<'a>], image_num: usize) -> Result<CmdBuild> {
+	pub fn glyphs<'a>(&mut self, cb: CmdBuild, state: DynamicState, glyphs: &[PositionedGlyph<'a>], color: [u8; 4], image_num: usize) -> Result<CmdBuild> {
 		for g in glyphs.iter().cloned() {
 			self.cache.queue_glyph(0, g);
 		}
@@ -123,42 +117,42 @@ impl TextRenderer {
 		let (set, _tex, cb) = self.cache_queued(cb)?;
 		let set = (self.proj_set.clone(), set);
 
-		let cache = &mut self.cache;
-		let color = [0xFF; 4];
-		let iter = glyphs.into_iter()
-			.filter_map(|g| cache.rect_for(0, g).unwrap());
-		for (uv, pos) in iter {
-			self.vbo.push(Vertex {
-				uv: pack_uv(uv.min.x, uv.min.y),
-				position: [pos.min.x as f32, pos.min.y as f32],
-				color,
-			});
-			self.vbo.push(Vertex {
-				uv: pack_uv(uv.max.x, uv.min.y),
-				position: [pos.max.x as f32, pos.min.y as f32],
-				color,
-			});
-			self.vbo.push(Vertex {
-				uv: pack_uv(uv.max.x, uv.max.y),
-				position: [pos.max.x as f32, pos.max.y as f32],
-				color,
-			});
-			self.vbo.push(Vertex {
-				uv: pack_uv(uv.min.x, uv.max.y),
-				position: [pos.min.x as f32, pos.max.y as f32],
-				color,
-			});
+		{
+			let cache = &mut self.cache;
+			let iter = glyphs.into_iter()
+				.filter_map(|g| cache.rect_for(0, g).unwrap());
+			for (uv, pos) in iter {
+				self.vbo.push(Vertex {
+					uv: pack_uv(uv.min.x, uv.min.y),
+					position: [pos.min.x as f32, pos.min.y as f32],
+					color,
+				});
+				self.vbo.push(Vertex {
+					uv: pack_uv(uv.max.x, uv.min.y),
+					position: [pos.max.x as f32, pos.min.y as f32],
+					color,
+				});
+				self.vbo.push(Vertex {
+					uv: pack_uv(uv.max.x, uv.max.y),
+					position: [pos.max.x as f32, pos.max.y as f32],
+					color,
+				});
+				self.vbo.push(Vertex {
+					uv: pack_uv(uv.min.x, uv.max.y),
+					position: [pos.min.x as f32, pos.max.y as f32],
+					color,
+				});
+			}
 		}
 
 		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
 		let ibo = self.ibo.slice(count).ok_or_else(|| ErrorKind::NoneError)?;
 		let vbo = self.vbo.flush()?;
 
-		Ok(cb
-			.begin_render_pass(self.fb.at(image_num).clone(), false, Vec::new())?
-			.draw_indexed(self.pipeline.clone(), state, vbo, ibo, set, ())?
-			.end_render_pass()?
-		)
+		let cb = cb.begin_render_pass(self.fb.at(image_num), false, Vec::new())?;
+		let cb = cb.draw_indexed(self.pipeline.clone(), state, vbo, ibo, set, ())?;
+		let cb = cb.end_render_pass()?;
+		Ok(cb)
 	}
 
 	fn cache_queued(&mut self, cb: CmdBuild) -> Result<(DescSet, Arc<ImmutableImage<R8Unorm>>, CmdBuild)> {
