@@ -1,5 +1,4 @@
-use super::*;
-
+use math::*;
 use rusttype::{Font, Scale, point, PositionedGlyph};
 
 pub struct Text<'a> {

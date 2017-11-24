@@ -4,6 +4,7 @@ use vulkano::image::ImageLayout;
 use vulkano::image::ImageUsage;
 
 use super::*;
+use math::*;
 use text_shader::*;
 
 use rusttype::PositionedGlyph;
@@ -100,12 +101,16 @@ impl TextRenderer {
 		})
 	}
 
+	#[inline]
 	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
 		self.fb.fill(images);
 	}
 
-	pub fn text<'a>(&mut self, cb: CmdBuild, state: DynamicState, text: &Text<'a>, image_num: usize) -> Result<CmdBuild> {
-		self.glyphs(cb, state, text.glyphs(), image_num)
+	#[inline]
+	pub fn text<'a>(&mut self, state: DynamicState, text: &Text<'a>, image_num: usize) -> Result<AutoCommandBuffer> {
+		let cb = CmdBuild::new(self.queue.device().clone(), self.queue.family())?;
+		let cb = self.glyphs(cb, state, text.glyphs(), image_num)?;
+		Ok(cb.build()?)
 	}
 
 	pub fn glyphs<'a>(&mut self, cb: CmdBuild, state: DynamicState, glyphs: &[PositionedGlyph<'a>], image_num: usize) -> Result<CmdBuild> {
@@ -216,7 +221,7 @@ impl TextRenderer {
 	}
 
 	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
-		let proj = Affine::projection(wh.x, wh.y).uniform4();
+		let proj = Affine::projection(wh.x, wh.y);
 		self.proj_set = projection(&self.uniform, self.pipeline.clone(), proj)?;
 		Ok(())
 	}

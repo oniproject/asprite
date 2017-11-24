@@ -1,8 +1,9 @@
 use cgmath::BaseFloat;
 
+use std::cmp::Ordering;
 use std::time::{Duration, Instant};
 
-#[derive(Copy, Clone, Debug, Eq)]
+#[derive(Copy, Clone, Debug)]
 pub struct TimePair<F>
 	where F: BaseFloat
 {
@@ -13,6 +14,7 @@ pub struct TimePair<F>
 impl<F> Default for TimePair<F>
 	where F: BaseFloat + Default
 {
+	#[inline]
 	fn default() -> Self {
 		Self {
 			seconds: F::default(),
@@ -21,17 +23,30 @@ impl<F> Default for TimePair<F>
 	}
 }
 
-impl<F> PartialEq for TimePair<F>
-	where F: BaseFloat
-{
+impl<F: BaseFloat> Eq for TimePair<F> {}
+
+impl<F: BaseFloat> PartialEq for TimePair<F> {
+	#[inline]
 	fn eq(&self, other: &Self) -> bool {
 		self.time == other.time
 	}
 }
 
-impl<F> TimePair<F>
-	where F: BaseFloat
-{
+impl<F: BaseFloat> Ord for TimePair<F> {
+	#[inline]
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.time.cmp(&other.time)
+	}
+}
+
+impl<F: BaseFloat> PartialOrd for TimePair<F> {
+	#[inline]
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl<F: BaseFloat> TimePair<F> {
 	#[inline]
 	pub fn from_duration(time: Duration) -> Self {
 		let seconds = duration_to_secs(time);

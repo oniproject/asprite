@@ -2,6 +2,7 @@
 use math::*;
 use specs::*;
 
+use math::Transform as Tr;
 use math::d8::*;
 use renderer::*;
 
@@ -38,7 +39,7 @@ impl ::tsys::Transform for Transform {
 	}
 	#[inline]
 	fn combine(a: &Global, b: &Global) -> Global {
-		Global(a.0 * b.0)
+		Global(a.0.concat(&b.0))
 	}
 	#[inline]
 	fn rewrite(dst: &mut Global, src: &Global) {

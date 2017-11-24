@@ -1,5 +1,6 @@
 use super::*;
 use sprite_shader::*;
+use math::*;
 
 //vulkano::pipeline::vertex::SingleBufferDefinition<vertex::Vertex>:
 //vulkano::pipeline::vertex::VertexSource<vulkano::buffer::cpu_pool::CpuBufferPoolChunk<vertex::Vertex, A>>
@@ -51,6 +52,7 @@ impl SpriteRenderer {
 		Ok(Self { pipeline, uniform, proj_set, ibo, vbo, fb })
 	}
 
+	#[inline]
 	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
 		self.fb.fill(images);
 	}
@@ -100,7 +102,7 @@ impl SpriteRenderer {
 	}
 
 	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
-		let proj = Affine::projection(wh.x, wh.y).uniform4();
+		let proj = Affine::projection(wh.x, wh.y);
 		self.proj_set = projection(&self.uniform, self.pipeline.clone(), proj)?;
 		Ok(())
 	}

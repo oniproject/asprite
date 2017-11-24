@@ -4,6 +4,8 @@ extern crate cgmath;
 pub use cgmath::prelude::*;
 pub use cgmath::{BaseNum, BaseFloat};
 
+pub use cgmath::Transform;
+
 pub use cgmath::Point2;
 pub use cgmath::Vector2;
 

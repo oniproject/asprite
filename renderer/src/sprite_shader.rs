@@ -92,6 +92,26 @@ pub struct FragmentLayout {
 	pub stages: ShaderStages,
 	pub count: u32,
 }
+
+impl FragmentLayout {
+	#[inline]
+	pub fn frag_desc(&self) -> DescriptorDesc {
+		DescriptorDesc {
+			ty: DescriptorDescTy::CombinedImageSampler(DescriptorImageDesc{
+				sampled: true,
+				dimensions: DescriptorImageDescDimensions::TwoDimensional,
+				format: None,
+				multisampled: false,
+				array_layers: DescriptorImageDescArray::NonArrayed,
+			}),
+			array_count: self.count,
+			stages: self.stages.clone(),
+			readonly: true,
+		}
+	}
+}
+
+
 unsafe impl PipelineLayoutDesc for FragmentLayout {
 	fn num_sets(&self) -> usize {
 		2
@@ -105,18 +125,7 @@ unsafe impl PipelineLayoutDesc for FragmentLayout {
 	}
 	fn descriptor(&self, set: usize, binding: usize) -> Option<DescriptorDesc> {
 		match (set, binding) {
-			(1, 0) => Some(DescriptorDesc {
-				ty: DescriptorDescTy::CombinedImageSampler(DescriptorImageDesc{
-					sampled: true,
-					dimensions: DescriptorImageDescDimensions::TwoDimensional,
-					format: None,
-					multisampled: false,
-					array_layers: DescriptorImageDescArray::NonArrayed,
-				}),
-				array_count: self.count,
-				stages: self.stages.clone(),
-				readonly: true,
-			}),
+			(1, 0) => Some(self.frag_desc()),
 			_ => None,
 		}
 	}

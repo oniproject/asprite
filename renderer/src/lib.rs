@@ -1,3 +1,5 @@
+#![recursion_limit="128"]
+
 #![feature(const_fn)]
 #![feature(conservative_impl_trait)]
 #![feature(collection_placement)]
@@ -7,7 +9,6 @@
 #[macro_use] extern crate thread_profiler;
 
 extern crate math;
-use math::*;
 
 extern crate smallvec;
 
@@ -30,6 +31,7 @@ use vulkano::buffer::BufferUsage;
 use vulkano::buffer::BufferSlice;
 use vulkano::framebuffer::{RenderPassAbstract, Subpass};
 use vulkano::framebuffer::Framebuffer;
+use vulkano::command_buffer::AutoCommandBuffer;
 use vulkano::command_buffer::AutoCommandBufferBuilder as CmdBuild;
 use vulkano::command_buffer::DynamicState;
 use vulkano::device::{Device, Queue};
@@ -183,7 +185,7 @@ pub struct Uniform {
 fn projection<L, P>(uniform: &CpuBufferPool<Uniform>, pipeline: L, proj: P) -> Result<DescSet>
 	where
 		L: PipelineLayoutAbstract + Send + Sync + 'static,
-		P: Into<[[f32;4]; 4]> + 'static,
+		P: Into<[[f32; 4]; 4]> + 'static,
 {
 	let uniform_buffer_subbuffer = uniform.next(Uniform {
 		proj: proj.into(),

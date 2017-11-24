@@ -8,7 +8,7 @@ pub struct Group {
 }
 
 impl Group {
-	#[inline(always)]
+	#[inline]
 	pub fn new(cap: usize) -> Self {
 		Self {
 			array: SmallVec::with_capacity(cap),
@@ -16,27 +16,27 @@ impl Group {
 		}
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn len(&self) -> usize {
 		self.array.len()
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn capacity(&self) -> usize {
 		self.cap
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn push(&mut self, v: Texture) {
 		self.array.push(v);
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn position(&self, v: &Texture) -> Option<usize> {
 		self.array.iter().position(|q| Arc::ptr_eq(&q.texture, &v.texture))
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn insert(&mut self, v: Texture) -> Result<usize, Texture> {
 		let pos = self.position(&v);
 		if self.len() != self.cap && pos.is_none() {

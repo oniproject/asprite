@@ -14,5 +14,6 @@ error_chain! {
 		VkAutoCommandBufferBuilderContextError(::vulkano::command_buffer::AutoCommandBufferBuilderContextError);
 		VkCopyBufferImageError(::vulkano::command_buffer::CopyBufferImageError);
 		VkBeginRenderPassError(::vulkano::command_buffer::BeginRenderPassError);
+		VkBuildError(::vulkano::command_buffer::BuildError);
 	}
 }

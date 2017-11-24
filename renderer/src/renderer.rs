@@ -1,4 +1,5 @@
 use super::*;
+use math::*;
 
 const EMPTY_TEXTURE_ID: u32 = 666;
 
@@ -63,8 +64,8 @@ impl Renderer {
 	}
 
 	#[inline]
-	pub fn text<'a>(&mut self, cb: CmdBuild, text: &Text<'a>, image_num: usize) -> Result<CmdBuild> {
-		Ok(self.text.text(cb, self.state.clone(), &text, image_num)?)
+	pub fn text<'a>(&mut self, text: &Text<'a>, image_num: usize) -> Result<AutoCommandBuffer> {
+		Ok(self.text.text(self.state.clone(), &text, image_num)?)
 	}
 
 	#[inline]

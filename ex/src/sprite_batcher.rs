@@ -186,16 +186,13 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 			let dt = dt.delta.seconds;
 			use specs::Join;
 
-			let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(self.queue.device().clone(), self.queue.family())
-				.unwrap();
-
 			let text = format!("count: {} ms: {}", e.join().count(), dt);
 			let text = Text::new(&self.font, 24.0, text)
 				.lay(Vector2::new(100.0, 200.0), 500);
-			cb = self.renderer.text(cb, &text, image_num).unwrap();
+			let cb = self.renderer.text(&text, image_num).unwrap();
 			{
 			#[cfg(feature = "profiler")] profile_scope!("etxt");
-			future.then_execute(self.queue.clone(), cb.build().unwrap());
+			future.then_execute(self.queue.clone(), cb);
 			}
 		}
 
