@@ -12,7 +12,7 @@ pub struct Affine<T: Clone + Copy + Debug> {
 impl<T> Default for Affine<T>
 	where T: BaseFloat + Zero
 {
-	#[inline(always)]
+	#[inline]
 	fn default() -> Self {
 		Self {
 			m: Matrix2::one(),
@@ -24,12 +24,12 @@ impl<T> Default for Affine<T>
 impl<T> Affine<T>
 	where T: BaseFloat + One + Zero
 {
-	#[inline(always)] fn a(&self) -> T { self.m.x.x }
-	#[inline(always)] fn b(&self) -> T { self.m.x.y }
-	#[inline(always)] fn c(&self) -> T { self.m.y.x }
-	#[inline(always)] fn d(&self) -> T { self.m.y.y }
+	#[inline] fn a(&self) -> T { self.m.x.x }
+	#[inline] fn b(&self) -> T { self.m.x.y }
+	#[inline] fn c(&self) -> T { self.m.y.x }
+	#[inline] fn d(&self) -> T { self.m.y.y }
 
-	#[inline(always)]
+	#[inline]
 	pub fn projection(w: T, h: T) -> Self {
 		let two = T::one() + T::one();
 		let t = Vector2::new(-T::one(), -T::one());
@@ -42,7 +42,7 @@ impl<T> Affine<T>
 		Self { m, t }
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn uniform4(&self) -> Matrix4<T> {
 		// transposed:
 		// mm00
@@ -117,7 +117,7 @@ impl<T> Affine<T>
 		self.t.y = (tx * sin) + (self.t.y * cos);
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn set_identity(&mut self) {
 		self.m = Matrix2::one();
 		self.t = Vector2::zero();
@@ -176,7 +176,7 @@ impl<T> Mul for Affine<T>
 	where T: BaseFloat + One + Zero
 {
 	type Output = Self;
-	#[inline(always)]
+	#[inline]
 	fn mul(self, rhs: Self) -> Self {
 		Self {
 			m: rhs.m * self.m,

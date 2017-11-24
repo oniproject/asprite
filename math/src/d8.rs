@@ -66,16 +66,16 @@ pub const D8_REVERSE_DIAGONAL: D8 = D8(14);
 pub const D8_15: D8 = D8(15);
 
 impl D8 {
-	#[inline(always)] pub fn ux(self) -> F { UX_F[self.0 as usize] }
-	#[inline(always)] pub fn uy(self) -> F { UY_F[self.0 as usize] }
-	#[inline(always)] pub fn vx(self) -> F { VX_F[self.0 as usize] }
-	#[inline(always)] pub fn vy(self) -> F { VY_F[self.0 as usize] }
+	#[inline] pub fn ux(self) -> F { UX_F[self.0 as usize] }
+	#[inline] pub fn uy(self) -> F { UY_F[self.0 as usize] }
+	#[inline] pub fn vx(self) -> F { VX_F[self.0 as usize] }
+	#[inline] pub fn vy(self) -> F { VY_F[self.0 as usize] }
 
 	// Adds 180 degrees to rotation. Commutative operation.
-	#[inline(always)]
+	#[inline]
 	pub fn rotate180(self) -> Self { D8(self.0 ^ 4) }
 
-	#[inline(always)]
+	#[inline]
 	pub fn inv(self) -> Self {
 		if self.0 & 8 != 0 {
 			D8(self.0 & 15)
@@ -86,14 +86,14 @@ impl D8 {
 
 	// Direction of main vector can be horizontal, vertical or diagonal.
 	// Some objects work with vertical directions different.
-	#[inline(always)]
+	#[inline]
 	pub fn is_vertical(self) -> bool { self.0 & 3 == 2 }
 
-	#[inline(always)]
+	#[inline]
 	pub fn add(self, other: Self) -> Self {
 		D8(ROTATOR[self.0 as usize][other.0 as usize])
 	}
-	#[inline(always)]
+	#[inline]
 	pub fn sub(self, other: Self) -> Self {
 		D8(ROTATOR[self.0 as usize][other.inv().0 as usize])
 	}

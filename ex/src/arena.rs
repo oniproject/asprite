@@ -82,7 +82,7 @@ impl state::State<World, Event> for Scene {
 	fn fixed_update(&mut self, world: &mut World) -> SceneTransition<Event> {
 		let gravity = 0.75;
 
-		let dt = world.read_resource::<Time>().fixed_seconds;
+		let dt = world.read_resource::<Time>().fixed.seconds;
 		let size = *world.read_resource::<Vector2<f32>>();
 
 		let mut speed = world.write::<Velocity>();

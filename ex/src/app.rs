@@ -3,7 +3,7 @@ use specs::Dispatcher;
 use specs::DispatcherBuilder;
 use specs::common::Errors;
 
-use time::{Time, Stopwatch};
+use math::{Time, Stopwatch};
 use state::{State, StateMachine, Transition};
 
 pub type SceneTransition<E> = Option<Transition<World, E>>;
@@ -101,10 +101,7 @@ impl<'a, 'b, E: 'static> App<'a, 'b, E> {
 	#[inline]
 	fn fixed_update(&mut self) {
 		#[cfg(feature = "profiler")] profile_scope!("fixed_update");
-		let do_fixed = {
-			let time = self.world.write_resource::<Time>();
-			time.last_fixed_update.elapsed() >= time.fixed_time
-		};
+		let do_fixed = self.world.write_resource::<Time>().do_fixed();
 
 		if do_fixed {
 			self.states.update_run(&mut self.world, |w, s| s.fixed_update(w));

@@ -14,7 +14,6 @@ use specs::*;
 use super::*;
 
 use math::*;
-use time::*;
 use app::Bundle;
 use sprite::*;
 use renderer::*;
@@ -184,7 +183,7 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 			#[cfg(feature = "profiler")] profile_scope!("text");
 
 			future.cleanup_finished();
-			let dt = dt.delta_seconds;
+			let dt = dt.delta.seconds;
 			use specs::Join;
 
 			let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(self.queue.device().clone(), self.queue.family())

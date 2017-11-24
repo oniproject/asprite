@@ -5,3 +5,4 @@ authors = ["Lain-dono <lain.dono@gmail.com>"]
 
 [dependencies]
 cgmath = "0.15"
+derivative = "1"

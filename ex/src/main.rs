@@ -36,8 +36,7 @@ mod tsys;
 mod state;
 mod sprite_batcher;
 
-mod time;
-
+use math::*;
 use app::*;
 use sprite_batcher::*;
 
@@ -98,7 +97,7 @@ fn main() {
 		App::new(world, dispatcher.build())
 	};
 
-	// app.world.write_resource::<time::Time>().set_fixed_time(::std::time::Duration::new(0, 16666666*4));
+	app.world.write_resource::<Time>().set_fixed_time(::std::time::Duration::new(0, 16666666*4));
 
 	println!();
 	println!("run");
