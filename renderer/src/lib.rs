@@ -16,8 +16,7 @@ extern crate lyon;
 extern crate smallvec;
 
 #[macro_use] extern crate vulkano;
-extern crate winit;
-extern crate vulkano_win;
+pub extern crate winit;
 
 #[macro_use] extern crate error_chain;
 #[macro_use] extern crate derivative;
@@ -118,6 +117,7 @@ macro_rules! def {
 
 pub mod errors;
 
+mod win;
 mod renderer;
 mod quad_indices;
 mod vbo;

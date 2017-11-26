@@ -3,6 +3,8 @@
 #![feature(derive_clone_copy)]
 #![feature(const_fn)]
 #![feature(conservative_impl_trait)]
+#![feature(const_cell_new)]
+#![feature(generators, generator_trait)]
 
 #[cfg(feature = "profiler")]
 #[macro_use] extern crate thread_profiler;
@@ -13,7 +15,6 @@ extern crate lyon;
 
 extern crate renderer;
 extern crate math;
-extern crate ui;
 
 extern crate toml;
 extern crate serde;
@@ -28,9 +29,9 @@ extern crate rand;
 
 #[macro_use] extern crate derivative;
 
-extern crate winit;
 extern crate vulkano;
-extern crate vulkano_win;
+
+mod ui;
 
 mod loader;
 
@@ -44,9 +45,34 @@ mod sprite_batcher;
 use math::*;
 use app::*;
 use sprite_batcher::*;
+use renderer::*;
 
 pub const TEXTURE_COUNT: u32 = 16;
 pub const BATCH_CAPACITY: usize = 2_000;
+
+#[inline]
+pub fn mouse_event_buttons(mouse: &mut ui::Mouse, state: winit::ElementState, button: winit::MouseButton) {
+	use winit::ElementState::*;
+	use winit::MouseButton::*;
+	if button != Left {
+		return;
+	}
+	let id = match button {
+		Left => 0,
+		Middle => 1,
+		Right => 2,
+		_ => return,
+	};
+	mouse.pressed[id] = state == Pressed;
+	mouse.released[id] = state == Released;
+}
+
+#[inline]
+pub fn mouse_event_movement(mouse: &mut ui::Mouse, position: (f64, f64)) {
+	let x = position.0 as f32;
+	let y = position.1 as f32;
+	mouse.cursor = Point2::new(x, y);
+}
 
 fn main() {
 	let (mut events_loop, b) = BatcherBundle::new();
@@ -73,6 +99,7 @@ fn main() {
 	let mut world = specs::World::new();
 	world.register::<arena::Velocity>();
 	world.add_resource(pool);
+	world.add_resource(ui::Mouse::new());
 
 	let dispatcher = b.bundle(&mut world, dispatcher);
 

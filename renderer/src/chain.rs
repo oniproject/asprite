@@ -1,8 +1,12 @@
 use super::*;
 use math::*;
 
-use vulkano_win::Window;
-use vulkano_win::VkSurfaceBuild;
+//use vulkano_win::Window;
+//use vulkano_win::VkSurfaceBuild;
+
+use win::Window;
+use win::VkSurfaceBuild;
+use win::required_extensions;
 
 use vulkano::image::swapchain::SwapchainImage;
 use vulkano::swapchain::Capabilities;
@@ -15,7 +19,7 @@ use vulkano::device::{Device, DeviceExtensions};
 
 lazy_static! {
 	static ref INSTANCE: Arc<Instance> = {
-		let extensions = vulkano_win::required_extensions();
+		let extensions = required_extensions();
 		Instance::new(None, &extensions, &[])
 			.expect("failed to create instance")
 	};

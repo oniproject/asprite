@@ -50,52 +50,48 @@ impl<S> Rect<S>
 	}
 
 	#[inline]
-	pub fn xy(self, x: S, y: S) -> Self {
-		let p = Vector2::new(x, y);
-		Self {
-			min: self.min + p,
-			max: self.max + p,
-		}
-	}
-	#[inline]
 	pub fn x(self, x: S) -> Self {
-		let p = Vector2::new(x, S::zero());
-		Self {
-			min: self.min + p,
-			max: self.max + p,
-		}
+		self.xy(x, S::zero())
 	}
 
 	#[inline]
 	pub fn y(self, y: S) -> Self {
-		let p = Vector2::new(S::zero(), y);
+		self.xy(S::zero(), y)
+	}
+
+	#[inline]
+	pub fn xy(self, x: S, y: S) -> Self {
+		self.pos(Vector2::new(x, y))
+	}
+
+	#[inline]
+	pub fn pos(self, p: Vector2<S>) -> Self {
 		Self {
 			min: self.min + p,
-			max: self.max + p,
+			max: self.min + p,
 		}
 	}
 
 	#[inline]
 	pub fn w(self, w: S) -> Self {
-		Self {
-			min: self.min,
-			max: self.min + Vector2::new(w, self.dy()),
-		}
+		self.wh(w, self.dy())
 	}
 
 	#[inline]
 	pub fn h(self, h: S) -> Self {
-		Self {
-			min: self.min,
-			max: self.min + Vector2::new(self.dx(), h),
-		}
+		self.wh(self.dx(), h)
 	}
 
 	#[inline]
 	pub fn wh(self, w: S, h: S) -> Self {
+		self.dim(Vector2::new(w, h))
+	}
+
+	#[inline]
+	pub fn dim(self, v: Vector2<S>) -> Self {
 		Self {
 			min: self.min,
-			max: self.min + Vector2::new(w, h),
+			max: self.min + v,
 		}
 	}
 }

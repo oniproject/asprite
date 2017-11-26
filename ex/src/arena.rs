@@ -5,8 +5,9 @@ use specs::*;
 use std::sync::Arc;
 use vulkano::device::Queue;
 
+use super::*;
 use winit::Event;
-use time::*;
+use ui::Mouse;
 use renderer::*;
 use sprite::*;
 use app::*;
@@ -100,10 +101,15 @@ impl state::State<World, Event> for Scene {
 
 	fn update(&mut self, world: &mut World) -> SceneTransition<Event> {
 		if self.add {
-			for _ in 0..29 {
+			for _ in 0..7 {
 				spawn(world, &self.textures);
 			}
 		}
+		None
+	}
+
+	fn late_update(&mut self, world: &mut World) -> SceneTransition<Event> {
+		world.write_resource::<Mouse>().cleanup();
 		None
 	}
 
@@ -149,17 +155,22 @@ impl state::State<World, Event> for Scene {
 		None
 	}
 
-	fn event(&mut self, _: &mut World, event: Event) -> SceneTransition<Event> {
+	fn event(&mut self, world: &mut World, event: Event) -> SceneTransition<Event> {
 		match event {
 			Event::WindowEvent { event, .. } => {
-				use winit::ElementState;
+				use winit::ElementState::*;
+				//use winit::MouseButton::*;
 				use winit::WindowEvent::*;
 				match event {
 					Closed => {
 						return Some(state::Transition::Pop);
 					}
-					MouseInput { state, .. } => {
-						self.add = state == ElementState::Pressed;
+					MouseInput { state, button, .. } => {
+						self.add = state == Pressed;
+						mouse_event_buttons(&mut world.write_resource::<Mouse>(), state, button);
+					}
+					MouseMoved { position, .. } => {
+						mouse_event_movement(&mut world.write_resource::<Mouse>(), position);
 					}
 					_ => (),
 				}

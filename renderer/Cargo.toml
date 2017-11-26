@@ -7,8 +7,7 @@ authors = ["Lain-dono <lain.dono@gmail.com>"]
 math = { path = "../math" }
 
 vulkano = "0.7"
-vulkano-win = "0.7"
-winit = "0.7"
+winit = "0.8"
 
 image = "0.17"
 derivative = "1"
