@@ -3,3 +3,4 @@
 /f/
 /*.png
 callgrind.*
+Cargo.lock
