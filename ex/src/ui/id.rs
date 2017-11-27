@@ -13,9 +13,25 @@ impl From<usize> for Id {
 	}
 }
 
+pub trait IdGenerator {
+	fn next(&self) -> Option<Id>;
+}
+
 pub struct Generator {
 	next: Cell<usize>,
 	max: usize,
+}
+
+impl IdGenerator for Generator {
+	#[inline]
+	fn next(&self) -> Option<Id> {
+		let id = self.next.get();
+		if id < self.max {
+			Some(self.next.replace(id + 1).into())
+		} else {
+			None
+		}
+	}
 }
 
 impl Generator {
@@ -24,16 +40,6 @@ impl Generator {
 		Self {
 			next: Cell::new(0),
 			max: MAX,
-		}
-	}
-
-	#[inline]
-	pub fn next(&self) -> Option<Id> {
-		let id = self.next.get();
-		if id < self.max {
-			Some(self.next.replace(id + 1).into())
-		} else {
-			None
 		}
 	}
 

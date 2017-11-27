@@ -28,7 +28,7 @@ impl<'a, 'b, D: ?Sized + Graphics + 'a> ContextBuilder<'a, 'b, D> {
 
 	pub fn transform(mut self, anchor: Rect<f32>, offset: Rect<f32>) -> Self {
 		let rect = self.root.rect.get();
-		self.rect = Some(rect.transform(anchor, offset));
+		self.rect = Some(rect_transform(rect, anchor, offset));
 		self
 	}
 	pub fn stretch(mut self) -> Self {
@@ -84,6 +84,34 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 	}
 
 	#[inline]
+	pub fn horizontal_flow(&self, x: f32, y: f32, widgets: &'a [Flow]) -> impl Iterator<Item=Context<'a, D>> {
+		self.layout(Axis::Horizontal, x, y, widgets)
+	}
+	#[inline]
+	pub fn vertical_flow(&self, x: f32, y: f32, widgets: &'a [Flow]) -> impl Iterator<Item=Context<'a, D>> {
+		self.layout(Axis::Vertical, x, y, widgets)
+	}
+
+	#[inline]
+	pub fn layout(&self, axis: Axis, x: f32, y: f32, widgets: &'a [Flow]) -> impl Iterator<Item=Context<'a, D>> {
+		let size = axis.measure(widgets);
+		//let offset = ctx.rect().min.to_vec();
+		let offset = rect_align(self.rect(), Vector2::new(x, y), size);
+		let offset = Vector2::new(offset.x, offset.y);
+		let draw = self.draw;
+		let mouse = self.mouse;
+		let generator = self.generator.clone();
+		axis.layout(size, widgets)
+			.map(move |rect| Cell::new(rect.pos(offset)))
+			.map(move |rect| Self {
+				rect,
+				draw,
+				generator: generator.clone(),
+				mouse,
+			})
+	}
+
+	#[inline]
 	pub fn draw(&self) -> &'a D {
 		self.draw
 	}
@@ -104,10 +132,16 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 	}
 
 	#[inline]
-	pub fn is_cursor_hovering(&self) -> bool {
-		self.mouse.check_cursor(&self.rect.get())
+	pub fn is_cursor_in_rect(&self, rect: &Rect<f32>) -> bool {
+		self.mouse.check_cursor(&rect)
 	}
 
+	#[inline]
+	pub fn is_cursor_hovering(&self) -> bool {
+		self.is_cursor_in_rect(&self.rect.get())
+	}
+
+	/*
 	#[inline]
 	pub fn static_cursor(&self, id: Id) {
 		if self.hovered_widget().is_none() {
@@ -116,6 +150,7 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 			}
 		}
 	}
+	*/
 }
 
 impl<'a, D: ?Sized + Graphics + 'a> Graphics for Context<'a, D> {
@@ -146,14 +181,9 @@ impl<'a, D: ?Sized + Graphics + 'a> Graphics for Context<'a, D> {
 	fn text(&self, base: Point2<f32>, color: Self::Color, text: &str) {
 		self.draw.text(base, color, text)
 	}
-
 	#[inline]
-	fn hovered_widget(&self) -> Option<Id> {
-		self.draw.hovered_widget()
-	}
-	#[inline]
-	fn set_hovered_widget(&self, id: Id) {
-		self.draw.set_hovered_widget(id)
+	fn set_hovered(&self) {
+		self.draw.set_hovered()
 	}
 }
 

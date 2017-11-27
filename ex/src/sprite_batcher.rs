@@ -8,6 +8,8 @@ use specs::*;
 
 use super::*;
 
+use graphics::*;
+
 use math::*;
 use app::Bundle;
 use sprite::*;
@@ -54,7 +56,7 @@ pub struct Batcher<'a> {
 	pub renderer: Renderer,
 	pub chain: Chain<'a>,
 	pub queue: Arc<Queue>,
-	pub font: Font<'a>,
+	graphics: Graphics<'a>,
 }
 
 impl<'a> Batcher<'a> {
@@ -77,8 +79,9 @@ impl<'a> Batcher<'a> {
 				capacity, group_size).unwrap();
 
 		let font = terminus();
+		let graphics = Graphics::new(font, 14.0);
 		(
-			Self { queue, renderer, font, chain },
+			Self { queue, renderer, chain, graphics },
 			Box::new(index_future),
 			events_loop,
 		)
@@ -147,16 +150,17 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 			self.renderer.end_sprites(cb).unwrap()
 		};
 
-
 		let cb = {
 			#[cfg(feature = "profiler")] profile_scope!("text");
 			let text = format!("count: {} ms: {:.4}", e.join().count(), dt.delta.seconds);
-			let lay: Vec<_> = self.renderer.text_lay(&self.font, font_size, &text, 100.0, 200.0 + font_size).collect();
+			let lay: Vec<_> = self.renderer.text_lay(&self.graphics.font, font_size, &text, 100.0, 200.0 + font_size).collect();
 			self.renderer.glyphs(cb, &lay, [0xFF; 4]).unwrap()
 		};
 
-		//let cb = draw_vg(cb, &mut self.renderer);
-		let cb = draw_ui(cb, &mut self.renderer, &self.font, *mouse);
+		draw_ui(&self.graphics, *mouse);
+
+		let cb = draw_vg(cb, &mut self.renderer);
+		let cb = self.graphics.run(cb, &mut self.renderer).unwrap();
 
 		{
 			#[cfg(feature = "profiler")] profile_scope!("end");
@@ -190,37 +194,41 @@ fn draw_vg(cb: CB, renderer: &mut Renderer) -> CB {
 	renderer.end_vg(cb).unwrap()
 }
 
-
-fn draw_ui<'a: 'font, 'font>(cb: CB, renderer: &mut Renderer, font: &'font Font<'a>, mouse: ui::Mouse) -> CB {
+fn draw_ui<'a>(gr: &Graphics<'a>, mouse: ui::Mouse) {
 	#[cfg(feature = "profiler")] profile_scope!("ui");
-	use std::cell::RefCell;
-	use std::cell::Cell;
 	use ui::Button;
-
-	let gr = Graphics {
-		cb: RefCell::new(cb),
-		r: RefCell::new(renderer),
-		sprite: Cell::new(false),
-		font: font,
-		font_size: 12.0,
-
-		hovered_widget: Cell::new(None),
-	};
+	use ui::Graphics;
+	use ui::Toggle;
 
 	static mut STATE: ui::UiState = ui::UiState::new();
-	let mut state = unsafe { &mut STATE };
+	let state = unsafe { &mut STATE };
 
 	let rect = Rect::with_size(500.0, 80.0, 1000.0, 500.0);
 	let btn = ui::ColorButton {
 		normal: [0x99, 0x99, 0x99, 0x99],
 		hovered: [0, 0, 0x99, 0x99],
-		active: [0x99, 0, 0, 0x99],
+		pressed: [0x99, 0, 0, 0x99],
 		disabled: [0, 0xFF, 0xFF, 0xCC],
 	};
 
+	let toggle = ui::ToggleStyle {
+		checked: &ui::ColorButton {
+			normal:   [0xFF, 0, 0, 0xCC],
+			hovered:  [0xFF, 0, 0, 0x99],
+			pressed:  [0xFF, 0, 0, 0x66],
+			disabled: [0xFF, 0, 0, 0x33],
+		},
+		unchecked: &ui::ColorButton {
+			normal:   [0xFF, 0xFF, 0xFF, 0xCC],
+			hovered:  [0xFF, 0xFF, 0xFF, 0x99],
+			pressed:  [0xFF, 0xFF, 0xFF, 0x66],
+			disabled: [0xFF, 0xFF, 0xFF, 0x33],
+		},
+	};
+
 	{
-		let ctx = ui::Context::new(&gr, rect, mouse);
-		if btn.run(&ctx, &mut state, true) {
+		let ctx = ui::Context::new(gr, rect, mouse);
+		if btn.run(&ctx, state, true) {
 			println!("X click");
 		}
 		{
@@ -234,7 +242,7 @@ fn draw_ui<'a: 'font, 'font>(cb: CB, renderer: &mut Renderer, font: &'font Font<
 			};
 
 			let ctx = ctx.sub().transform(anchor, offset).build();
-			if btn.run(&ctx, &mut state, true) {
+			if btn.run(&ctx, state, true) {
 				println!("Y click");
 			}
 		}
@@ -248,173 +256,38 @@ fn draw_ui<'a: 'font, 'font>(cb: CB, renderer: &mut Renderer, font: &'font Font<
 		];
 
 		{
-			let anchor = Rect {
-				min: Point2::new(0.25, 0.25),
-				max: Point2::new(0.25, 0.25),
-			};
-			let offset = Rect {
-				min: Point2::new(0.0, 0.0),
-				max: Point2::new(0.0, 0.0),
-			};
+			let ctx = {
+				let anchor = Rect {
+					min: Point2::new(0.25, 0.25),
+					max: Point2::new(0.75, 0.75),
+				};
+				let offset = Rect {
+					min: Point2::new(0.0, 0.0),
+					max: Point2::new(0.0, 0.0),
+				};
 
-			let axis = ui::Axis::Horizontal;
-			let size = axis.measure(widgets);
-
-			let ctx = ctx.sub().transform(anchor, offset).build();
-
-			let anchor = Rect {
-				min: Point2::new(0.5, 0.5),
-				max: Point2::new(0.5, 0.5),
+				ctx.sub().transform(anchor, offset).build()
 			};
 
-			let rect = ctx.rect().dim(size);
-			let iter = axis.layout(rect, widgets)
-				.map(|offset| ctx.sub().transform(anchor, offset).build());
+			//println!("{:?}", ctx.rect());
+
+			ctx.quad([0xFF, 0, 0, 0xCC], &ctx.rect());
+
+			static mut TOGGLE_STATE: bool = false;
+			let toggle_state = unsafe { &mut TOGGLE_STATE };
 
 			let mut i = 0;
-			for ctx in iter {
-				if btn.run(&ctx, &mut state, i != 3) {
-					println!("{} click", i);
+			for ctx in ctx.horizontal_flow(0.5, 0.0, widgets) {
+				if i == 2 {
+					toggle.toggle(&ctx, state, toggle_state, true);
+				} else {
+					if btn.run(&ctx, state, i != 3) {
+						println!("{} click", i);
+					}
 				}
 				i += 1;
 			}
 		}
-	}
-
-	gr.end()
-}
-
-struct Graphics<'a: 'font, 'font> {
-	cb: ::std::cell::RefCell<::vulkano::command_buffer::AutoCommandBufferBuilder>,
-	r: ::std::cell::RefCell<&'font mut Renderer>,
-	sprite: ::std::cell::Cell<bool>,
-	font: &'font Font<'a>,
-	font_size: f32,
-
-	hovered_widget: ::std::cell::Cell<Option<ui::Id>>,
-}
-
-#[inline]
-pub fn gen_frame_uv(r: Rect<f32>, tw: f32, th: f32) -> [[u16;2]; 4] {
-	let a = r.min.x / tw;
-	let b = r.max.x / tw;
-	let c = r.min.y / th;
-	let d = r.max.y / th;
-
-	[
-		pack_uv(a, c),
-		pack_uv(b, c),
-		pack_uv(b, d),
-		pack_uv(a, d),
-	]
-}
-
-impl<'a, 'font> Graphics<'a, 'font> {
-	pub fn end(self) -> ::vulkano::command_buffer::AutoCommandBufferBuilder {
-		let Self { cb, sprite, r, .. } = self;
-
-		let cb = cb.into_inner();
-		if sprite.get() {
-			r.borrow_mut().end_sprites(cb).unwrap()
-		} else {
-			cb
-		}
-	}
-}
-
-impl<'a, 'font> ui::Graphics for Graphics<'a, 'font> {
-	type Texture = Texture;
-	type Color = [u8; 4];
-
-	#[inline]
-	fn hovered_widget(&self) -> Option<ui::Id> {
-		self.hovered_widget.get()
-	}
-
-	#[inline]
-	fn set_hovered_widget(&self, id: ui::Id) {
-		self.hovered_widget.set(Some(id));
-	}
-
-	#[inline]
-	fn texture_dimensions(&self, texture: &Self::Texture) -> Vector2<f32> {
-		let wh = texture.wh;
-		Vector2::new(wh.0 as f32, wh.1 as f32)
-	}
-
-	#[inline]
-	fn quad(&self, color: Self::Color, rect: &Rect<f32>) {
-		let mut r = self.r.borrow_mut();
-		temporarily_move_out(self.cb.borrow_mut(), |cb| {
-			let cb = if self.sprite.get() { cb } else {
-				self.sprite.set(true);
-				r.start_sprites(cb).unwrap()
-			};
-			r.color_quad(cb, rect.min.to_vec(), rect.max.to_vec(), color).unwrap()
-		});
-	}
-
-	#[inline]
-	fn texture(&self, texture: &Self::Texture, rect: &Rect<f32>) {
-		let &Rect { min, max } = rect;
-		let pos = [
-			Vector2::new(min.x, min.y),
-			Vector2::new(max.x, min.y),
-			Vector2::new(max.x, max.y),
-			Vector2::new(min.x, max.y),
-		];
-		const COLOR: [u8; 4] = [0xFF; 4];
-		const UV: [[u16; 2]; 4] = zero_uv();
-
-		let mut r = self.r.borrow_mut();
-		temporarily_move_out(self.cb.borrow_mut(), |cb| {
-			let cb = if self.sprite.get() { cb } else {
-				self.sprite.set(true);
-				r.start_sprites(cb).unwrap()
-			};
-			r.texture_quad(cb, texture.clone(), COLOR, &pos, &UV).unwrap()
-		});
-	}
-
-	#[inline]
-	fn texture_frame(&self, texture: &Self::Texture, rect: &Rect<f32>, frame: &Rect<f32>) {
-		let &Rect { min, max } = rect;
-		let pos = [
-			Vector2::new(min.x, min.y),
-			Vector2::new(max.x, min.y),
-			Vector2::new(max.x, max.y),
-			Vector2::new(min.x, max.y),
-		];
-		const COLOR: [u8; 4] = [0xFF; 4];
-
-		let uv = gen_frame_uv(*frame, texture.wh.0 as f32, texture.wh.1 as f32);
-
-		let mut r = self.r.borrow_mut();
-		temporarily_move_out(self.cb.borrow_mut(), |cb| {
-			let cb = if self.sprite.get() { cb } else {
-				self.sprite.set(true);
-				r.start_sprites(cb).unwrap()
-			};
-			r.texture_quad(cb, texture.clone(), COLOR, &pos, &uv).unwrap()
-		});
-	}
-
-	#[inline]
-	fn measure_text(&self, _text: &str) -> Vector2<f32> {
-		unimplemented!()
-	}
-
-	#[inline]
-	fn text(&self, base: Point2<f32>, color: Self::Color, text: &str) {
-		let mut r = self.r.borrow_mut();
-		temporarily_move_out(self.cb.borrow_mut(), |cb| {
-			let cb = if !self.sprite.get() { cb } else {
-				self.sprite.set(false);
-				r.end_sprites(cb).unwrap()
-			};
-			let lay: Vec<_> = r.text_lay(&self.font, self.font_size, &text, base.x, base.y).collect();
-			r.glyphs(cb, &lay, color).unwrap()
-		});
 	}
 }
 

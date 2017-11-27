@@ -1,4 +1,4 @@
-extern crate cgmath;
+pub extern crate cgmath;
 #[macro_use] extern crate derivative;
 
 pub use cgmath::prelude::*;

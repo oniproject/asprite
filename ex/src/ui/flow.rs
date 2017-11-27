@@ -114,10 +114,10 @@ impl Axis {
 			.fold(Vector2::zero(), f)
 	}
 
-	pub fn layout<'a>(self, rect: Rect<f32>, widgets: &'a [Flow]) -> impl Iterator<Item=Rect<f32>> + 'a {
+	pub fn layout<'a>(self, size: Vector2<f32>, widgets: &'a [Flow]) -> impl Iterator<Item=Rect<f32>> + 'a {
 		let mut extra = match self {
-			Axis::Horizontal => rect.dx(),
-			Axis::Vertical   => rect.dy(),
+			Axis::Horizontal => size.x,
+			Axis::Vertical   => size.y,
 		};
 
 		let mut total_expand_weight = 0.0;
@@ -180,8 +180,8 @@ impl Axis {
 				}
 
 				match self {
-					Axis::Horizontal => q.y = stretch_across(q.y, rect.dy(), c.expand_across, c.shrink_across),
-					Axis::Vertical   => q.x = stretch_across(q.x, rect.dx(), c.expand_across, c.shrink_across),
+					Axis::Horizontal => q.y = stretch_across(q.y, size.y, c.expand_across, c.shrink_across),
+					Axis::Vertical   => q.x = stretch_across(q.x, size.x, c.expand_across, c.shrink_across),
 				}
 
 				yield Rect::with_coords(p.x, p.y, q.x, q.y);

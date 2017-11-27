@@ -32,6 +32,7 @@ extern crate rand;
 extern crate vulkano;
 
 mod ui;
+mod graphics;
 
 mod loader;
 
@@ -54,9 +55,6 @@ pub const BATCH_CAPACITY: usize = 2_000;
 pub fn mouse_event_buttons(mouse: &mut ui::Mouse, state: winit::ElementState, button: winit::MouseButton) {
 	use winit::ElementState::*;
 	use winit::MouseButton::*;
-	if button != Left {
-		return;
-	}
 	let id = match button {
 		Left => 0,
 		Middle => 1,

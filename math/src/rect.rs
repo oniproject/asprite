@@ -1,5 +1,4 @@
 use super::*;
-use cgmath::Vector1;
 
 use std::mem::swap;
 
@@ -68,7 +67,7 @@ impl<S> Rect<S>
 	pub fn pos(self, p: Vector2<S>) -> Self {
 		Self {
 			min: self.min + p,
-			max: self.min + p,
+			max: self.max + p,
 		}
 	}
 
@@ -276,60 +275,4 @@ impl<S> Rect<S>
 			min, max
 		}
 	}
-
-	#[inline]
-	pub fn align<F: BaseFloat>(&self, x: F, y: F, size: Point2<S>) -> Point2<S> {
-		let (tw, th) = (size.x, size.y);
-		let (rw, rh) = (self.dx(), self.dy());
-
-		let dw = F::from(rw - tw).unwrap();
-		let dh = F::from(rh - th).unwrap();
-
-		let x = self.min.x + S::from(dw * x).unwrap();
-		let y = self.min.y + S::from(dh * y).unwrap();
-
-		Point2::new(x, y)
-	}
-}
-
-
-impl<S> Rect<S>
-	where S: BaseFloat
-{
-	#[inline]
-	fn lerp(a: S, b: S, v: S) -> S {
-		Vector1::new(a).lerp(Vector1::new(b), v).x
-	}
-
-	#[inline]
-	pub fn transform(self, anchor: Self, offset: Self) -> Self {
-		Self {
-			min: offset.min + Vector2::new(
-				Self::lerp(self.min.x, self.max.x, anchor.min.x),
-				Self::lerp(self.min.y, self.max.y, anchor.min.y),
-			),
-			max: offset.max + Vector2::new(
-				Self::lerp(self.min.x, self.max.x, anchor.max.x),
-				Self::lerp(self.min.y, self.max.y, anchor.max.y),
-			),
-		}
-	}
-}
-
-#[test]
-fn test() {
-	let canvas = Rect {
-		min: Point2::new(0.0, 0.0),
-		max: Point2::new(100.0, 100.0),
-	};
-
-	let anchor = Rect {
-		min: Point2::new(0.25, 0.25),
-		max: Point2::new(0.75, 0.75),
-	};
-
-	println!("{:?}", canvas.transform(anchor, Rect {
-		min: Point2::new(-10.0, -10.0),
-		max: Point2::new(10.0, 10.0),
-	}));
 }
