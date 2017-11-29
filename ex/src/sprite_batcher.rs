@@ -2,6 +2,7 @@ use vulkano::device::Queue;
 use vulkano::sync::GpuFuture;
 use vulkano::swapchain::PresentMode;
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 use specs::*;
@@ -12,11 +13,11 @@ use graphics::*;
 
 use math::*;
 use app::Bundle;
-use sprite::*;
+use sprite::{Sprite, SpriteSystem, TransformSystem, Local, Global};
 use renderer::*;
 
-fn terminus() -> Font<'static> {
-	let font = include_bytes!("../../res/TerminusTTF-4.46.0.ttf");
+fn base_font() -> Font<'static> {
+	let font = include_bytes!("../../res/FiraSans-Regular.ttf");
 	FontCollection::from_bytes(font as &[u8]).into_font().unwrap()
 }
 
@@ -43,10 +44,16 @@ impl<'a, 'b> Bundle<'a, 'b> for BatcherBundle<'a> {
 		world.register::<tsys::Parent>();
 		world.register::<Global>();
 		world.register::<Local>();
+
+
+		let font = base_font();
+		world.add_resource(Graphics::new(font, 14.0));
+
 		world.add_resource(future);
 		world.add_resource(Vector2::new(1024.0f32, 786.0));
 
 		dispatcher
+			.add(TransformSystem::default(), "transform", &[])
 			.add(SpriteSystem, "sprite", &["transform"])
 			.add(batcher, "batcher", &["sprite"])
 	}
@@ -56,7 +63,7 @@ pub struct Batcher<'a> {
 	pub renderer: Renderer,
 	pub chain: Chain<'a>,
 	pub queue: Arc<Queue>,
-	graphics: Graphics<'a>,
+	pub fd: VecDeque<f32>,
 }
 
 impl<'a> Batcher<'a> {
@@ -78,10 +85,9 @@ impl<'a> Batcher<'a> {
 				&images,
 				capacity, group_size).unwrap();
 
-		let font = terminus();
-		let graphics = Graphics::new(font, 14.0);
+		let fd = VecDeque::new();
 		(
-			Self { queue, renderer, chain, graphics },
+			Self { queue, renderer, chain, fd },
 			Box::new(index_future),
 			events_loop,
 		)
@@ -92,19 +98,18 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 	type SystemData = (
 		FetchMut<'sys, Future>,
 		FetchMut<'sys, Vector2<f32>>,
-		Fetch<'sys, ui::Mouse>,
-		ReadStorage<'sys, Sprite>,
-		Entities<'sys>,
+		Fetch<'sys, Graphics>,
 		Fetch<'sys, Time>,
+		ReadStorage<'sys, Sprite>,
 	);
 
 	fn running_time(&self) -> RunningTime { RunningTime::Long }
 
-	fn run(&mut self, (mut future, mut wh, mouse, sprites, e, dt): Self::SystemData) {
+	fn run(&mut self, (mut future, mut wh, graphics, time, sprites): Self::SystemData) {
 		#[cfg(feature = "profiler")] profile_scope!("rendering");
 		future.cleanup_finished();
 
-		let (image_num, cb) = {
+		let (image_num, mut cb) = {
 			#[cfg(feature = "profiler")] profile_scope!("swap");
 			let ren = &mut self.renderer;
 			match self.chain.run(|m| ren.refill(m)) {
@@ -116,17 +121,68 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 					ren.resize(dim).unwrap();
 					*wh = dim;
 
-					(num, ren.clear().unwrap())
+					const COLOR: [f32; 4] = [
+						0.0115, //0x1C as f32 / 255.0,// * 0.26,
+						0.113, //0x5E as f32 / 255.0,// * 0.26,
+						0.412, //0xAC as f32 / 255.0,// * 0.26,
+						1.0,
+					];
+					(num, ren.clear(COLOR).unwrap())
 				},
 				None => return,
 			}
 		};
 
-		let font_size = 24.0;
+		let cb = {
+			#[cfg(feature = "profiler")] profile_scope!("vg");
+
+			let time = &time;
+			self.fd.push_back(time.delta.seconds);
+			while self.fd.len() > 300 {
+				self.fd.pop_front();
+			}
+
+			let color = [0xFF, 0xFF, 0xFF, 0x11];
+			{
+
+				fn draw_grid<T, F: FnMut(T, Vector2<f32>, Vector2<f32>) -> T>(mut t: T, wh: Vector2<f32>, s: isize, mut f: F) -> T {
+					let w = wh.x as isize / s + 1;
+					let h = wh.y as isize / s + 1;
+					for y in -1..h {
+						let min = Vector2::new(0.0, y as f32 * s as f32);
+						let max = Vector2::new(wh.x, y as f32 * s as f32 + 1.0);
+						t = f(t, min, max);
+					}
+					for x in -1..w {
+						let min = Vector2::new(x as f32 * s as f32, 0.0);
+						let max = Vector2::new(x as f32 * s as f32 + 1.0, wh.x);
+						t = f(t, min, max);
+					}
+					t
+				}
+				cb = draw_grid(cb, *wh, 24, |cb, min, max|
+					self.renderer.x_quad(cb, min, max, color).unwrap()
+				);
+				cb = draw_grid(cb, *wh, 24 * 4, |cb, min, max|
+					self.renderer.x_quad(cb, min, max, color).unwrap()
+				);
+			}
+
+			let color = [0x0, 0xFF, 0, 0xFF];
+
+			let mut cb = self.renderer.start_vg(cb).unwrap();
+			for (i, ms) in self.fd.iter().cloned().enumerate() {
+				let min = Vector2::new(wh.x - 300.0 + i as f32, wh.y);
+				let max = Vector2::new(wh.x - 301.0 + i as f32, wh.y - ms * 1000.0);
+				cb = self.renderer.x_quad(cb, min, max, color).unwrap();
+			}
+
+
+			self.renderer.end_vg(cb).unwrap()
+		};
 
 		let cb = {
 			#[cfg(feature = "profiler")] profile_scope!("sprites");
-
 			let mut cb = self.renderer.start_sprites(cb).unwrap();
 			{
 				for sprite in sprites.join() {
@@ -136,31 +192,10 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 						&sprite.pos, &sprite.uv).unwrap();
 				}
 			}
-
-			let cb = if true {
-				self.renderer.color_quad(cb,
-					Vector2::new(100.0, 200.0),
-					Vector2::new(600.0, 200.0 + font_size),
-					[0xFF, 0, 0, 0xAA]
-				).unwrap()
-			} else {
-				cb
-			};
-
 			self.renderer.end_sprites(cb).unwrap()
 		};
 
-		let cb = {
-			#[cfg(feature = "profiler")] profile_scope!("text");
-			let text = format!("count: {} ms: {:.4}", e.join().count(), dt.delta.seconds);
-			let lay: Vec<_> = self.renderer.text_lay(&self.graphics.font, font_size, &text, 100.0, 200.0 + font_size).collect();
-			self.renderer.glyphs(cb, &lay, [0xFF; 4]).unwrap()
-		};
-
-		draw_ui(&self.graphics, *mouse);
-
-		let cb = draw_vg(cb, &mut self.renderer);
-		let cb = self.graphics.run(cb, &mut self.renderer).unwrap();
+		let cb = graphics.run(cb, &mut self.renderer).unwrap();
 
 		{
 			#[cfg(feature = "profiler")] profile_scope!("end");
@@ -170,203 +205,3 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 		}
 	}
 }
-
-use ::vulkano::command_buffer::AutoCommandBufferBuilder as CB;
-
-#[allow(dead_code)]
-fn draw_vg(cb: CB, renderer: &mut Renderer) -> CB {
-	use math::Transform;
-	#[cfg(feature = "profiler")] profile_scope!("vg");
-	let min = Vector2::new(100.0, 300.0);
-	let max = Vector2::new(600.0, 400.0);
-	let color = [0xFF, 0xFF, 0, 0xAA];
-
-	let cb = renderer.start_vg(cb).unwrap();
-	let cb = renderer.x_quad(cb, min, max, color).unwrap();
-
-	let mut proj = Affine::one();
-	proj.scale(5.0, 5.0);
-	proj.translate(150.0, 100.0);
-	let color = [0, 0, 0, 0xAA];
-	let mesh = build_lyon(proj, color);
-	let cb = renderer.path(cb, &mesh.vertices, &mesh.indices).unwrap();
-
-	renderer.end_vg(cb).unwrap()
-}
-
-fn draw_ui<'a>(gr: &Graphics<'a>, mouse: ui::Mouse) {
-	#[cfg(feature = "profiler")] profile_scope!("ui");
-	use ui::Button;
-	use ui::Graphics;
-	use ui::Toggle;
-
-	static mut STATE: ui::UiState = ui::UiState::new();
-	let state = unsafe { &mut STATE };
-
-	let rect = Rect::with_size(500.0, 80.0, 1000.0, 500.0);
-	let btn = ui::ColorButton {
-		normal: [0x99, 0x99, 0x99, 0x99],
-		hovered: [0, 0, 0x99, 0x99],
-		pressed: [0x99, 0, 0, 0x99],
-		disabled: [0, 0xFF, 0xFF, 0xCC],
-	};
-
-	let toggle = ui::ToggleStyle {
-		checked: &ui::ColorButton {
-			normal:   [0xFF, 0, 0, 0xCC],
-			hovered:  [0xFF, 0, 0, 0x99],
-			pressed:  [0xFF, 0, 0, 0x66],
-			disabled: [0xFF, 0, 0, 0x33],
-		},
-		unchecked: &ui::ColorButton {
-			normal:   [0xFF, 0xFF, 0xFF, 0xCC],
-			hovered:  [0xFF, 0xFF, 0xFF, 0x99],
-			pressed:  [0xFF, 0xFF, 0xFF, 0x66],
-			disabled: [0xFF, 0xFF, 0xFF, 0x33],
-		},
-	};
-
-	{
-		let ctx = ui::Context::new(gr, rect, mouse);
-		if btn.run(&ctx, state, true) {
-			println!("X click");
-		}
-		{
-			let anchor = Rect {
-				min: Point2::new(0.5, 0.5),
-				max: Point2::new(0.5, 0.5),
-			};
-			let offset = Rect {
-				min: Point2::new(-10.0, -10.0),
-				max: Point2::new(10.0, 10.0),
-			};
-
-			let ctx = ctx.sub().transform(anchor, offset).build();
-			if btn.run(&ctx, state, true) {
-				println!("Y click");
-			}
-		}
-
-		let widgets = &[
-			ui::Flow::with_wh(40.0, 40.0),
-			ui::Flow::with_wh(40.0, 40.0),
-			ui::Flow::with_wh(40.0, 40.0),
-			ui::Flow::with_wh(40.0, 40.0),
-			ui::Flow::with_wh(40.0, 40.0),
-		];
-
-		{
-			let ctx = {
-				let anchor = Rect {
-					min: Point2::new(0.25, 0.25),
-					max: Point2::new(0.75, 0.75),
-				};
-				let offset = Rect {
-					min: Point2::new(0.0, 0.0),
-					max: Point2::new(0.0, 0.0),
-				};
-
-				ctx.sub().transform(anchor, offset).build()
-			};
-
-			//println!("{:?}", ctx.rect());
-
-			ctx.quad([0xFF, 0, 0, 0xCC], &ctx.rect());
-
-			static mut TOGGLE_STATE: bool = false;
-			let toggle_state = unsafe { &mut TOGGLE_STATE };
-
-			let mut i = 0;
-			for ctx in ctx.horizontal_flow(0.5, 0.0, widgets) {
-				if i == 2 {
-					toggle.toggle(&ctx, state, toggle_state, true);
-				} else {
-					if btn.run(&ctx, state, i != 3) {
-						println!("{} click", i);
-					}
-				}
-				i += 1;
-			}
-		}
-	}
-}
-
-pub fn build_lyon(proj: Affine<f32>, color: [u8; 4])
-	-> lyon::tessellation::geometry_builder::VertexBuffers<::renderer::vg::Vertex>
-{
-	#![allow(unused_imports)]
-
-	use lyon::extra::rust_logo::build_logo_path;
-	use lyon::path_builder::*;
-	use lyon::math::*;
-	use lyon::tessellation::geometry_builder::{VertexConstructor, VertexBuffers, BuffersBuilder};
-	use lyon::tessellation::geometry_builder::simple_builder;
-	use lyon::tessellation::{FillTessellator, FillOptions};
-	use lyon::tessellation::FillVertex;
-	use lyon::tessellation;
-	use lyon::path::Path;
-
-	use math::Transform;
-
-	let mut builder = SvgPathBuilder::new(Path::builder());
-	if true {
-		build_logo_path(&mut builder);
-	} else {
-		builder.move_to(point(0.0, 0.0));
-		builder.line_to(point(1.0, 0.0));
-		builder.quadratic_bezier_to(point(2.0, 0.0), point(2.0, 1.0));
-		builder.cubic_bezier_to(point(1.0, 1.0), point(0.0, 1.0), point(0.0, 0.0));
-		builder.close();
-	}
-
-	let path = builder.build();
-
-	let mut tessellator = FillTessellator::new();
-
-	let mut mesh = VertexBuffers::new();
-
-	{
-		tessellator.tessellate_path(
-			path.path_iter(),
-			&FillOptions::tolerance(0.01),
-			//&mut vertex_builder,
-			&mut BuffersBuilder::new(&mut mesh, VertexCtor {
-				aff: proj,
-				color,
-			}),
-		).unwrap();
-	}
-
-	/*
-	println!(" -- {} vertices {} indices",
-		mesh.vertices.len(),
-		mesh.indices.len()
-	);
-	*/
-
-	mesh
-}
-
-
-type GpuFillVertex = ::renderer::vg::Vertex;
-
-#[derive(Clone)]
-struct VertexCtor {
-	pub aff: Affine<f32>,
-	pub color: [u8; 4],
-}
-impl lyon::tessellation::geometry_builder::VertexConstructor<lyon::tessellation::FillVertex, GpuFillVertex> for VertexCtor {
-	fn new_vertex(&mut self, vertex: lyon::tessellation::FillVertex) -> GpuFillVertex {
-		use math::Transform;
-
-		debug_assert!(!vertex.position.x.is_nan());
-		debug_assert!(!vertex.position.y.is_nan());
-		let position = Vector2::new(vertex.position.x, vertex.position.y);
-		let position = self.aff.transform_vector(position).into();
-		GpuFillVertex {
-			position,
-			color: self.color,
-		}
-	}
-}
-

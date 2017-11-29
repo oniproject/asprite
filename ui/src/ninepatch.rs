@@ -12,12 +12,12 @@ pub fn draw_ninepatch<D: ?Sized + Graphics>(draw: &Context<D>, m: &D::Texture) {
 
 	let rect = draw.rect();
 
-	#[inline]
+	#[inline(always)]
 	fn hsplit(r: &Rect<f32>, left: f32, right: f32) -> (f32, f32) {
 		(r.min.x + left, r.max.x - right)
 	}
 
-	#[inline]
+	#[inline(always)]
 	fn vsplit(r: &Rect<f32>, top: f32, bottom: f32) -> (f32, f32) {
 		(r.min.y + top, r.max.y - bottom)
 	}

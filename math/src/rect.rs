@@ -229,6 +229,16 @@ impl<S> Rect<S>
 	}
 
 	#[inline]
+	pub fn union_raw(mut self, s: Self) -> Self {
+		self.min.x = Self::min(self.min.x, s.min.x);
+		self.min.y = Self::min(self.min.y, s.min.y);
+		self.max.x = Self::max(self.max.x, s.max.x);
+		self.max.y = Self::max(self.max.y, s.max.y);
+		self
+	}
+
+
+	#[inline]
 	pub fn union_point(self, p: Point2<S>) -> Self {
 		self.union_xy(p.x, p.y)
 	}

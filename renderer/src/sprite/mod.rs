@@ -12,6 +12,7 @@ use super::{
 	DescSet,
 	Uniform,
 	ArcPipeline,
+	Init,
 };
 
 mod shader;

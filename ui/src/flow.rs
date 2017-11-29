@@ -1,6 +1,6 @@
-use super::*;
-use std::cell::{Ref, RefMut, RefCell, Cell};
-use std::rc::Rc;
+use math::*;
+
+use std::ops::{Generator, GeneratorState};
 
 #[derive(Copy, Clone, Debug)]
 pub enum Axis {
@@ -8,148 +8,143 @@ pub enum Axis {
 	Vertical,
 }
 
-pub struct FlowData<N> {
-	pub along_weight: N,
+#[derive(Copy, Clone, Debug)]
+pub struct Flow {
+	pub measured_size: Vector2<f32>,
+
+	pub along_weight: f32,
+
 	pub expand_along: bool,
 	pub shrink_along: bool,
 	pub expand_across: bool,
 	pub shrink_across: bool,
 }
 
-pub struct Flow<N: BaseNum, C: Copy + 'static> {
-	pub widgets: RefCell<Vec<Rc<Widget<N, C>>>>,
-	pub axis: Cell<Axis>,
-
-	pub rect: Cell<Rect<N>>,
-	pub measured: Cell<Vector2<N>>,
-}
-
-impl<N: BaseNum, C: Copy + 'static> Flow<N, C> {
-	pub fn new(axis: Axis, rect: Rect<N>) -> Rc<Self> {
-		Rc::new(Self {
-			widgets: RefCell::new(Vec::new()),
-			rect: Cell::new(rect),
-			axis: Cell::new(axis),
-			measured: Cell::new(Vector2::zero()),
-		})
+impl Flow {
+	pub fn with_wh(w: f32, h: f32) -> Self {
+		Self::with_size(Vector2::new(w, h))
 	}
-	pub fn vertical() -> Rc<Self> {
-		Self::new(Axis::Vertical, Rect::new())
-	}
-	pub fn horizontal() -> Rc<Self> {
-		Self::new(Axis::Horizontal, Rect::new())
-	}
-}
-
-impl<N: BaseNum, C: Copy + 'static> Container for Flow<N, C> {
-	type Storage = Vec<Rc<Widget<N, C>>>;
-	type Item = Rc<Widget<N, C>>;
-
-	fn children(&self) -> Ref<Self::Storage> {
-		self.widgets.borrow()
-	}
-	fn children_mut(&self) -> RefMut<Self::Storage> {
-		self.widgets.borrow_mut()
-	}
-	fn add(&self, w: Self::Item) {
-		let mut widgets = self.children_mut();
-		widgets.push(w);
-	}
-	fn insert(&self, index: usize, w: Self::Item) {
-		let mut widgets = self.widgets.borrow_mut();
-		widgets.insert(index, w);
-	}
-	fn remove(&self, index: usize) -> Self::Item {
-		let mut widgets = self.widgets.borrow_mut();
-		widgets.remove(index)
-	}
-}
-
-impl<N, C> Widget<N, C> for Flow<N, C>
-	where N: BaseFloat + 'static, C: Copy + 'static
-{
-	fn bounds(&self) -> &Cell<Rect<N>> { &self.rect }
-	fn measured_size(&self) -> &Cell<Vector2<N>> { &self.measured }
-
-	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Vector2<N>, focused: bool) {
-		self.container_paint(ctx, origin, focused)
-	}
-	fn event(&self, event: Event<N>, origin: Vector2<N>, focused: bool, redraw: &Cell<bool>) -> bool {
-		self.container_event(event, origin, focused, redraw)
-	}
-
-	fn measure(&self, mut width: Option<N>, mut height: Option<N>) {
-		let axis = self.axis.get();
-
-		match axis {
-			Axis::Horizontal => width = None,
-			Axis::Vertical => height = None,
+	pub fn with_size(size: Vector2<f32>) -> Self {
+		Self {
+			measured_size: size,
+			along_weight: 0.0,
+			expand_along: false,
+			shrink_along: false,
+			expand_across: false,
+			shrink_across: false,
 		}
-
-		let mut size: Vector2<N> = Vector2::zero();
-
-		let widgets = self.widgets.borrow();
-		for w in widgets.iter() {
-			w.measure(width, height);
-			let ms = w.measured_size().get();
-			match axis {
-				Axis::Horizontal => {
-					size.x += ms.x;
-					size.y = size.y.max(ms.y);
-				}
-				Axis::Vertical => {
-					size.y += ms.y;
-					size.x = size.x.max(ms.x);
-				}
-			}
-		}
-		self.measured.set(size);
 	}
 
-	fn layout(&self) {
-		let rect = self.rect.get();
-		let axis = self.axis.get();
-		let zero = N::zero();
+	pub fn along_weight(mut self, w: f32) -> Self {
+		self.along_weight = w;
+		self
+	}
+	pub fn expand_along(mut self) -> Self {
+		self.expand_along = true;
+		self
+	}
+	pub fn shrink_along(mut self) -> Self {
+		self.shrink_along = true;
+		self
+	}
+	pub fn expand_across(mut self) -> Self {
+		self.expand_across = true;
+		self
+	}
+	pub fn shrink_across(mut self) -> Self {
+		self.shrink_across = true;
+		self
+	}
+}
 
-		let mut extra = match axis {
-			Axis::Horizontal => rect.dx(),
-			Axis::Vertical   => rect.dy(),
+#[inline]
+fn stretch_across(child: f32, parent: f32, expand: bool, shrink: bool) -> f32 {
+	if (expand && child < parent) || (shrink && child > parent) {
+		parent
+	} else {
+		child
+	}
+}
+
+#[test]
+fn gen_measure() {
+	let widgets = &[
+		Flow::with_wh(10.0, 5.0),
+		Flow::with_wh(1.0, 15.0),
+	];
+	println!("from: {:?}", widgets);
+
+	{
+		let axis = Axis::Horizontal;
+		let size = axis.measure(widgets);
+		println!("h: {:?}", size);
+		assert_eq!(size, Vector2::new(11.0, 15.0));
+
+		let mut lay = axis.layout(Rect::new().dim(size), widgets);
+
+		println!("{:?}", lay.next());
+		println!("{:?}", lay.next());
+		println!("{:?}", lay.next());
+	}
+
+	{
+		let axis = Axis::Vertical;
+		let size = axis.measure(widgets);
+		println!("v: {:?}", size);
+		assert_eq!(size, Vector2::new(10.0, 20.0));
+
+		let mut lay = axis.layout(Rect::new().dim(size), widgets);
+
+		println!("{:?}", lay.next());
+		println!("{:?}", lay.next());
+		println!("{:?}", lay.next());
+	}
+}
+
+impl Axis {
+	pub fn measure(self, widgets: &[Flow]) -> Vector2<f32> {
+		let f: fn (s: Vector2<f32>, v: Vector2<f32>) -> Vector2<f32> =
+			match self {
+				Axis::Horizontal => move |s, v| Vector2::new(s.x + v.x, s.y.max(v.y)),
+				Axis::Vertical   => move |s, v| Vector2::new(s.x.max(v.x), s.y + v.y),
+			};
+
+		widgets.iter()
+			.map(|c| c.measured_size)
+			.fold(Vector2::zero(), f)
+	}
+
+	pub fn layout<'a>(self, size: Vector2<f32>, widgets: &'a [Flow]) -> impl Iterator<Item=Rect<f32>> + 'a {
+		let mut extra = match self {
+			Axis::Horizontal => size.x,
+			Axis::Vertical   => size.y,
 		};
 
-		let mut total_expand_weight = zero;
-		let mut total_shrink_weight = zero;
-
-		let widgets = self.widgets.borrow();
+		let mut total_expand_weight = 0.0;
+		let mut total_shrink_weight = 0.0;
 
 		for c in widgets.iter() {
-			let mut con = false;
-			downcast(c.layout_data(), |d: &FlowData<N>| {
-				let aw = d.along_weight;
-				if aw > zero {
-					con = aw == zero;
-					if d.expand_along {
-						total_expand_weight += aw;
-					}
-					if d.shrink_along {
-						total_shrink_weight += aw;
-					}
-				}
-			});
-			if con {
+			if c.along_weight <= 0.0 {
 				continue;
 			}
+			if c.expand_along {
+				total_expand_weight += c.along_weight;
+			}
+			if c.shrink_along {
+				total_shrink_weight += c.along_weight;
+			}
 
-			let size = c.measured_size().get();
-			extra -= match axis {
+			let size = c.measured_size;
+			extra -= match self {
 				Axis::Horizontal => size.x,
 				Axis::Vertical   => size.y,
 			};
 		}
 
-		let expand = extra > zero && total_expand_weight != zero;
-		let shrink = extra < zero && total_shrink_weight != zero;
+		let expand = extra > 0.0 && total_expand_weight != 0.0;
+		let shrink = extra < 0.0 && total_shrink_weight != 0.0;
 
-		let mut total_weight = zero;
+		let mut total_weight = 0.0;
 		if expand {
 			total_weight = total_expand_weight;
 		}
@@ -157,15 +152,22 @@ impl<N, C> Widget<N, C> for Flow<N, C>
 			total_weight = total_shrink_weight;
 		}
 
-		let mut p = Point2::new(zero, zero);
-		for c in widgets.iter() {
-			let mut q = p + c.measured_size().get();
-			downcast(c.layout_data(), |d: &FlowData<N>| {
-				if d.along_weight > zero && (expand && d.expand_along || shrink && d.shrink_along) {
-					let delta = extra * d.along_weight / total_weight;
+		let gen = move || {
+			let mut p = Vector2::zero();
+			let mut q = Vector2::zero();
+			for c in widgets.iter() {
+				match self {
+					Axis::Horizontal => p.x = q.x,
+					Axis::Vertical   => p.y = q.y,
+				}
+
+				q = p + c.measured_size;
+
+				if c.along_weight > 0.0 && (expand && c.expand_along || shrink && c.shrink_along) {
+					let delta = extra * c.along_weight / total_weight;
 					extra -= delta;
-					total_weight -= d.along_weight;
-					match axis {
+					total_weight -= c.along_weight;
+					match self {
 						Axis::Horizontal => {
 							q.x += delta;
 							q.x = q.x.max(p.x);
@@ -176,39 +178,34 @@ impl<N, C> Widget<N, C> for Flow<N, C>
 						}
 					}
 				}
-				match axis {
-					Axis::Horizontal => q.y = stretch_across(q.y, rect.dy(), d.expand_across, d.shrink_across),
-					Axis::Vertical   => q.x = stretch_across(q.x, rect.dx(), d.expand_across, d.shrink_across),
+
+				match self {
+					Axis::Horizontal => q.y = stretch_across(q.y, size.y, c.expand_across, c.shrink_across),
+					Axis::Vertical   => q.x = stretch_across(q.x, size.x, c.expand_across, c.shrink_across),
 				}
-			});
 
-			c.bounds().set(Rect { min: p, max: q });
-			c.layout();
-
-			match axis {
-				Axis::Horizontal => p.x = q.x,
-				Axis::Vertical   => p.y = q.y,
+				yield Rect::with_coords(p.x, p.y, q.x, q.y);
 			}
-		}
+		};
+
+		LayoutIter { gen }
 	}
 }
 
-fn downcast<T: 'static, F: FnOnce(&T)>(d: Option<Ref<Any>>, f: F) {
-	match d {
-		Some(d) => {
-			match d.downcast_ref::<T>() {
-				Some(d) => f(d),
-				None => (),
-			}
-		}
-		None => {}
-	}
+pub struct LayoutIter<G>
+	where G: Generator<Yield=Rect<f32>, Return=()>
+{
+	gen: G,
 }
 
-fn stretch_across<N: BaseNum>(child: N, parent: N, expand: bool, shrink: bool) -> N{
-	if (expand && child < parent) || (shrink && child > parent) {
-		parent
-	} else {
-		child
+impl<G> Iterator for LayoutIter<G>
+	where G: Generator<Yield=Rect<f32>, Return=()>
+{
+	type Item = Rect<f32>;
+	fn next(&mut self) -> Option<Self::Item> {
+		match self.gen.resume() {
+			GeneratorState::Yielded(rect) => Some(rect),
+			GeneratorState::Complete(()) => None,
+		}
 	}
 }

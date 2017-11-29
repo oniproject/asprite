@@ -22,8 +22,8 @@ pub extern crate winit;
 #[macro_use] extern crate derivative;
 extern crate image;
 
-extern crate unicode_normalization;
-extern crate rusttype;
+pub extern crate unicode_normalization;
+pub extern crate rusttype;
 
 use vulkano::image::swapchain::SwapchainImage;
 
@@ -193,3 +193,11 @@ pub fn pack_uv(u: f32, v: f32) -> [u16; 2] {
 	[u, v]
 }
 
+
+#[derive(Clone)]
+pub struct Init<'a> {
+	pub queue: Arc<Queue>,
+	pub index: QuadIBO<u16>,
+	pub swapchain: Arc<Swapchain>,
+	pub images: &'a [Arc<SwapchainImage>],
+}

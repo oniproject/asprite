@@ -44,9 +44,8 @@ pub struct Renderer {
 }
 
 impl Renderer {
-	pub fn new(queue: Arc<Queue>, ibo: QuadIBO<u16>, swapchain: Arc<Swapchain>, images: &[Arc<SwapchainImage>], capacity: usize, group_size: u32)
-		-> Result<(Self, Box<GpuFuture + Send + Sync>)>
-	{
+	pub fn new<'a>(init: Init<'a>, capacity: usize, group_size: u32) -> Result<(Self, Box<GpuFuture + Send + Sync>)> {
+		let Init { queue, index: ibo, swapchain, images } = init;
 
 		let device = queue.device().clone();
 		assert_eq!(group_size, 16);

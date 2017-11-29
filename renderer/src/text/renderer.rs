@@ -1,15 +1,13 @@
-use vulkano::format::R8Unorm;
-use vulkano::image::ImmutableImage;
-use vulkano::image::ImageLayout;
-use vulkano::image::ImageUsage;
 
 use vulkano::image::swapchain::SwapchainImage;
 
+use vulkano::buffer::{CpuAccessibleBuffer, BufferUsage};
 use vulkano::buffer::cpu_pool::CpuBufferPool;
 use vulkano::framebuffer::Subpass;
 use vulkano::command_buffer::AutoCommandBufferBuilder as CmdBuild;
 use vulkano::command_buffer::DynamicState;
 use vulkano::device::Queue;
+use vulkano::device::Device;
 
 use vulkano::swapchain::Swapchain;
 
@@ -18,7 +16,15 @@ use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::pipeline::GraphicsPipeline;
 
 use vulkano::sampler::{Sampler, Filter, MipmapMode, SamplerAddressMode};
+
+use vulkano::format::R8Unorm;
 use vulkano::image::Dimensions;
+use vulkano::image::immutable::ImmutableImage;
+use vulkano::image::immutable::ImmutableImageInitialization;
+use vulkano::image::{ImageLayout, ImageUsage};
+use vulkano::image::ImageCreationError;
+
+use vulkano::memory::DeviceMemoryAllocError;
 
 use rusttype::PositionedGlyph;
 use rusttype::gpu_cache::Cache;
@@ -37,33 +43,18 @@ unsafe fn as_sync_cmd_buf<P>(cb: &mut CmdBuild<P>) -> &mut SyncCommandBufferBuil
 }
 */
 
-pub struct Renderer {
-	vbo: VBO<Vertex>,
-	ibo: QuadIBO<u16>,
-
+struct CacheImage {
+	buffer: Vec<u8>,
+	width: u32,
+	height: u32,
 	queue: Arc<Queue>,
-
-	cache: Cache,
-	cache_size: (usize, usize),
-	cache_pixel_buffer: Vec<u8>,
-
+	device: Arc<Device>,
 	sampler: Arc<Sampler>,
-	pool: CpuBufferPool<u8>,
-
-	pipeline: ArcPipeline<Vertex>,
-
-	upload: Option<(DescSet, Arc<ImmutableImage<R8Unorm>>)>,
-
-	uniform: CpuBufferPool<Uniform>,
-	proj_set: DescSet,
-
-	pub fbo: FBO,
 }
 
-impl Renderer {
-	pub fn new(queue: Arc<Queue>, ibo: QuadIBO<u16>, swapchain: Arc<Swapchain>, images: &[Arc<SwapchainImage>], width: u32, height: u32) -> Result<Self> {
+impl CacheImage {
+	fn new(queue: Arc<Queue>, width: u32, height: u32) -> Result<Self> {
 		let device = queue.device().clone();
-
 		let sampler = Sampler::new(
 			device.clone(),
 			Filter::Nearest, Filter::Nearest,
@@ -73,11 +64,70 @@ impl Renderer {
 			SamplerAddressMode::Repeat,
 			0.0, 1.0, 0.0, 0.0)?;
 
-		let pool = CpuBufferPool::upload(device.clone());
-		let cache = Cache::new(width, height, 0.1, 0.1);
-
 		let size = width*height;
-		let cache_pixel_buffer = vec![0; size as usize];
+		Ok(Self {
+			sampler,
+			queue,
+			device,
+			width, height,
+			buffer: vec![0; size as usize],
+		})
+	}
+
+	fn buffer(&mut self) -> ::std::result::Result<Arc<CpuAccessibleBuffer<[u8]>>, DeviceMemoryAllocError> {
+		CpuAccessibleBuffer::from_iter(
+			self.device.clone(),
+			BufferUsage::all(),
+			self.buffer.iter().cloned()
+		)
+	}
+
+	fn image(&mut self) -> ::std::result::Result<(Arc<ImmutableImage<R8Unorm>>, ImmutableImageInitialization<R8Unorm>), ImageCreationError> {
+		use std::iter;
+		ImmutableImage::uninitialized(
+			self.device.clone(),
+			Dimensions::Dim2d {
+				width: self.width,
+				height: self.height,
+			},
+			R8Unorm,
+			1,
+			ImageUsage {
+				sampled: true,
+				transfer_destination: true,
+				.. ImageUsage::none()
+			},
+			ImageLayout::General,
+			iter::once(self.queue.family()),
+		)
+	}
+}
+
+pub struct Renderer {
+	vbo: VBO<Vertex>,
+	ibo: QuadIBO<u16>,
+
+	cache: Cache,
+	image: CacheImage,
+
+	pipeline: ArcPipeline<Vertex>,
+
+	upload: Option<DescSet>,
+
+	uniform: CpuBufferPool<Uniform>,
+	proj_set: DescSet,
+
+	pub fbo: FBO,
+}
+
+impl Renderer {
+	pub fn new<'a>(init: Init<'a>, width: u32, height: u32) -> Result<Self> {
+		let Init { queue, index: ibo, swapchain, images } = init;
+
+		let device = queue.device().clone();
+
+		//let pool = CpuBufferPool::upload(device.clone());
+		let cache = Cache::new(width, height, 0.1, 0.1);
 
 		let shader = Shader::load(device.clone())?;
 
@@ -107,13 +157,13 @@ impl Renderer {
 		let capacity = 2000;
 		let vbo = VBO::new(device.clone(), capacity);
 
-		Ok(Self {
-			queue,
+		let image = CacheImage::new(queue.clone(), width, height)?;
 
-			sampler,
-			cache, cache_pixel_buffer,
-			cache_size: (width as usize, height as usize),
-			pool, pipeline,
+		Ok(Self {
+			cache,
+			image,
+
+			pipeline,
 			uniform,
 			proj_set,
 			vbo,
@@ -133,7 +183,7 @@ impl Renderer {
 			self.cache.queue_glyph(0, g);
 		}
 
-		let (set, _tex, cb) = self.cache_queued(cb)?;
+		let (set, cb) = self.cache_queued(cb)?;
 		let set = (self.proj_set.clone(), set);
 
 		{
@@ -174,12 +224,12 @@ impl Renderer {
 		Ok(cb)
 	}
 
-	fn cache_queued(&mut self, cb: CmdBuild) -> Result<(DescSet, Arc<ImmutableImage<R8Unorm>>, CmdBuild)> {
+	fn cache_queued(&mut self, cb: CmdBuild) -> Result<(DescSet, CmdBuild)> {
 		{
 			let upload = &mut self.upload;
 
-			let dst = &mut self.cache_pixel_buffer;
-			let stride = self.cache_size.0;
+			let dst = &mut self.image.buffer;
+			let stride = self.image.width as usize;
 
 			self.cache.cache_queued(|rect, src| {
 				*upload = None;
@@ -201,41 +251,18 @@ impl Renderer {
 			.map_err(|e| ErrorKind::CacheWriteErr(e))?;
 		}
 
-		let (tset, tex, cb) = match self.upload {
-			Some((ref tset, ref tex)) => (tset.clone(), tex.clone(), cb),
+		Ok(match self.upload {
+			Some(ref tset) => (tset.clone(), cb),
 			None => {
-				let device = self.queue.device().clone();
-
-				let buffer = self.pool.chunk(self.cache_pixel_buffer.iter().cloned())?;
-
-				let (tex, write) = ImmutableImage::uninitialized(
-					device.clone(),
-					Dimensions::Dim2d {
-						width: self.cache_size.0 as u32,
-						height: self.cache_size.1 as u32,
-					},
-					R8Unorm,
-					1,
-					ImageUsage {
-						sampled: true,
-						transfer_destination: true,
-						.. ImageUsage::none()
-					},
-					ImageLayout::General,
-					Some(self.queue.family()),
-				)?;
-
+				let buffer = self.image.buffer()?;
+				let (tex, write) = self.image.image()?;
 				let tset = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 1)
-					.add_sampled_image(tex.clone(), self.sampler.clone())?
+					.add_sampled_image(tex, self.image.sampler.clone())?
 					.build()?) as DescSet;
-
-				self.upload = Some((tset.clone(), tex.clone()));
-
-				(tset, tex, cb.copy_buffer_to_image(buffer.clone(), write)?)
+				self.upload = Some(tset.clone());
+				(tset, cb.copy_buffer_to_image(buffer, write)?)
 			}
-		};
-
-		Ok((tset, tex, cb))
+		})
 	}
 
 	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {

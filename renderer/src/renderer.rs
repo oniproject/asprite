@@ -22,14 +22,16 @@ impl Renderer {
 	{
 		let (index, index_future) = QuadIBO::new(queue.clone(), capacity * INDEX_BY_SPRITE)?;
 
-		let (sprite, fu) = sprite::Renderer::new(queue.clone(), index.clone(), swapchain.clone(), &images, capacity, group_size)?;
-		let text = text::Renderer::new(queue.clone(), index.clone(), swapchain.clone(), &images, 1024, 1024)?;
-		let vg = vg::Renderer::new(queue.clone(), index.clone(), swapchain.clone(), &images, capacity)?;
-
-		let index_future = index_future.join(fu);
-
 		let mut fbo = FBO::clear(swapchain.clone());
 		fbo.fill(&images);
+
+		let init = Init { queue: queue.clone(), index, swapchain, images };
+
+		let (sprite, fu) = sprite::Renderer::new(init.clone(), capacity, group_size)?;
+		let text = text::Renderer::new(init.clone(), 512, 512)?;
+		let vg = vg::Renderer::new(init.clone(), capacity)?;
+
+		let index_future = index_future.join(fu);
 
 		let state = DynamicState {
 			line_width: None,
@@ -82,8 +84,8 @@ impl Renderer {
 	}
 
 	#[inline]
-	pub fn clear(&mut self) -> Result<CmdBuild> {
-		let clear = vec![[0.0, 0.0, 1.0, 1.0].into()];
+	pub fn clear(&mut self, color: [f32; 4]) -> Result<CmdBuild> {
+		let clear = vec![color.into()];
 		let fb = self.fbo.at(self.num);
 		let cb = CmdBuild::new(self.queue.device().clone(), self.queue.family())?
 			.begin_render_pass(fb.clone(), false, clear)?

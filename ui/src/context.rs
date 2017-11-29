@@ -68,7 +68,6 @@ pub struct Context<'a, D: ?Sized + Graphics + 'a> {
 }
 
 impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
-	#[inline]
 	pub fn new(draw: &'a D, rect: Rect<f32>, mouse: Mouse) -> Self {
 		Self {
 			rect: Cell::new(rect),
@@ -78,22 +77,26 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 		}
 	}
 
-	#[inline]
 	pub fn sub<'b>(&'b self) -> ContextBuilder<'a, 'b, D> {
 		ContextBuilder::new(self)
 	}
 
-	#[inline]
 	pub fn horizontal_flow(&self, x: f32, y: f32, widgets: &'a [Flow]) -> impl Iterator<Item=Context<'a, D>> {
 		self.layout(Axis::Horizontal, x, y, widgets)
 	}
-	#[inline]
 	pub fn vertical_flow(&self, x: f32, y: f32, widgets: &'a [Flow]) -> impl Iterator<Item=Context<'a, D>> {
 		self.layout(Axis::Vertical, x, y, widgets)
 	}
 
-	#[inline]
-	pub fn layout(&self, axis: Axis, x: f32, y: f32, widgets: &'a [Flow]) -> impl Iterator<Item=Context<'a, D>> {
+	pub fn label(&self, x: f32, y: f32, color: D::Color, text: &str) {
+		let rect = self.rect();
+		let align = Vector2::new(x, y);
+		let size = self.draw.measure_text(&text);
+		let p = rect_align(rect, align, size);
+		self.draw.text(p, color, &text);
+	}
+
+	pub fn layout(&self, axis: Axis, x: f32, y: f32, widgets: &'a [Flow]) -> impl Iterator<Item=Context<'a, D>> + 'a {
 		let size = axis.measure(widgets);
 		//let offset = ctx.rect().min.to_vec();
 		let offset = rect_align(self.rect(), Vector2::new(x, y), size);
@@ -111,38 +114,31 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 			})
 	}
 
-	#[inline]
 	pub fn draw(&self) -> &'a D {
 		self.draw
 	}
 
-	#[inline]
 	pub fn mouse(&self) -> & Mouse {
 		&self.mouse
 	}
 
-	#[inline]
 	pub fn rect(&self) -> Rect<f32> {
 		self.rect.get()
 	}
 
-	#[inline]
 	pub fn reserve_widget_id(&self) -> Id {
 		self.generator.next().unwrap()
 	}
 
-	#[inline]
 	pub fn is_cursor_in_rect(&self, rect: &Rect<f32>) -> bool {
 		self.mouse.check_cursor(&rect)
 	}
 
-	#[inline]
 	pub fn is_cursor_hovering(&self) -> bool {
 		self.is_cursor_in_rect(&self.rect.get())
 	}
 
 	/*
-	#[inline]
 	pub fn static_cursor(&self, id: Id) {
 		if self.hovered_widget().is_none() {
 			if self.is_cursor_hovering() {
@@ -156,43 +152,49 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 impl<'a, D: ?Sized + Graphics + 'a> Graphics for Context<'a, D> {
 	type Texture = D::Texture;
 	type Color = D::Color;
+	type Path = D::Path;
 
-	#[inline]
+	#[inline(always)]
 	fn texture_dimensions(&self, texture: &Self::Texture) -> Vector2<f32> {
 		self.draw.texture_dimensions(texture)
 	}
-	#[inline]
+	#[inline(always)]
 	fn quad(&self, color: Self::Color, rect: &Rect<f32>) {
 		self.draw.quad(color, rect)
 	}
-	#[inline]
+	#[inline(always)]
 	fn texture(&self, texture: &Self::Texture, rect: &Rect<f32>) {
 		self.draw.texture(texture, rect)
 	}
-	#[inline]
+	#[inline(always)]
 	fn texture_frame(&self, texture: &Self::Texture, rect: &Rect<f32>, frame: &Rect<f32>) {
 		self.draw.texture_frame(texture, rect, frame)
 	}
-	#[inline]
+	#[inline(always)]
 	fn measure_text(&self, text: &str) -> Vector2<f32> {
 		self.draw.measure_text(text)
 	}
-	#[inline]
+	#[inline(always)]
 	fn text(&self, base: Point2<f32>, color: Self::Color, text: &str) {
 		self.draw.text(base, color, text)
 	}
-	#[inline]
+	#[inline(always)]
 	fn set_hovered(&self) {
 		self.draw.set_hovered()
+	}
+
+	#[inline(always)]
+	fn fill(&self, color: Self::Color, proj: Affine<f32>, path: Self::Path) {
+		self.draw.fill(color, proj, path)
 	}
 }
 
 impl<'a, D: ?Sized + Graphics + 'a> MouseEvent for Context<'a, D> {
-	#[inline]
+	#[inline(always)]
 	fn was_pressed(&self) -> bool {
 		self.mouse.was_pressed()
 	}
-	#[inline]
+	#[inline(always)]
 	fn was_released(&self) -> bool {
 		self.mouse.was_released()
 	}

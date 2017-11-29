@@ -1,75 +1,112 @@
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
-
 use super::*;
-use super::check_set::*;
+use math::*;
 
-pub struct Button<N: BaseNum, C: Copy + 'static> {
-	pub rect: Cell<Rect<N>>,
-	pub measured: Cell<Vector2<N>>,
-	pub layout: RefCell<FlowData<N>>,
-
-	pub fg: (C, C),
-	pub bg: (C, C),
-	pub border: Option<(C, C)>,
-	pub label: RefCell<String>,
-	pub callback: RefCell<Rc<Fn(&Button<N, C>)>>,
-	pub pressed: Cell<bool>,
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+	Normal,
+	Hovered,
+	Pressed,
+	Disabled,
 }
 
-impl<N, C> Widget<N, C> for Button<N, C>
-	where N: BaseNum + 'static, C: Copy + 'static
+fn btn_behavior<F, D>(ctx: &Context<D>, state: &mut UiState, hovered: bool, interactable: bool, callback: F) -> Mode
+	where F: FnOnce(), D: ?Sized + Graphics
 {
-	fn bounds(&self) -> &Cell<Rect<N>> { &self.rect }
-	fn layout_data(&self) -> Option<Ref<Any>> { Some(self.layout.borrow()) }
-	fn measured_size(&self) -> &Cell<Vector2<N>> { &self.measured }
-
-	fn measure(&self, _w: Option<N>, _h: Option<N>) {
-		let rect = self.bounds().get();
-		self.measured.set(Vector2::new(rect.dx(), rect.dy()))
-	}
-
-	fn paint(&self, ctx: &mut Graphics<N, C>, origin: Vector2<N>, _focused: bool) {
-		let rect = self.rect.get().translate(origin);
-		let (fg, bg, border) = if self.pressed.get() {
-			(self.fg.1, self.bg.1, self.border.map(|b| b.1))
-		} else {
-			(self.fg.0, self.bg.0, self.border.map(|b| b.0))
-		};
-		let text = self.label.borrow();
-		ctx.fill(rect, bg);
-		if let Some(border) = border {
-			ctx.border(rect, border);
-		}
-		ctx.text_center(rect, fg, &text);
-	}
-
-	fn event(&self, event: Event<N>, origin: Vector2<N>, focused: bool, redraw: &Cell<bool>) -> bool {
-		match event {
-			Event::Mouse { point, left, .. } => {
-				let mut click = false;
-				let rect = self.rect.get().translate(origin);
-				if rect.contains(point) {
-					if left {
-						if self.pressed.check_set(true) {
-							redraw.set(true);
-						}
-					} else {
-						if self.pressed.check_set(false) {
-							click = true;
-							redraw.set(true);
-						}
-					}
-				} else if self.pressed.check_set(false) {
-					redraw.set(true);
-				}
-				if click {
-					let cb = self.callback.borrow();
-					cb(self)
-				}
+	let id = ctx.reserve_widget_id();
+	let active = state.is_active(id);
+	match (interactable, hovered) {
+		(true, false) => Mode::Normal,
+		(true, true) if active => {
+			if ctx.was_released() {
+				state.active_widget = None;
+				callback()
 			}
-			_ => (),
+			Mode::Pressed
 		}
-		focused
+		(true, true) => {
+			if ctx.was_pressed() {
+				state.active_widget = Some(id);
+			}
+			Mode::Hovered
+		}
+		(false, _) => Mode::Disabled,
+	}
+}
+
+pub trait ButtonStyle<D: ?Sized + Graphics> {
+	fn draw_button(&self, Mode, &D, &Rect<f32>);
+}
+
+pub struct ToggleStyle<'a, D: ?Sized + Graphics + 'a> {
+	pub checked: &'a ButtonStyle<D>,
+	pub unchecked: &'a ButtonStyle<D>,
+}
+
+impl<'a, D: ?Sized + Graphics + 'a> Toggle<D> for ToggleStyle<'a, D> {
+	fn draw_toggle(&self, toggle: bool, mode: Mode, draw: &D, rect: &Rect<f32>) {
+		if toggle {
+			self.checked.draw_button(mode, draw, rect);
+		} else {
+			self.unchecked.draw_button(mode, draw, rect);
+		};
+	}
+}
+
+pub trait Toggle<D: ?Sized + Graphics> {
+	fn draw_toggle(&self, bool, Mode, &D, &Rect<f32>);
+	fn toggle(&self, ctx: &Context<D>, state: &mut UiState, toggle: &mut bool, interactable: bool) {
+		let hovered = ctx.is_cursor_hovering();
+		let mode = btn_behavior(ctx, state, hovered, interactable, || *toggle = !*toggle);
+		self.draw_toggle(*toggle, mode, &ctx.draw(), &ctx.rect());
+	}
+}
+
+impl<T, D: ?Sized + Graphics> Button<D> for T where T: ButtonStyle<D> {}
+
+pub trait Button<D: ?Sized + Graphics>: ButtonStyle<D> {
+	fn run(&self, ctx: &Context<D>, state: &mut UiState, interactable: bool) -> bool {
+		let hovered = ctx.is_cursor_hovering();
+		let mut ret = false;
+		let mode = btn_behavior(ctx, state, hovered, interactable, || ret = true);
+		self.draw_button(mode, &ctx.draw(), &ctx.rect());
+		ret
+	}
+}
+
+pub struct ImageButton<'a, D: ?Sized + Graphics + 'a> {
+	pub normal: &'a D::Texture,
+	pub hovered: &'a D::Texture,
+	pub pressed: &'a D::Texture,
+	pub disabled: &'a D::Texture,
+}
+
+impl<'a, D: ?Sized + Graphics + 'a> ButtonStyle<D> for ImageButton<'a, D> {
+	fn draw_button(&self, mode: Mode, draw: &D, rect: &Rect<f32>) {
+		let texture = match mode {
+			Mode::Normal   => self.normal,
+			Mode::Hovered  => self.hovered,
+			Mode::Disabled => self.disabled,
+			Mode::Pressed  => self.pressed,
+		};
+		draw.texture(texture, rect);
+	}
+}
+
+pub struct ColorButton<D: ?Sized + Graphics> {
+	pub normal: D::Color,
+	pub hovered: D::Color,
+	pub pressed: D::Color,
+	pub disabled: D::Color,
+}
+
+impl<D: ?Sized + Graphics> ButtonStyle<D> for ColorButton<D> {
+	fn draw_button(&self, mode: Mode, draw: &D, rect: &Rect<f32>) {
+		let color = match mode {
+			Mode::Normal   => self.normal,
+			Mode::Hovered  => self.hovered,
+			Mode::Disabled => self.disabled,
+			Mode::Pressed  => self.pressed,
+		};
+		draw.quad(color, rect);
 	}
 }

@@ -7,7 +7,7 @@ use std::usize::MAX;
 pub struct Id(usize);
 
 impl From<usize> for Id {
-	#[inline]
+	#[inline(always)]
 	fn from(v: usize) -> Self {
 		Id(v)
 	}
@@ -23,7 +23,7 @@ pub struct Generator {
 }
 
 impl IdGenerator for Generator {
-	#[inline]
+	#[inline(always)]
 	fn next(&self) -> Option<Id> {
 		let id = self.next.get();
 		if id < self.max {
@@ -35,7 +35,7 @@ impl IdGenerator for Generator {
 }
 
 impl Generator {
-	#[inline]
+	#[inline(always)]
 	pub const fn new() -> Self {
 		Self {
 			next: Cell::new(0),
@@ -43,19 +43,19 @@ impl Generator {
 		}
 	}
 
-	#[inline]
+	#[inline(always)]
 	pub fn available(&self) -> Option<usize> {
 		self.max.checked_sub(self.next.get())
 			.and_then(|v| if v != 0 { Some(v) } else { None })
 	}
 
-	#[inline]
+	#[inline(always)]
 	fn available_count(&self, count: usize) -> Option<usize> {
 		self.max.checked_sub(self.next.get() + count - 1)
 			.map(|other| other.min(count))
 	}
 
-	#[inline]
+	#[inline(always)]
 	pub fn range(&self, count: usize) -> Option<Self> {
 		self.available_count(count).map(|count| {
 			let next = self.next.get();

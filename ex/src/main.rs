@@ -15,6 +15,7 @@ extern crate lyon;
 
 extern crate renderer;
 extern crate math;
+extern crate ui;
 
 extern crate toml;
 extern crate serde;
@@ -31,7 +32,6 @@ extern crate rand;
 
 extern crate vulkano;
 
-mod ui;
 mod graphics;
 
 mod loader;
@@ -91,8 +91,7 @@ fn main() {
 	let pool = Arc::new(rayon::ThreadPool::new(conf).unwrap());
 
 	let dispatcher = specs::DispatcherBuilder::new()
-		.with_pool(pool.clone())
-		.add(sprite::TransformSystem::default(), "transform", &[]);
+		.with_pool(pool.clone());
 
 	let mut world = specs::World::new();
 	world.register::<arena::Velocity>();
@@ -103,12 +102,12 @@ fn main() {
 
 	let mut app = App::new(world, dispatcher.build());
 
-	// app.world.write_resource::<Time>().set_fixed_time(::std::time::Duration::new(0, 16666666*4));
+	app.world.write_resource::<Time>().set_fixed_time(::std::time::Duration::new(0, 16666666*2));
 
 	println!();
 	println!("run");
 
-	let arena = arena::Scene { textures: Vec::new(), queue, add: false };
+	let arena = arena::Scene { textures: Vec::new(), queue };
 	app.run(Box::new(arena), |world, states|
 		events_loop.poll_events(|event| states.event(world, event))
 	);
