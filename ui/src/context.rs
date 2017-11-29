@@ -104,6 +104,7 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 		let draw = self.draw;
 		let mouse = self.mouse;
 		let generator = self.generator.clone();
+		let size = Vector2::new(self.rect().dx(), self.rect().dy());
 		axis.layout(size, widgets)
 			.map(move |rect| Cell::new(rect.pos(offset)))
 			.map(move |rect| Self {
@@ -118,7 +119,7 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 		self.draw
 	}
 
-	pub fn mouse(&self) -> & Mouse {
+	pub fn mouse(&self) -> &Mouse {
 		&self.mouse
 	}
 

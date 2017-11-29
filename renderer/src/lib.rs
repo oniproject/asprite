@@ -54,7 +54,6 @@ use vulkano::pipeline::vertex::SingleBufferDefinition;
 use vulkano::sampler::{Sampler, Filter, MipmapMode, SamplerAddressMode};
 use vulkano::image::ImmutableImage;
 use vulkano::image::Dimensions;
-use vulkano::format::R8G8B8A8Srgb;
 
 pub use rusttype::{FontCollection, Font};
 

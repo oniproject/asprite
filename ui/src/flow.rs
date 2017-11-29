@@ -124,7 +124,7 @@ impl Axis {
 		let mut total_shrink_weight = 0.0;
 
 		for c in widgets.iter() {
-			if c.along_weight <= 0.0 {
+			if c.along_weight < 0.0 {
 				continue;
 			}
 			if c.expand_along {

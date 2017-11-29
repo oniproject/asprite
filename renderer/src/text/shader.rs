@@ -29,11 +29,11 @@ impl_vertex!(Vertex, position, uv, color);
 
 def!(Vert2Frag Vert2FragIter
 	tex_coords => Format::R32G32Sfloat,
-	tex_color => Format::R32G32B32A32Sfloat,
+	tex_color => Format::R8G8B8A8Unorm,
 );
 
 def!(FragOutput FragOutputIter
-	f_color => Format::R32G32B32A32Sfloat,
+	f_color => Format::R8G8B8A8Unorm,
 );
 
 def!(VertInput VertInputIter

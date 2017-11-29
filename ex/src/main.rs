@@ -101,7 +101,6 @@ fn main() {
 	let dispatcher = b.bundle(&mut world, dispatcher);
 
 	let mut app = App::new(world, dispatcher.build());
-
 	app.world.write_resource::<Time>().set_fixed_time(::std::time::Duration::new(0, 16666666*2));
 
 	println!();

@@ -210,7 +210,6 @@ impl state::State<World, Event> for Scene {
 					_ => (),
 				}
 			}
-
 			_ => (),
 		}
 		None
@@ -250,33 +249,28 @@ fn spawn(world: &mut World, textures: &[Texture]) {
 
 fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_count: usize, dt: f32) -> usize {
 	#[cfg(feature = "profiler")] profile_scope!("ui");
-	use ui::Button;
-	use ui::Graphics;
-	use ui::Toggle;
+	use ui::*;
 
 	static mut STATE: ui::UiState = ui::UiState::new();
 	let state = unsafe { &mut STATE };
 
 	let rect = Rect::with_size(0.0, 0.0, wh.x, wh.y);
-	let btn = ui::ColorButton {
-		normal: [0x99, 0x99, 0x99, 0x99],
-		hovered: [0, 0, 0x99, 0x99],
-		pressed: [0x99, 0, 0, 0x99],
-		disabled: [0, 0xFF, 0xFF, 0xCC],
+	let btn = ColorButton {
+		normal:  ColorDrawer::new([0x99, 0x99, 0x99, 0x99]),
+		hovered: ColorDrawer::new([0, 0, 0x99, 0x99]),
+		pressed: ColorDrawer::new([0x99, 0, 0, 0x99]),
 	};
 
-	let toggle = ui::ToggleStyle {
-		checked: &ui::ColorButton {
-			normal:   [0xFF, 0, 0, 0xCC],
-			hovered:  [0xFF, 0, 0, 0x99],
-			pressed:  [0xFF, 0, 0, 0x66],
-			disabled: [0xFF, 0, 0, 0x33],
+	let toggle = Toggle {
+		checked: ColorButton {
+			normal:   ColorDrawer::new([0xFF, 0, 0, 0xCC]),
+			hovered:  ColorDrawer::new([0xFF, 0, 0, 0x99]),
+			pressed:  ColorDrawer::new([0xFF, 0, 0, 0x66]),
 		},
-		unchecked: &ui::ColorButton {
-			normal:   [0xFF, 0xFF, 0xFF, 0xCC],
-			hovered:  [0xFF, 0xFF, 0xFF, 0x99],
-			pressed:  [0xFF, 0xFF, 0xFF, 0x66],
-			disabled: [0xFF, 0xFF, 0xFF, 0x33],
+		unchecked: ColorButton {
+			normal:   ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]),
+			hovered:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x99]),
+			pressed:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x66]),
 		},
 	};
 
@@ -284,9 +278,45 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 	{
 		let ctx = ui::Context::new(gr, rect, mouse);
 
-		if true {
-			let text = format!("count: {} ms: {:}", entity_count, dt);
-			ctx.label(0.0, 1.0, [0xFF; 4], &text);
+
+		{
+			//let menubar = Rect::with_size(0, 0, width, 20);
+			//let contextbar = Rect::with_size(0, 20, width, 40);
+			//let timeline = Rect::with_size(0, height - 20 - 200, width, 200);
+			//let statusbar = Rect::with_size(0, height - 20, width, 20);
+			//
+			//let palette = Rect::with_size(0, 60 + 50, 250, 500);
+
+			let widgets = &[
+				ui::Flow::with_wh(1000.0, 20.0).expand_across(),
+				ui::Flow::with_wh(1000.0, 40.0).expand_across(),
+				ui::Flow::with_wh(1000.0, 7.0).along_weight(1.0).expand_along().expand_across(),
+				ui::Flow::with_wh(1000.0, 200.0).expand_across(),
+				ui::Flow::with_wh(1000.0, 20.0).expand_across(),
+			];
+
+			/*
+			pub const STATUSBAR_BG: u32 = 0x3F4350_FF;
+			pub const STATUSBAR_COLOR: u32 = 0xA7A8AE_FF;
+			pub const MENUBAR_BG: u32 = 0x222833_FF;
+			pub const BAR_BG: u32 = 0x3f4957_FF;
+			pub const TIMELINE_BG: u32 = 0x3a4351_FF;
+			*/
+
+			let colors = [
+				[0x22, 0x28, 0x33, 0xFF],
+				[0x3f, 0x49, 0x57, 0xFF],
+				[0u8; 4],
+				[0x3a, 0x43, 0x51, 0xFF],
+				[0x3F, 0x43, 0x50, 0xFF],
+			];
+			for (i, (ctx, color)) in ctx.vertical_flow(0.0, 0.0, widgets).zip(colors.iter().cloned()).enumerate() {
+				ctx.quad(color, &ctx.rect());
+				if i == 4 {
+					let text = format!("count: {} ms: {:}", entity_count, dt);
+					ctx.label(0.0, 0.5, [0xFF; 4], &text);
+				}
+			}
 		}
 
 		if true {
@@ -344,36 +374,80 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 			static mut TOGGLE_STATE: bool = false;
 			let toggle_state = unsafe { &mut TOGGLE_STATE };
 
+			static mut SLIDER_H: SliderModel = SliderModel {
+				min: 1.0,
+				current: 2.7,
+				max: 3.0,
+				vertical: false,
+			};
+			let slider_state_h = unsafe { &mut SLIDER_H };
+
+			static mut SLIDER_V: SliderModel = SliderModel {
+				min: 1.0,
+				current: 2.7,
+				max: 3.0,
+				vertical: true,
+			};
+			let slider_state_v = unsafe { &mut SLIDER_V };
+
+			let slider = Slider {
+				progress: Progress {
+					background: ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]),
+					fill: ColorDrawer::new([0, 0, 0, 0xCC]),
+				},
+				normal_handle:   ColorDrawer::new([0xFF, 0, 0xFF, 0xFF]),
+				hovered_handle:  ColorDrawer::new([0xFF, 0, 0xFF, 0xCC]),
+				pressed_handle:  ColorDrawer::new([0xFF, 0, 0, 0xFF]),
+			};
+
 			let mut i = 0;
 			for ctx in ctx.horizontal_flow(0.0, 0.0, widgets) {
-				if i == 2 {
-					toggle.toggle(&ctx, state, toggle_state, true);
-				} else {
-					if btn.run(&ctx, state, i != 3) {
+				match i {
+				1 => {
+					toggle.behavior(&ctx, state, toggle_state);
+					ctx.label(0.5, 0.5, [0xFF; 4], &format!("tgl{}", i));
+				}
+				2 => {
+					slider.behavior(&ctx, state, slider_state_h);
+					ctx.label(0.5, 0.5, [0xFF; 4], &format!("val{}: {}", i, slider_state_h.current));
+				}
+				4 => {
+					slider.behavior(&ctx, state, slider_state_v);
+					ctx.label(0.5, 0.5, [0xFF; 4], &format!("val{}: {}", i, slider_state_v.current));
+				}
+				_ => {
+					if btn.behavior(&ctx, state, &mut ()) {
 						println!("{} click", i);
 					}
+					ctx.label(0.5, 0.5, [0xFF; 4], &format!("btn{}", i));
 				}
-				ctx.label(0.5, 0.5, [0xFF; 4], &format!("btn{}", i));
+				}
 
 				i += 1;
 			}
+
 		}
 
-		let widgets = &[
-			ui::Flow::with_wh(80.0, 40.0),
-			ui::Flow::with_wh(80.0, 40.0),
-			ui::Flow::with_wh(80.0, 40.0),
-			ui::Flow::with_wh(80.0, 40.0),
-		];
 
-		let mut to_add = 1;
-		for ctx in ctx.vertical_flow(0.0, 0.0, widgets) {
-			if btn.run(&ctx, state, true) {
-				add = to_add;
+		{
+			let widgets = &[
+				ui::Flow::with_wh(80.0, 40.0),
+				ui::Flow::with_wh(80.0, 40.0),
+				ui::Flow::with_wh(80.0, 40.0),
+				ui::Flow::with_wh(80.0, 40.0),
+			];
+
+			let mut to_add = 1;
+			for ctx in ctx.vertical_flow(0.0, 0.0, widgets) {
+				if btn.behavior(&ctx, state, &mut ()) {
+					add = to_add;
+				}
+				ctx.label(0.5, 0.5, [0xFF; 4], &format!("add {}", to_add));
+				to_add *= 10;
 			}
-			ctx.label(0.5, 0.5, [0xFF; 4], &format!("add {}", to_add));
-			to_add *= 10;
 		}
+
+
 	}
 
 	add

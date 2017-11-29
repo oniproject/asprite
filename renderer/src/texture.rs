@@ -2,6 +2,8 @@ use std::path::Path;
 use image;
 use super::*;
 
+use vulkano::format::R8G8B8A8Srgb;
+
 #[derive(Clone)]
 pub struct Texture {
 	pub texture: Arc<ImmutableImage<R8G8B8A8Srgb>>,

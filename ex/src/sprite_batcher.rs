@@ -121,12 +121,17 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 					ren.resize(dim).unwrap();
 					*wh = dim;
 
+					// WAT THE FACKING COLOR SPACE?
 					const COLOR: [f32; 4] = [
-						0.0115, //0x1C as f32 / 255.0,// * 0.26,
-						0.113, //0x5E as f32 / 255.0,// * 0.26,
-						0.412, //0xAC as f32 / 255.0,// * 0.26,
+						0.0115,
+						0.113,
+						0.412,
+						//0x1C as f32 / 255.0,
+						//0x5E as f32 / 255.0,
+						//0xAC as f32 / 255.0,
 						1.0,
 					];
+					//const COLOR: [f32; 4] = [0.0; 4];
 					(num, ren.clear(COLOR).unwrap())
 				},
 				None => return,
@@ -135,13 +140,7 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 
 		let cb = {
 			#[cfg(feature = "profiler")] profile_scope!("vg");
-
-			let time = &time;
-			self.fd.push_back(time.delta.seconds);
-			while self.fd.len() > 300 {
-				self.fd.pop_front();
-			}
-
+			let mut cb = self.renderer.start_vg(cb).unwrap();
 			let color = [0xFF, 0xFF, 0xFF, 0x11];
 			{
 
@@ -167,17 +166,6 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 					self.renderer.x_quad(cb, min, max, color).unwrap()
 				);
 			}
-
-			let color = [0x0, 0xFF, 0, 0xFF];
-
-			let mut cb = self.renderer.start_vg(cb).unwrap();
-			for (i, ms) in self.fd.iter().cloned().enumerate() {
-				let min = Vector2::new(wh.x - 300.0 + i as f32, wh.y);
-				let max = Vector2::new(wh.x - 301.0 + i as f32, wh.y - ms * 1000.0);
-				cb = self.renderer.x_quad(cb, min, max, color).unwrap();
-			}
-
-
 			self.renderer.end_vg(cb).unwrap()
 		};
 
@@ -196,6 +184,24 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 		};
 
 		let cb = graphics.run(cb, &mut self.renderer).unwrap();
+
+
+		let cb = {
+			let time = &time;
+			self.fd.push_back(time.delta.seconds);
+			while self.fd.len() > 200 {
+				self.fd.pop_front();
+			}
+
+			let color = [0x0, 0xFF, 0, 0xFF];
+			let mut cb = self.renderer.start_vg(cb).unwrap();
+			for (i, ms) in self.fd.iter().cloned().enumerate() {
+				let min = Vector2::new(wh.x - 300.0 + i as f32, wh.y);
+				let max = Vector2::new(wh.x - 301.0 + i as f32, wh.y - ms * 1000.0);
+				cb = self.renderer.x_quad(cb, min, max, color).unwrap();
+			}
+			self.renderer.end_vg(cb).unwrap()
+		};
 
 		{
 			#[cfg(feature = "profiler")] profile_scope!("end");

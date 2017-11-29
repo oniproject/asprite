@@ -32,21 +32,26 @@ pub struct Vertex {
 
 impl_vertex!(Vertex, position, uv, color, texture);
 
-def!(Vert2Frag Vert2FragIter
-	tex_coords => Format::R32G32Sfloat,
-	tex_color => Format::R32G32B32A32Sfloat,
-	tex_id => Format::R32Uint,
-);
-
-def!(FragOutput FragOutputIter
-	f_color => Format::R32G32B32A32Sfloat,
-);
-
 def!(VertInput VertInputIter
 	position => Format::R32G32Sfloat,
 	uv => Format::R16G16Unorm,
 	color => Format::R8G8B8A8Unorm,
+	//color => Format::R8G8B8A8Srgb,
 	texture => Format::R32Uint,
+);
+
+def!(Vert2Frag Vert2FragIter
+	tex_coords => Format::R16G16Unorm,
+	//tex_color => Format::R32G32B32A32Sfloat,
+	tex_color => Format::R8G8B8A8Srgb,
+	//tex_color => Format::R8G8B8A8Unorm,
+	tex_id => Format::R32Uint,
+);
+
+def!(FragOutput FragOutputIter
+	//f_color => Format::R32G32B32A32Sfloat,
+	f_color => Format::R8G8B8A8Srgb,
+	//f_color => Format::R8G8B8A8Unorm,
 );
 
 pub struct Shader {

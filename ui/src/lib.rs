@@ -16,6 +16,8 @@ mod mouse;
 mod button;
 mod ninepatch;
 
+mod frame_drawer;
+
 pub use self::transform::*;
 
 pub use self::flow::*;
@@ -26,6 +28,7 @@ pub use self::graphics::*;
 pub use self::mouse::*;
 pub use self::button::*;
 pub use self::ninepatch::*;
+pub use self::frame_drawer::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UiState {
