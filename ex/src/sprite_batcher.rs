@@ -183,6 +183,12 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 			self.renderer.end_sprites(cb).unwrap()
 		};
 
+		if graphics.is_hovered() {
+			self.chain.window.window().set_cursor(winit::MouseCursor::Hand);
+		} else {
+			self.chain.window.window().set_cursor(winit::MouseCursor::Default);
+		}
+
 		let cb = graphics.run(cb, &mut self.renderer).unwrap();
 
 

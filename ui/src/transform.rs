@@ -1,6 +1,20 @@
 use math::*;
 use math::cgmath::Vector1;
 
+pub fn lerp(min: f32, max: f32, t: f32) -> f32 {
+	(1.0 - t) * min + t * max
+}
+
+pub fn clamp01(v: f32) -> f32 {
+	if v < 0.0 {
+		0.0
+	} else if v > 1.0 {
+		1.0
+	} else {
+		v
+	}
+}
+
 #[inline(always)]
 pub fn rect_align<S: BaseFloat>(rect: Rect<S>, align: Vector2<S>, size: Vector2<S>) -> Point2<S> {
 	let v = rect.max - rect.min - size;

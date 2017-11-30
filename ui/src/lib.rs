@@ -13,7 +13,6 @@ mod flow;
 mod context;
 mod graphics;
 mod mouse;
-mod button;
 mod ninepatch;
 
 mod frame_drawer;
@@ -26,9 +25,18 @@ pub use self::context::*;
 pub use self::id::*;
 pub use self::graphics::*;
 pub use self::mouse::*;
-pub use self::button::*;
 pub use self::ninepatch::*;
 pub use self::frame_drawer::*;
+
+mod button;
+mod toggle;
+mod progress;
+mod slider;
+
+pub use self::button::*;
+pub use self::toggle::*;
+pub use self::progress::*;
+pub use self::slider::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UiState {
@@ -42,4 +50,14 @@ impl UiState {
 	pub fn is_active(&self, id: Id) -> bool {
 		self.active_widget == Some(id)
 	}
+}
+
+pub type SimpleButton<D> = Button<D, D, D>;
+pub type ColorButton<D> = SimpleButton<ColorDrawer<D>>;
+pub type TextureButton<D> = SimpleButton<TextureDrawer<D>>;
+
+pub trait Component<D: ?Sized + Graphics> {
+	type Event;
+	type Model;
+	fn behavior(&self, ctx: &Context<D>, state: &mut UiState, model: &mut Self::Model) -> Self::Event;
 }

@@ -31,7 +31,7 @@ pub struct Graphics {
 	buffer: Mutex<Vec<Command>>,
 	pub font: Font<'static>,
 	font_size: f32,
-	hovered: AtomicBool,
+	pub hovered: AtomicBool,
 	vg: Mutex<VertexBuffers<GpuFillVertex>>,
 }
 
@@ -72,6 +72,10 @@ impl Graphics {
 	#[inline(always)]
 	fn push(&self, cmd: Command)  {
 		self.buf().push(cmd)
+	}
+
+	pub fn is_hovered(&self) -> bool {
+		self.hovered.load(Ordering::Relaxed)
 	}
 
 	pub fn run(&self, mut cb: AutoCommandBufferBuilder, renderer: &mut Renderer) -> errors::Result<AutoCommandBufferBuilder> {
