@@ -5,8 +5,6 @@ pub struct MenuBar<D: ?Sized + Graphics> {
 	pub normal_color: D::Color,
 	pub hover_color: D::Color,
 	pub hover_bg: D::Color,
-	//pub item_height: f32,
-	//pub icon_width: f32,
 }
 
 pub struct MenuBarModel {
@@ -74,7 +72,6 @@ pub struct Menu<D: ?Sized + Graphics> {
 }
 
 impl<D: ?Sized + Graphics> Menu<D> {
-
 	pub fn run<'a, 'b, 'c>(&self,
 		ctx: &Context<'a, D>, state: &mut UiState,
 		id: Id, base_rect: Rect<f32>, items: &'b [Item<'c>],
