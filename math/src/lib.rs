@@ -23,6 +23,12 @@ pub use affine::*;
 pub use time::*;
 pub use stopwatch::*;
 
+#[derive(Copy, Clone, Debug)]
+pub enum Axis {
+	Horizontal,
+	Vertical,
+}
+
 use std::ops::Neg;
 
 pub trait BaseNumExt: BaseNum + Neg<Output=Self> {

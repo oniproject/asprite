@@ -180,6 +180,41 @@ impl<S> Rect<S>
 	}
 
 	#[inline]
+	pub fn split(self, axis: Axis, t: S) -> (Self, Self) {
+		use Axis::*;
+		match axis {
+			Horizontal => self.split_h(t),
+			Vertical => self.split_v(t),
+		}
+	}
+
+	#[inline]
+	pub fn split_h(self, t: S) -> (Self, Self) {
+		let Self { min, max } = self;
+		let y = Self::lerp(min.y, max.y, t);
+		(
+			Self { min, max: Point2::new(max.x, y) },
+			Self { max, min: Point2::new(min.x, y) },
+		)
+	}
+
+	#[inline]
+	pub fn split_v(self, t: S) -> (Self, Self) {
+		let Self { min, max } = self;
+		let x = Self::lerp(min.x, max.x, t);
+		(
+			Self { min, max: Point2::new(x, max.y) },
+			Self { max, min: Point2::new(x, min.y) },
+		)
+	}
+
+
+	#[inline(always)]
+	fn lerp(min: S, max: S, t: S) -> S {
+		(S::one() - t) * min + t * max
+	}
+
+	#[inline]
 	fn is_empty(&self) -> bool {
 		self.min.x >= self.max.x || self.min.y >= self.max.y
 	}
