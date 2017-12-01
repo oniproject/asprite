@@ -68,11 +68,6 @@ impl Renderer {
 	}
 
 	#[inline]
-	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
-		self.fbo.fill(images);
-	}
-
-	#[inline]
 	pub fn flush(&mut self, cb: CmdBuild, state: &DynamicState) -> Result<CmdBuild> {
 		if self.vbo.is_empty() {
 			return Ok(cb);
@@ -85,13 +80,6 @@ impl Renderer {
 		let set = self.proj_set.clone();
 
 		Ok(cb.draw_indexed(self.pipeline.clone(), state.clone(), vbo, ibo, set, ())?)
-	}
-
-	#[inline]
-	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
-		let proj = Affine::projection(wh.x, wh.y);
-		self.proj_set = projection(&self.uniform, self.pipeline.clone(), proj)?;
-		Ok(())
 	}
 
 	#[inline]
@@ -140,5 +128,19 @@ impl Renderer {
 		}
 
 		Ok(cb)
+	}
+}
+
+impl Ren for Renderer {
+	#[inline(always)]
+	fn init_framebuffer(&mut self, images: &[Arc<SwapchainImage>]) -> Result<()> {
+		self.fbo.fill(images);
+		Ok(())
+	}
+
+	#[inline(always)]
+	fn set_projection(&mut self, proj: Affine<f32>) -> Result<()> {
+		self.proj_set = projection(&self.uniform, self.pipeline.clone(), proj)?;
+		Ok(())
 	}
 }

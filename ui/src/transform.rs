@@ -45,7 +45,7 @@ pub fn rect_transform<S: BaseFloat>(base: Rect<S>, anchor: Rect<S>, offset: Rect
 }
 
 #[test]
-fn print() {
+fn base() {
 	let canvas = Rect {
 		min: Point2::new(0.0, 0.0),
 		max: Point2::new(100.0, 100.0),
@@ -54,8 +54,9 @@ fn print() {
 		min: Point2::new(0.25, 0.25),
 		max: Point2::new(0.75, 0.75),
 	};
-	println!("{:?}", rect_transform(canvas, anchor, Rect {
+	let r = rect_transform(canvas, anchor, Rect {
 		min: Point2::new(-10.0, -10.0),
 		max: Point2::new(10.0, 10.0),
-	}));
+	});
+	assert_eq!(r, Rect { min: Point2::new(15.0, 15.0), max: Point2::new(85.0, 85.0) });
 }

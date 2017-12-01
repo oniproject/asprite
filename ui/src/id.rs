@@ -19,6 +19,7 @@ pub trait IdGenerator {
 
 pub struct Generator {
 	next: Cell<usize>,
+	min: usize,
 	max: usize,
 }
 
@@ -39,8 +40,14 @@ impl Generator {
 	pub const fn new() -> Self {
 		Self {
 			next: Cell::new(0),
+			min: 0,
 			max: MAX,
 		}
+	}
+
+	#[inline(always)]
+	pub fn in_range(&self, id: Id) -> bool {
+		id.0 >= self.min && id.0 < self.max
 	}
 
 	#[inline(always)]
@@ -58,11 +65,12 @@ impl Generator {
 	#[inline(always)]
 	pub fn range(&self, count: usize) -> Option<Self> {
 		self.available_count(count).map(|count| {
-			let next = self.next.get();
-			let max = next + count;
+			let min = self.next.get();
+			let max = min + count;
 			self.next.set(max);
 			Self {
-				next: Cell::new(next),
+				next: Cell::new(min),
+				min,
 				max,
 			}
 		})
@@ -80,6 +88,11 @@ fn id_gen() {
 
 	{
 		let x = root.range(3).unwrap();
+		assert!(!x.in_range(1.into()));
+		assert!(x.in_range(2.into()));
+		assert!(x.in_range(3.into()));
+		assert!(x.in_range(4.into()));
+		assert!(!x.in_range(5.into()));
 
 		assert_eq!(x.available(), Some(3));
 		assert_eq!(x.next(), Some(2.into()));

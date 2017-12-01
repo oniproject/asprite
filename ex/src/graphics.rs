@@ -120,8 +120,8 @@ impl Graphics {
 				let size = rusttype::Scale::uniform(self.font_size);
 				let v = self.font.v_metrics(size);
 				let mut base = base + Vector2::new(0.0, v.ascent + v.descent);
-				base.x = base.x.trunc() + 0.5;
-				base.y = base.y.trunc() + 0.5;
+				base.x = base.x.trunc();
+				base.y = base.y.trunc();
 
 				// TODO: reduce reallocations
 				let lay: Vec<_> = renderer.text_lay(&self.font, self.font_size, &s, base.x, base.y).collect();
@@ -190,9 +190,13 @@ impl ui::Graphics for Graphics {
 				rect.union_raw(bb) //.intersect(Rect::with_size(-10, -s, 300, s * 2))
 			);
 
+		let vm = self.font.v_metrics(size);
+
 		let w = p.dx();
-		let h = p.dy();
-		assert!(w > 0 && h > 0);
+		assert!(w >= 0);
+		//let h = p.dy();
+		//assert!(h > 0);
+		let h = vm.ascent + vm.descent;
 
 		Vector2::new(w as f32, h as f32)
 	}

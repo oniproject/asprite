@@ -112,7 +112,7 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 		let (image_num, mut cb) = {
 			#[cfg(feature = "profiler")] profile_scope!("swap");
 			let ren = &mut self.renderer;
-			match self.chain.run(|m| ren.refill(m)) {
+			match self.chain.run(|m| ren.refill(m).unwrap()) {
 				Some((num, sw_future)) => {
 					future.join(sw_future);
 					ren.set_num(num);

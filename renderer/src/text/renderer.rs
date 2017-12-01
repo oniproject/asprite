@@ -173,46 +173,21 @@ impl Renderer {
 		})
 	}
 
-	#[inline]
-	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
-		self.fbo.fill(images);
-	}
-
-	pub fn glyphs<'a>(&mut self, cb: CmdBuild, state: &DynamicState, glyphs: &[PositionedGlyph<'a>], color: [u8; 4], image_num: usize) -> Result<CmdBuild> {
-		for g in glyphs.iter().cloned() {
-			self.cache.queue_glyph(0, g);
-		}
-
-		let (set, cb) = self.cache_queued(cb)?;
-		let set = (self.proj_set.clone(), set);
-
-		{
-			let cache = &mut self.cache;
-			let iter = glyphs.into_iter()
-				.filter_map(|g| cache.rect_for(0, g).unwrap());
-			for (uv, pos) in iter {
-				self.vbo.push(Vertex {
-					uv: pack_uv(uv.min.x, uv.min.y),
-					position: [pos.min.x as f32, pos.min.y as f32],
-					color,
-				});
-				self.vbo.push(Vertex {
-					uv: pack_uv(uv.max.x, uv.min.y),
-					position: [pos.max.x as f32, pos.min.y as f32],
-					color,
-				});
-				self.vbo.push(Vertex {
-					uv: pack_uv(uv.max.x, uv.max.y),
-					position: [pos.max.x as f32, pos.max.y as f32],
-					color,
-				});
-				self.vbo.push(Vertex {
-					uv: pack_uv(uv.min.x, uv.max.y),
-					position: [pos.min.x as f32, pos.max.y as f32],
-					color,
-				});
+	pub fn flush(&mut self, cb: CmdBuild, state: &DynamicState, image_num: usize) -> Result<CmdBuild> {
+		let (set, cb) = match self.upload {
+			Some(ref tset) => (tset.clone(), cb),
+			None => {
+				let buffer = self.image.buffer()?;
+				let (tex, write) = self.image.image()?;
+				let tset = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 1)
+					.add_sampled_image(tex, self.image.sampler.clone())?
+					.build()?) as DescSet;
+				self.upload = Some(tset.clone());
+				(tset, cb.copy_buffer_to_image(buffer, write)?)
 			}
-		}
+		};
+
+		let set = (self.proj_set.clone(), set);
 
 		let count = self.vbo.len() / VERTEX_BY_SPRITE * INDEX_BY_SPRITE;
 		let ibo = self.ibo.slice(count).ok_or_else(|| ErrorKind::NoneError)?;
@@ -224,49 +199,78 @@ impl Renderer {
 		Ok(cb)
 	}
 
-	fn cache_queued(&mut self, cb: CmdBuild) -> Result<(DescSet, CmdBuild)> {
-		{
-			let upload = &mut self.upload;
-
-			let dst = &mut self.image.buffer;
-			let stride = self.image.width as usize;
-
-			self.cache.cache_queued(|rect, src| {
-				*upload = None;
-
-				let w = (rect.max.x - rect.min.x) as usize;
-				let h = (rect.max.y - rect.min.y) as usize;
-				let mut dst_index = rect.min.y as usize * stride + rect.min.x as usize;
-				let mut src_index = 0;
-
-				for _ in 0..h {
-					let dst_slice = &mut dst[dst_index..dst_index+w];
-					let src_slice = &src[src_index..src_index+w];
-					dst_slice.copy_from_slice(src_slice);
-
-					dst_index += stride;
-					src_index += w;
-				}
-			})
-			.map_err(|e| ErrorKind::CacheWriteErr(e))?;
+	pub fn glyphs<'a: 'b, 'b, I>(&mut self, glyphs: I, color: [u8; 4])
+		where I: Iterator<Item=&'b PositionedGlyph<'a>>
+	{
+		let cache = &mut self.cache;
+		let iter = glyphs.filter_map(|g| cache.rect_for(0, g).unwrap());
+		for (uv, pos) in iter {
+			self.vbo.push(Vertex {
+				uv: pack_uv(uv.min.x, uv.min.y),
+				position: [pos.min.x as f32, pos.min.y as f32],
+				color,
+			});
+			self.vbo.push(Vertex {
+				uv: pack_uv(uv.max.x, uv.min.y),
+				position: [pos.max.x as f32, pos.min.y as f32],
+				color,
+			});
+			self.vbo.push(Vertex {
+				uv: pack_uv(uv.max.x, uv.max.y),
+				position: [pos.max.x as f32, pos.max.y as f32],
+				color,
+			});
+			self.vbo.push(Vertex {
+				uv: pack_uv(uv.min.x, uv.max.y),
+				position: [pos.min.x as f32, pos.max.y as f32],
+				color,
+			});
 		}
-
-		Ok(match self.upload {
-			Some(ref tset) => (tset.clone(), cb),
-			None => {
-				let buffer = self.image.buffer()?;
-				let (tex, write) = self.image.image()?;
-				let tset = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 1)
-					.add_sampled_image(tex, self.image.sampler.clone())?
-					.build()?) as DescSet;
-				self.upload = Some(tset.clone());
-				(tset, cb.copy_buffer_to_image(buffer, write)?)
-			}
-		})
 	}
 
-	pub fn proj_set(&mut self, wh: Vector2<f32>) -> Result<()> {
-		let proj = Affine::projection(wh.x, wh.y);
+	pub fn cache_queued<'a, I>(&mut self, glyphs: I) -> Result<()>
+		where I: Iterator<Item=PositionedGlyph<'a>>
+	{
+		for g in glyphs {
+			self.cache.queue_glyph(0, g);
+		}
+
+		let upload = &mut self.upload;
+
+		let dst = &mut self.image.buffer;
+		let stride = self.image.width as usize;
+
+		self.cache.cache_queued(|rect, src| {
+			*upload = None;
+
+			let w = (rect.max.x - rect.min.x) as usize;
+			let h = (rect.max.y - rect.min.y) as usize;
+			let mut dst_index = rect.min.y as usize * stride + rect.min.x as usize;
+			let mut src_index = 0;
+
+			for _ in 0..h {
+				let dst_slice = &mut dst[dst_index..dst_index+w];
+				let src_slice = &src[src_index..src_index+w];
+				dst_slice.copy_from_slice(src_slice);
+
+				dst_index += stride;
+				src_index += w;
+			}
+		})
+		.map_err(|e| ErrorKind::CacheWriteErr(e))?;
+		Ok(())
+	}
+}
+
+impl Ren for Renderer {
+	#[inline(always)]
+	fn init_framebuffer(&mut self, images: &[Arc<SwapchainImage>]) -> Result<()> {
+		self.fbo.fill(images);
+		Ok(())
+	}
+
+	#[inline(always)]
+	fn set_projection(&mut self, proj: Affine<f32>) -> Result<()> {
 		self.proj_set = projection(&self.uniform, self.pipeline.clone(), proj)?;
 		Ok(())
 	}

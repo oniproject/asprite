@@ -3,6 +3,11 @@ use math::*;
 
 use rusttype::PositionedGlyph;
 
+pub trait Ren {
+	fn init_framebuffer(&mut self, images: &[Arc<SwapchainImage>]) -> Result<()>;
+	fn set_projection(&mut self, proj: Affine<f32>) -> Result<()>;
+}
+
 pub struct Renderer {
 	pub sprite: sprite::Renderer,
 	pub text: text::Renderer,
@@ -53,12 +58,13 @@ impl Renderer {
 	}
 
 	#[inline]
-	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) {
+	pub fn refill(&mut self, images: &[Arc<SwapchainImage>]) -> Result<()> {
 		#[cfg(feature = "profiler")] profile_scope!("refill");
 		self.fbo.fill(images);
-		self.text.refill(images);
-		self.sprite.refill(images);
-		self.vg.refill(images);
+		self.text.init_framebuffer(images)?;
+		self.sprite.init_framebuffer(images)?;
+		self.vg.init_framebuffer(images)?;
+		Ok(())
 	}
 
 	#[inline]
@@ -77,9 +83,11 @@ impl Renderer {
 			}]),
 			scissors: None,
 		};
-		self.sprite.proj_set(wh)?;
-		self.text.proj_set(wh)?;
-		self.vg.proj_set(wh)?;
+
+		let proj = Affine::projection(wh.x, wh.y);
+		self.sprite.set_projection(proj)?;
+		self.text.set_projection(proj)?;
+		self.vg.set_projection(proj)?;
 		Ok(())
 	}
 
@@ -129,8 +137,10 @@ impl Renderer {
 	}
 
 	#[inline]
-	pub fn glyphs<'a>(&mut self, cb: CmdBuild, text: &[PositionedGlyph<'a>], color: [u8; 4]) -> Result<CmdBuild> {
-		Ok(self.text.glyphs(cb, &self.state, text, color, self.num)?)
+	pub fn glyphs<'a>(&mut self, cb: CmdBuild, glyphs: &[PositionedGlyph<'a>], color: [u8; 4]) -> Result<CmdBuild> {
+		self.text.cache_queued(glyphs.iter().cloned())?;
+		self.text.glyphs(glyphs.into_iter(), color);
+		Ok(self.text.flush(cb, &self.state, self.num)?)
 	}
 
 	#[inline]

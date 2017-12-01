@@ -11,6 +11,7 @@ use super::{
 	Uniform,
 	ArcPipeline,
 	Init,
+	Ren,
 };
 
 mod shader;

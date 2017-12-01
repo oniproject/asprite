@@ -33,6 +33,8 @@ mod toggle;
 mod progress;
 mod slider;
 
+pub mod menubar;
+
 pub use self::button::*;
 pub use self::toggle::*;
 pub use self::progress::*;

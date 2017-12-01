@@ -12,6 +12,7 @@ pub struct Mouse {
 	pub released: [bool; 3],
 }
 
+
 impl MouseEvent for Mouse {
 	fn was_pressed(&self) -> bool {
 		self.pressed[0]
@@ -24,7 +25,7 @@ impl MouseEvent for Mouse {
 impl Mouse {
 	pub fn new() -> Self {
 		Self {
-			cursor: Point2::new(0.0, 0.0),
+			cursor: Point2::new(-14.0, -88.0),
 			pressed: [false; 3],
 			released: [false; 3],
 		}

@@ -198,9 +198,7 @@ impl state::State<World, Event> for Scene {
 			Event::WindowEvent { event, .. } => {
 				use winit::WindowEvent::*;
 				match event {
-					Closed => {
-						return Some(state::Transition::Pop);
-					}
+					Closed => return Some(state::Transition::Pop),
 					MouseInput { state, button, .. } => {
 						mouse_event_buttons(&mut world.write_resource::<Mouse>(), state, button);
 					}
@@ -251,10 +249,12 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 	#[cfg(feature = "profiler")] profile_scope!("ui");
 	use ui::*;
 
-	static mut STATE: ui::UiState = ui::UiState::new();
+	static mut STATE: UiState = UiState::new();
 	let state = unsafe { &mut STATE };
+	let last_active = state.active_widget;
 
 	let rect = Rect::with_size(0.0, 0.0, wh.x, wh.y);
+
 	let btn = ColorButton {
 		normal:  ColorDrawer::new([0x99, 0x99, 0x99, 0x99]),
 		hovered: ColorDrawer::new([0, 0, 0x99, 0x99]),
@@ -276,32 +276,26 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 
 	let mut add = 0;
 	{
-		let ctx = ui::Context::new(gr, rect, mouse);
+		let ctx = Context::new(gr, rect, mouse);
 
+		static mut MENUBAR: menubar::MenuBarModel = menubar::MenuBarModel {
+			open_root: None,
+		};
 
 		{
-			//let menubar = Rect::with_size(0, 0, width, 20);
-			//let contextbar = Rect::with_size(0, 20, width, 40);
-			//let timeline = Rect::with_size(0, height - 20 - 200, width, 200);
-			//let statusbar = Rect::with_size(0, height - 20, width, 20);
-			//
-			//let palette = Rect::with_size(0, 60 + 50, 250, 500);
-
-			let widgets = &[
-				ui::Flow::with_wh(1000.0, 20.0).expand_across(),
-				ui::Flow::with_wh(1000.0, 40.0).expand_across(),
-				ui::Flow::with_wh(1000.0, 7.0).along_weight(1.0).expand_along().expand_across(),
-				ui::Flow::with_wh(1000.0, 200.0).expand_across(),
-				ui::Flow::with_wh(1000.0, 20.0).expand_across(),
+			let widgets = [
+				Flow::with_wh(100.0, 20.0).expand_across(),
+				Flow::with_wh(100.0, 40.0).expand_across(),
+				Flow::with_wh(100.0, 7.0).along_weight(1.0).expand_along().expand_across(),
+				Flow::with_wh(100.0, 200.0).expand_across(),
+				Flow::with_wh(100.0, 20.0).expand_across(),
 			];
 
-			/*
-			pub const STATUSBAR_BG: u32 = 0x3F4350_FF;
-			pub const STATUSBAR_COLOR: u32 = 0xA7A8AE_FF;
-			pub const MENUBAR_BG: u32 = 0x222833_FF;
-			pub const BAR_BG: u32 = 0x3f4957_FF;
-			pub const TIMELINE_BG: u32 = 0x3a4351_FF;
-			*/
+			let mb = menubar::MenuBar {
+				normal_color: [0xFF; 4],
+				hover_color:  [0x00, 0x00, 0x00, 0xFF],
+				hover_bg:     [0xCC; 4],
+			};
 
 			let colors = [
 				[0x22, 0x28, 0x33, 0xFF],
@@ -310,11 +304,23 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 				[0x3a, 0x43, 0x51, 0xFF],
 				[0x3F, 0x43, 0x50, 0xFF],
 			];
-			for (i, (ctx, color)) in ctx.vertical_flow(0.0, 0.0, widgets).zip(colors.iter().cloned()).enumerate() {
+			for (i, (ctx, color)) in ctx.vertical_flow(0.0, 0.0, &widgets).zip(colors.iter().cloned()).enumerate() {
 				ctx.quad(color, &ctx.rect());
-				if i == 4 {
-					let text = format!("count: {} ms: {:}", entity_count, dt);
-					ctx.label(0.0, 0.5, [0xFF; 4], &text);
+				match i {
+					0 => {
+						mb.run(&ctx, state, unsafe { &mut MENUBAR }, &[
+							(ctx.reserve_widget_id(), "File"),
+							(ctx.reserve_widget_id(), "Edit"),
+							(ctx.reserve_widget_id(), "View"),
+							(ctx.reserve_widget_id(), "Tools"),
+							(ctx.reserve_widget_id(), "Help"),
+						]);
+					}
+					4 => {
+						let text = format!("count: {} last: {:?} ms: {:}", entity_count, last_active, dt);
+						ctx.label(0.0, 0.5, [0xFF; 4], &text);
+					}
+					_ => (),
 				}
 			}
 		}
@@ -347,11 +353,11 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 
 		{
 			let widgets = &[
-				ui::Flow::with_wh(60.0, 40.0),
-				ui::Flow::with_wh(60.0, 40.0),
-				ui::Flow::with_wh(60.0, 40.0).along_weight(1.0).expand_along(),
-				ui::Flow::with_wh(40.0, 40.0),
-				ui::Flow::with_wh(40.0, 40.0).expand_across(),
+				Flow::with_wh(60.0, 40.0),
+				Flow::with_wh(60.0, 40.0),
+				Flow::with_wh(60.0, 40.0).along_weight(1.0).expand_along(),
+				Flow::with_wh(40.0, 40.0),
+				Flow::with_wh(40.0, 40.0).expand_across(),
 			];
 
 			let ctx = {
@@ -378,7 +384,6 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 				min: 1.0,
 				current: 2.7,
 				max: 3.0,
-				vertical: false,
 			};
 			let slider_state_h = unsafe { &mut SLIDER_H };
 
@@ -386,18 +391,24 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 				min: 1.0,
 				current: 2.7,
 				max: 3.0,
-				vertical: true,
 			};
 			let slider_state_v = unsafe { &mut SLIDER_V };
 
-			let slider = Slider {
-				progress: Progress {
-					background: ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]),
-					fill: ColorDrawer::new([0, 0, 0, 0xCC]),
-				},
-				normal_handle:   ColorDrawer::new([0xFF, 0, 0xFF, 0xFF]),
-				hovered_handle:  ColorDrawer::new([0xFF, 0, 0xFF, 0xCC]),
-				pressed_handle:  ColorDrawer::new([0xFF, 0, 0, 0xFF]),
+			let (hslider, vslider) = {
+				let background = ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]);
+				let fill = ColorDrawer::new([0, 0, 0, 0xCC]);
+
+				let normal  = ColorDrawer::new([0xFF, 0, 0xFF, 0xFF]);
+				let hovered = ColorDrawer::new([0xFF, 0, 0xFF, 0xCC]);
+				let pressed = ColorDrawer::new([0xFF, 0, 0, 0xFF]);
+
+				let h = Progress { background, fill, axis: Axis::Horizontal };
+				let v = Progress { background, fill, axis: Axis::Vertical };
+
+				(
+					Slider { progress: h, normal, hovered, pressed },
+					Slider { progress: v, normal, hovered, pressed },
+				)
 			};
 
 			let mut i = 0;
@@ -408,11 +419,11 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 					ctx.label(0.5, 0.5, [0xFF; 4], &format!("tgl{}", i));
 				}
 				2 => {
-					slider.behavior(&ctx, state, slider_state_h);
+					hslider.behavior(&ctx, state, slider_state_h);
 					ctx.label(0.5, 0.5, [0xFF; 4], &format!("val{}: {}", i, slider_state_h.current));
 				}
 				4 => {
-					slider.behavior(&ctx, state, slider_state_v);
+					vslider.behavior(&ctx, state, slider_state_v);
 					ctx.label(0.5, 0.5, [0xFF; 4], &format!("val{}: {}", i, slider_state_v.current));
 				}
 				_ => {
@@ -425,20 +436,19 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 
 				i += 1;
 			}
-
 		}
 
 
 		{
 			let widgets = &[
-				ui::Flow::with_wh(80.0, 40.0),
-				ui::Flow::with_wh(80.0, 40.0),
-				ui::Flow::with_wh(80.0, 40.0),
-				ui::Flow::with_wh(80.0, 40.0),
+				Flow::with_wh(80.0, 40.0),
+				Flow::with_wh(80.0, 40.0),
+				Flow::with_wh(80.0, 40.0),
+				Flow::with_wh(80.0, 40.0),
 			];
 
 			let mut to_add = 1;
-			for ctx in ctx.vertical_flow(0.0, 0.0, widgets) {
+			for ctx in ctx.vertical_flow(0.0, 0.3, widgets) {
 				if btn.behavior(&ctx, state, &mut ()) {
 					add = to_add;
 				}
@@ -447,8 +457,97 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 			}
 		}
 
+		let items = [
+			menubar::Item::Text("New", "Ctrl-N"),
+			menubar::Item::Text("Open", "Ctrl-O"),
+			menubar::Item::Text("Recent", ">"),
+			menubar::Item::Separator,
+			menubar::Item::Text("Save", "Ctrl-S"),
+			menubar::Item::Text("Save as...", "Shift-Ctrl-S"),
+			menubar::Item::Separator,
+			menubar::Item::Text("Quit", "Ctrl-Q"),
+		];
 
+		let menu = menubar::Menu {
+			normal: menubar::ItemStyle {
+				label:    [0x00, 0x00, 0x00, 0xFF],
+				shortcut: [0x00, 0x00, 0x00, 0x88],
+				bg:       [0xFF, 0xFF, 0xFF, 0xFF],
+			},
+			hovered: menubar::ItemStyle {
+				label:    [0x00, 0x00, 0x00, 0xFF],
+				shortcut: [0x00, 0x00, 0x00, 0x88],
+				bg:       [0xAA, 0xAA, 0xAA, 0xFF],
+			},
+
+			separator: [0x00, 0x00, 0x00, 0x99],
+
+			width: 150.0,
+
+			text_height: 20.0,
+			text_inset: 8.0,
+			sep_height: 5.0,
+			sep_inset: 2.0,
+		};
+
+		let menubar = unsafe { &mut MENUBAR };
+		if let Some((id, base_rect)) = menubar.open_root {
+			if menu.run(&ctx, state, id, base_rect, &items) {
+				menubar.open_root = None;
+			}
+		}
 	}
 
 	add
 }
+
+enum ViewMode {
+	Icons,
+	List,
+	Media,
+	Tree,
+}
+
+
+/*
+fn refiler() {
+	use ui::*;
+	const TOOL: f32 = 20.0;
+
+	let toolbar_width = 250.0;
+
+	// tabbar
+	{
+		let sep = Flow::with_wh(2.0, 0.0);
+		let btn = Flow::with_wh(18.0, 18.0);
+
+		let toolbar_up = &[
+			sep,
+			// prev next
+			btn, sep, btn, // prev
+		];
+
+		let widgets_right = &[
+			// for toolbar_up
+			Flow::with_wh(toolbar_width, 0.0),
+
+			sep,
+
+			// view mode
+			btn, btn, btn, btn,
+
+			sep, btn, // arrange
+			sep, btn, // action
+			sep, btn, // share
+			sep, btn, // edit tags
+
+			sep.along_weight(1.0).expand_along(),
+
+			// tools
+			btn, sep,
+			// search bar
+			sep.along_weight(1.0).expand_along(),
+		];
+	}
+}
+*/

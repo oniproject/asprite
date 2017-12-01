@@ -77,6 +77,10 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 		}
 	}
 
+	pub fn in_range(&self, id: Id) -> bool {
+		self.generator.in_range(id)
+	}
+
 	pub fn sub<'b>(&'b self) -> ContextBuilder<'a, 'b, D> {
 		ContextBuilder::new(self)
 	}
@@ -89,15 +93,17 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 	}
 
 	pub fn label(&self, x: f32, y: f32, color: D::Color, text: &str) {
-		let rect = self.rect();
-		let align = Vector2::new(x, y);
+		self.label_rect(self.rect(), Vector2::new(x, y), color, text);
+	}
+
+	pub fn label_rect(&self, rect: Rect<f32>, align: Vector2<f32>, color: D::Color, text: &str) {
 		let size = self.draw.measure_text(&text);
 		let p = rect_align(rect, align, size);
 		self.draw.text(p, color, &text);
 	}
 
-	pub fn layout(&self, axis: Axis, x: f32, y: f32, widgets: &'a [Flow]) -> impl Iterator<Item=Context<'a, D>> + 'a {
-		let size = axis.measure(widgets);
+	fn layout(&self, axis: Axis, x: f32, y: f32, widgets: &'a [Flow]) -> impl Iterator<Item=Context<'a, D>> + 'a {
+		let size = measure(axis, widgets);
 		//let offset = ctx.rect().min.to_vec();
 		let offset = rect_align(self.rect(), Vector2::new(x, y), size);
 		let offset = Vector2::new(offset.x, offset.y);
@@ -105,7 +111,7 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 		let mouse = self.mouse;
 		let generator = self.generator.clone();
 		let size = Vector2::new(self.rect().dx(), self.rect().dy());
-		axis.layout(size, widgets)
+		layout(axis, size, widgets)
 			.map(move |rect| Cell::new(rect.pos(offset)))
 			.map(move |rect| Self {
 				rect,
