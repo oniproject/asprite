@@ -58,6 +58,9 @@ pub type SimpleButton<D> = Button<D, D, D>;
 pub type ColorButton<D> = SimpleButton<ColorDrawer<D>>;
 pub type TextureButton<D> = SimpleButton<TextureDrawer<D>>;
 
+pub type SimpleToggle<D> = Toggle<D, D, D>;
+pub type ColorToggle<D> = SimpleToggle<ColorDrawer<D>>;
+
 pub trait Component<D: ?Sized + Graphics> {
 	type Event;
 	type Model;

@@ -1,3 +1,7 @@
+
+#![allow(non_upper_case_globals)]
+
+
 use rand::distributions::{IndependentSample, Range};
 use rand::{thread_rng, Rng};
 use math::Vector2;
@@ -26,15 +30,8 @@ impl Component for Velocity {
 pub struct Scene {
 	pub textures: Vec<Texture>,
 	pub queue: Arc<Queue>,
+	pub area: Rect<f32>,
 }
-
-/*
-pub trait Format {
-	type Options: Clone + Send + Sync + 'static;
-
-	fn import(&self, bytes: Vec<u8>, options: Self::Options) -> Result<A::Data>;
-}
-*/
 
 use std::io::prelude::*;
 use std::fs::File;
@@ -122,6 +119,12 @@ impl state::State<World, Event> for Scene {
 				for _ in 0..300 {
 					spawn(world, &self.textures);
 				}
+
+				let wh = *world.read_resource::<Vector2<f32>>();
+				self.area = Rect {
+					min: Point2::new(0.0, 0.0),
+					max: Point2::new(wh.x, wh.y),
+				};
 			}
 			Stop | Pause => {
 				world.delete_all();
@@ -136,7 +139,7 @@ impl state::State<World, Event> for Scene {
 			let mouse = world.read_resource::<Mouse>();
 			let graphics = world.read_resource::<graphics::Graphics>();
 			let dt = world.read_resource::<Time>().delta.seconds;
-			draw_ui(&graphics, *wh, *mouse, count, dt)
+			draw_ui(&graphics, *wh, *mouse, count, dt, &mut self.area)
 		};
 
 		for _ in 0..add {
@@ -155,13 +158,13 @@ impl state::State<World, Event> for Scene {
 		let gravity = 0.75;
 
 		let dt = world.read_resource::<Time>().fixed.seconds;
-		let size = *world.read_resource::<Vector2<f32>>();
-
 		let mut speed = world.write::<Velocity>();
 		let mut sprites = world.write::<Local>();
 
 		let dt = dt * 50.0;
 		let between = Range::new(0.0, 10.0);
+
+		let area = self.area;
 
 		//use rayon::prelude::*;
 		(&mut speed, &mut sprites).join().for_each(|(speed, sprite)| {
@@ -170,24 +173,24 @@ impl state::State<World, Event> for Scene {
 			sprite.t += *speed * dt;
 			speed.y += gravity * dt;
 
-			if sprite.t.x > size.x {
+			if sprite.t.x > area.max.x {
 				speed.x *= -1.0;
-				sprite.t.x = size.x;
-			} else if sprite.t.x < 0.0 {
+				sprite.t.x = area.max.x;
+			} else if sprite.t.x < area.min.x {
 				speed.x *= -1.0;
-				sprite.t.x = 0.0;
+				sprite.t.x = area.min.x;
 			}
 
-			if sprite.t.y > size.y {
+			if sprite.t.y > area.max.y {
 				speed.y *= -0.85;
-				sprite.t.y = size.y;
+				sprite.t.y = area.max.y;
 				let mut rng = thread_rng();
 				if rng.gen() {
 					speed.y -= between.ind_sample(&mut rng);
 				}
-			} else if sprite.t.y < 0.0 {
+			} else if sprite.t.y < area.min.y {
 				speed.y = 0.0;
-				sprite.t.y = 0.0;
+				sprite.t.y = area.min.y;
 			}
 		});
 		None
@@ -245,7 +248,65 @@ fn spawn(world: &mut World, textures: &[Texture]) {
 		.build();
 }
 
-fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_count: usize, dt: f32) -> usize {
+use ui::ColorDrawer;
+
+const btn: ui::ColorButton<graphics::Graphics> = ui::ColorButton {
+	normal:  ColorDrawer::new([0x99, 0x99, 0x99, 0x99]),
+	hovered: ColorDrawer::new([0, 0, 0x99, 0x99]),
+	pressed: ColorDrawer::new([0x99, 0, 0, 0x99]),
+};
+
+const toggle: ui::ColorToggle<graphics::Graphics> = ui::Toggle {
+	checked: ui::ColorButton {
+		normal:   ColorDrawer::new([0xFF, 0, 0, 0xCC]),
+		hovered:  ColorDrawer::new([0xFF, 0, 0, 0x99]),
+		pressed:  ColorDrawer::new([0xFF, 0, 0, 0x66]),
+	},
+	unchecked: ui::ColorButton {
+		normal:   ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]),
+		hovered:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x99]),
+		pressed:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x66]),
+	},
+};
+
+const MENUBAR: ui::menubar::MenuBar<graphics::Graphics> = ui::menubar::MenuBar {
+	normal_color: [0xFF; 4],
+	hover_color:  [0x00, 0x00, 0x00, 0xFF],
+	hover_bg:     [0xCC; 4],
+};
+
+#[derive(Clone, Debug)]
+enum Command {
+	New, Open, Recent,
+	Save, SaveAs,
+	Quit,
+}
+
+const MENU: ui::menubar::Menu<graphics::Graphics, Command> = ui::menubar::Menu {
+	marker: ::std::marker::PhantomData,
+	normal: ui::menubar::ItemStyle {
+		label:    [0x00, 0x00, 0x00, 0xFF],
+		shortcut: [0x00, 0x00, 0x00, 0x88],
+		bg:       [0xFF, 0xFF, 0xFF, 0xFF],
+	},
+	hovered: ui::menubar::ItemStyle {
+		label:    [0x00, 0x00, 0x00, 0xFF],
+		shortcut: [0x00, 0x00, 0x00, 0x88],
+		bg:       [0xAA, 0xAA, 0xAA, 0xFF],
+	},
+
+	separator: [0x00, 0x00, 0x00, 0x99],
+
+	width: 150.0,
+
+	text_height: 20.0,
+	text_inset: 8.0,
+	sep_height: 5.0,
+	sep_inset: 2.0,
+};
+
+
+fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_count: usize, dt: f32, area: &mut Rect<f32>) -> usize {
 	#[cfg(feature = "profiler")] profile_scope!("ui");
 	use ui::*;
 
@@ -255,102 +316,45 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 
 	let rect = Rect::with_size(0.0, 0.0, wh.x, wh.y);
 
-	let btn = ColorButton {
-		normal:  ColorDrawer::new([0x99, 0x99, 0x99, 0x99]),
-		hovered: ColorDrawer::new([0, 0, 0x99, 0x99]),
-		pressed: ColorDrawer::new([0x99, 0, 0, 0x99]),
-	};
-
-	let toggle = Toggle {
-		checked: ColorButton {
-			normal:   ColorDrawer::new([0xFF, 0, 0, 0xCC]),
-			hovered:  ColorDrawer::new([0xFF, 0, 0, 0x99]),
-			pressed:  ColorDrawer::new([0xFF, 0, 0, 0x66]),
-		},
-		unchecked: ColorButton {
-			normal:   ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]),
-			hovered:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x99]),
-			pressed:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x66]),
-		},
-	};
-
 	let mut add = 0;
 	{
 		let ctx = Context::new(gr, rect, mouse);
 
-		static mut MENUBAR: menubar::MenuBarModel = menubar::MenuBarModel {
-			open_root: None,
-		};
+		let widgets = [
+			Flow::with_wh(100.0, 20.0).expand_across(),
+			Flow::with_wh(100.0, 40.0).expand_across(),
+			Flow::with_wh(100.0, 7.0).along_weight(1.0).expand_along().expand_across(),
+			Flow::with_wh(100.0, 200.0).expand_across(),
+			Flow::with_wh(100.0, 20.0).expand_across(),
+		];
 
-		{
-			let widgets = [
-				Flow::with_wh(100.0, 20.0).expand_across(),
-				Flow::with_wh(100.0, 40.0).expand_across(),
-				Flow::with_wh(100.0, 7.0).along_weight(1.0).expand_along().expand_across(),
-				Flow::with_wh(100.0, 200.0).expand_across(),
-				Flow::with_wh(100.0, 20.0).expand_across(),
-			];
+		let colors = [
+			[0x22, 0x28, 0x33, 0xFF],
+			[0x3f, 0x49, 0x57, 0xFF],
+			[0u8; 4],
+			[0x3a, 0x43, 0x51, 0xFF],
+			[0x3F, 0x43, 0x50, 0xFF],
+		];
+		for (i, (ctx, color)) in ctx.vertical_flow(0.0, 0.0, &widgets).zip(colors.iter().cloned()).enumerate() {
+			ctx.quad(color, &ctx.rect());
+			match i {
+				0 => menubar(&ctx, state),
+				1 => toolbar(&ctx, state, &mut add),
 
-			let mb = menubar::MenuBar {
-				normal_color: [0xFF; 4],
-				hover_color:  [0x00, 0x00, 0x00, 0xFF],
-				hover_bg:     [0xCC; 4],
-			};
-
-			let colors = [
-				[0x22, 0x28, 0x33, 0xFF],
-				[0x3f, 0x49, 0x57, 0xFF],
-				[0u8; 4],
-				[0x3a, 0x43, 0x51, 0xFF],
-				[0x3F, 0x43, 0x50, 0xFF],
-			];
-			for (i, (ctx, color)) in ctx.vertical_flow(0.0, 0.0, &widgets).zip(colors.iter().cloned()).enumerate() {
-				ctx.quad(color, &ctx.rect());
-				match i {
-					0 => {
-						mb.run(&ctx, state, unsafe { &mut MENUBAR }, &[
-							(ctx.reserve_widget_id(), "File"),
-							(ctx.reserve_widget_id(), "Edit"),
-							(ctx.reserve_widget_id(), "View"),
-							(ctx.reserve_widget_id(), "Tools"),
-							(ctx.reserve_widget_id(), "Help"),
-						]);
-					}
-					4 => {
-						let text = format!("count: {} last: {:?} ms: {:}", entity_count, last_active, dt);
-						ctx.label(0.0, 0.5, [0xFF; 4], &text);
-					}
-					_ => (),
+				2 => { // main
+					*area = ctx.rect();
 				}
+
+				3 => xbar(&ctx, state),
+
+				// statusbar
+				4 => {
+					let text = format!("count: {} last: {:?} ms: {:}", entity_count, last_active, dt);
+					ctx.label(0.0, 0.5, [0xFF; 4], &text);
+				}
+				_ => unreachable!(),
 			}
 		}
-
-		if true {
-			use math::Transform;
-			let mut proj = Affine::one();
-			//proj.scale(5.0, 5.0);
-			proj.scale(50.0, 50.0);
-			proj.translate(150.0, 100.0);
-
-			ctx.fill([0xFF, 0xFF, 0xFF, 0xAA], proj, {
-				use lyon::math::*;
-				use lyon::path::*;
-				use lyon::path_builder::*;
-
-				let mut builder = SvgPathBuilder::new(Path::builder());
-				if false {
-					lyon::extra::rust_logo::build_logo_path(&mut builder);
-				} else {
-					builder.move_to(point(0.0, 0.0));
-					builder.line_to(point(1.0, 0.0));
-					builder.quadratic_bezier_to(point(2.0, 0.0), point(2.0, 1.0));
-					builder.cubic_bezier_to(point(1.0, 1.0), point(0.0, 1.0), point(0.0, 0.0));
-					builder.close();
-				}
-				builder.build()
-			});
-		}
-
 		{
 			let widgets = &[
 				Flow::with_wh(60.0, 40.0),
@@ -438,75 +442,111 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 			}
 		}
 
-
-		{
-			let widgets = &[
-				Flow::with_wh(80.0, 40.0),
-				Flow::with_wh(80.0, 40.0),
-				Flow::with_wh(80.0, 40.0),
-				Flow::with_wh(80.0, 40.0),
-			];
-
-			let mut to_add = 1;
-			for ctx in ctx.vertical_flow(0.0, 0.3, widgets) {
-				if btn.behavior(&ctx, state, &mut ()) {
-					add = to_add;
-				}
-				ctx.label(0.5, 0.5, [0xFF; 4], &format!("add {}", to_add));
-				to_add *= 10;
-			}
-		}
-
-		let items = [
-			menubar::Item::Text("New", "Ctrl-N"),
-			menubar::Item::Text("Open", "Ctrl-O"),
-			menubar::Item::Text("Recent", ">"),
-			menubar::Item::Separator,
-			menubar::Item::Text("Save", "Ctrl-S"),
-			menubar::Item::Text("Save as...", "Shift-Ctrl-S"),
-			menubar::Item::Separator,
-			menubar::Item::Text("Quit", "Ctrl-Q"),
-		];
-
-		let menu = menubar::Menu {
-			normal: menubar::ItemStyle {
-				label:    [0x00, 0x00, 0x00, 0xFF],
-				shortcut: [0x00, 0x00, 0x00, 0x88],
-				bg:       [0xFF, 0xFF, 0xFF, 0xFF],
-			},
-			hovered: menubar::ItemStyle {
-				label:    [0x00, 0x00, 0x00, 0xFF],
-				shortcut: [0x00, 0x00, 0x00, 0x88],
-				bg:       [0xAA, 0xAA, 0xAA, 0xFF],
-			},
-
-			separator: [0x00, 0x00, 0x00, 0x99],
-
-			width: 150.0,
-
-			text_height: 20.0,
-			text_inset: 8.0,
-			sep_height: 5.0,
-			sep_inset: 2.0,
-		};
-
-		let menubar = unsafe { &mut MENUBAR };
-		if let Some((id, base_rect)) = menubar.open_root {
-			if menu.run(&ctx, state, id, base_rect, &items) {
-				menubar.open_root = None;
-			}
-		}
+		second_menubar(&ctx, state);
 	}
 
 	add
 }
 
+
+static mut MENUBAR_MODEL: ui::menubar::MenuBarModel = ui::menubar::MenuBarModel {
+	open_root: None,
+};
+
+fn menubar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState) {
+	MENUBAR.run(&ctx, state, unsafe { &mut MENUBAR_MODEL }, &[
+		(ctx.reserve_widget_id(), "File"),
+		(ctx.reserve_widget_id(), "Edit"),
+		(ctx.reserve_widget_id(), "View"),
+		(ctx.reserve_widget_id(), "Tools"),
+		(ctx.reserve_widget_id(), "Help"),
+	]);
+}
+
+fn toolbar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState, add: &mut usize) {
+	use ui::*;
+	let widgets = &[
+		Flow::with_wh(80.0, 40.0),
+		Flow::with_wh(80.0, 40.0),
+		Flow::with_wh(80.0, 40.0),
+		Flow::with_wh(80.0, 40.0),
+	];
+	let mut to_add = 1;
+	for ctx in ctx.horizontal_flow(0.2, 0.0, widgets) {
+		if btn.behavior(&ctx, state, &mut ()) {
+			*add = to_add;
+		}
+		ctx.label(0.5, 0.5, [0xFF; 4], &format!("add {}", to_add));
+		to_add *= 10;
+	}
+}
+
+fn xbar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState) {
+	use ui::*;
+	use math::*;
+
+	let pos = ctx.rect().min;
+
+	let mut proj = Affine::one();
+	//proj.scale(5.0, 5.0);
+	proj.scale(50.0, 50.0);
+	proj.translate(pos.x + 150.0, pos.y + 30.0);
+
+	ctx.fill([0xFF, 0xFF, 0xFF, 0xAA], proj, {
+		use lyon::math::*;
+		use lyon::path::*;
+		use lyon::path_builder::*;
+
+		let mut builder = SvgPathBuilder::new(Path::builder());
+		if false {
+			lyon::extra::rust_logo::build_logo_path(&mut builder);
+		} else {
+			builder.move_to(point(0.0, 0.0));
+			builder.line_to(point(1.0, 0.0));
+			builder.quadratic_bezier_to(point(2.0, 0.0), point(2.0, 1.0));
+			builder.cubic_bezier_to(point(1.0, 1.0), point(0.0, 1.0), point(0.0, 0.0));
+			builder.close();
+		}
+		builder.build()
+	});
+}
+
+
+
+fn second_menubar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState) {
+	use ui::menubar::*;
+	use ui::menubar::MenuEvent::*;
+	let items = [
+		Item::Text(Command::New, "New", "Ctrl-N"),
+		Item::Text(Command::Open, "Open", "Ctrl-O"),
+		Item::Text(Command::Recent, "Recent", ">"),
+		Item::Separator,
+		Item::Text(Command::Save, "Save", "Ctrl-S"),
+		Item::Text(Command::SaveAs, "Save as...", "Shift-Ctrl-S"),
+		Item::Separator,
+		Item::Text(Command::Quit, "Quit", "Ctrl-Q"),
+	];
+
+	let menubar = unsafe { &mut MENUBAR_MODEL };
+	if let Some((id, base_rect)) = menubar.open_root {
+		match MENU.run(&ctx, state, id, base_rect, &items) {
+			Exit => unsafe { MENUBAR_MODEL.open_root = None; },
+			Nothing => (),
+			Clicked(id) => {
+				println!("click: {:?}", id);
+			}
+		}
+	}
+}
+
+/*
 enum ViewMode {
 	Icons,
 	List,
 	Media,
 	Tree,
 }
+*/
 
 
 /*

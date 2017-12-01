@@ -13,7 +13,7 @@ impl<D: ?Sized + Graphics> FrameDrawer<D> for NoDrawer {
 
 pub struct ColorDrawer<D: ?Sized + Graphics>(D::Color);
 impl<D: ?Sized + Graphics> ColorDrawer<D> {
-	pub fn new(color: D::Color) -> Self {
+	pub const fn new(color: D::Color) -> Self {
 		ColorDrawer(color)
 	}
 }
@@ -31,7 +31,7 @@ impl<D: ?Sized + Graphics> Clone for ColorDrawer<D> {
 
 pub struct TextureDrawer<D: ?Sized + Graphics>(D::Texture);
 impl<D: ?Sized + Graphics> TextureDrawer<D> {
-	pub fn new(texture: D::Texture) -> Self {
+	pub const fn new(texture: D::Texture) -> Self {
 		TextureDrawer(texture)
 	}
 }
