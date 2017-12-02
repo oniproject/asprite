@@ -116,7 +116,7 @@ impl state::State<World, Event> for Scene {
 					let iter = TextureFormat::load(&src, "res.toml", options);
 					self.textures = iter.unwrap();
 				};
-				for _ in 0..300 {
+				for _ in 0..30 {
 					spawn(world, &self.textures);
 				}
 
@@ -248,62 +248,81 @@ fn spawn(world: &mut World, textures: &[Texture]) {
 		.build();
 }
 
-use ui::ColorDrawer;
+mod theme {
+	use math::*;
+	use ui::*;
+	use graphics::Graphics;
 
-const btn: ui::ColorButton<graphics::Graphics> = ui::ColorButton {
-	normal:  ColorDrawer::new([0x99, 0x99, 0x99, 0x99]),
-	hovered: ColorDrawer::new([0, 0, 0x99, 0x99]),
-	pressed: ColorDrawer::new([0x99, 0, 0, 0x99]),
-};
+	const background: ColorDrawer<Graphics> = ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]);
+	const fill: ColorDrawer<Graphics> = ColorDrawer::new([0, 0, 0, 0xCC]);
 
-const toggle: ui::ColorToggle<graphics::Graphics> = ui::Toggle {
-	checked: ui::ColorButton {
-		normal:   ColorDrawer::new([0xFF, 0, 0, 0xCC]),
-		hovered:  ColorDrawer::new([0xFF, 0, 0, 0x99]),
-		pressed:  ColorDrawer::new([0xFF, 0, 0, 0x66]),
-	},
-	unchecked: ui::ColorButton {
-		normal:   ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]),
-		hovered:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x99]),
-		pressed:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x66]),
-	},
-};
+	const normal: ColorDrawer<Graphics>  = ColorDrawer::new([0xFF, 0, 0xFF, 0xFF]);
+	const hovered: ColorDrawer<Graphics> = ColorDrawer::new([0xFF, 0, 0xFF, 0xCC]);
+	const pressed: ColorDrawer<Graphics> = ColorDrawer::new([0xFF, 0, 0, 0xFF]);
 
-const MENUBAR: ui::menubar::MenuBar<graphics::Graphics> = ui::menubar::MenuBar {
-	normal_color: [0xFF; 4],
-	hover_color:  [0x00, 0x00, 0x00, 0xFF],
-	hover_bg:     [0xCC; 4],
-};
+	const h: Progress<ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Progress { background, fill, axis: Axis::Horizontal };
+	const v: Progress<ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Progress { background, fill, axis: Axis::Vertical};
 
-#[derive(Clone, Debug)]
-enum Command {
-	New, Open, Recent,
-	Save, SaveAs,
-	Quit,
+	pub const HSLIDER: Slider<ColorDrawer<Graphics>, ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Slider { progress: h, normal, hovered, pressed };
+	pub const VSLIDER: Slider<ColorDrawer<Graphics>, ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Slider { progress: v, normal, hovered, pressed };
+
+	pub const BTN: ColorButton<Graphics> = ColorButton {
+		normal:  ColorDrawer::new([0x99, 0x99, 0x99, 0x99]),
+		hovered: ColorDrawer::new([0, 0, 0x99, 0x99]),
+		pressed: ColorDrawer::new([0x99, 0, 0, 0x99]),
+	};
+
+	pub const TOGGLE: ColorToggle<Graphics> = Toggle {
+		checked: ColorButton {
+			normal:   ColorDrawer::new([0xFF, 0, 0, 0xCC]),
+			hovered:  ColorDrawer::new([0xFF, 0, 0, 0x99]),
+			pressed:  ColorDrawer::new([0xFF, 0, 0, 0x66]),
+		},
+		unchecked: ColorButton {
+			normal:   ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]),
+			hovered:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x99]),
+			pressed:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x66]),
+		},
+	};
+
+	pub const MENUBAR: menubar::MenuBar<Graphics> = menubar::MenuBar {
+		normal_color: [0xFF; 4],
+		hover_color:  [0x00, 0x00, 0x00, 0xFF],
+		hover_bg:     [0xCC; 4],
+	};
+
+	#[derive(Clone, Debug)]
+	pub enum Command {
+		New, Open, Recent,
+		Save, SaveAs,
+		Quit,
+	}
+
+	pub const MENU: menubar::Menu<Graphics, Command> = menubar::Menu {
+		marker: ::std::marker::PhantomData,
+		normal: menubar::ItemStyle {
+			label:    [0x00, 0x00, 0x00, 0xFF],
+			shortcut: [0x00, 0x00, 0x00, 0x88],
+			bg:       [0xFF, 0xFF, 0xFF, 0xFF],
+		},
+		hovered: menubar::ItemStyle {
+			label:    [0x00, 0x00, 0x00, 0xFF],
+			shortcut: [0x00, 0x00, 0x00, 0x88],
+			bg:       [0xAA, 0xAA, 0xAA, 0xFF],
+		},
+
+		separator: [0x00, 0x00, 0x00, 0x99],
+
+		width: 150.0,
+
+		text_height: 20.0,
+		text_inset: 8.0,
+		sep_height: 5.0,
+		sep_inset: 2.0,
+	};
 }
 
-const MENU: ui::menubar::Menu<graphics::Graphics, Command> = ui::menubar::Menu {
-	marker: ::std::marker::PhantomData,
-	normal: ui::menubar::ItemStyle {
-		label:    [0x00, 0x00, 0x00, 0xFF],
-		shortcut: [0x00, 0x00, 0x00, 0x88],
-		bg:       [0xFF, 0xFF, 0xFF, 0xFF],
-	},
-	hovered: ui::menubar::ItemStyle {
-		label:    [0x00, 0x00, 0x00, 0xFF],
-		shortcut: [0x00, 0x00, 0x00, 0x88],
-		bg:       [0xAA, 0xAA, 0xAA, 0xFF],
-	},
-
-	separator: [0x00, 0x00, 0x00, 0x99],
-
-	width: 150.0,
-
-	text_height: 20.0,
-	text_inset: 8.0,
-	sep_height: 5.0,
-	sep_inset: 2.0,
-};
+use self::theme::*;
 
 
 fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_count: usize, dt: f32, area: &mut Rect<f32>) -> usize {
@@ -312,9 +331,9 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 
 	static mut STATE: UiState = UiState::new();
 	let state = unsafe { &mut STATE };
-	let last_active = state.active_widget;
+	let last_active = state.active_widget();
 
-	let rect = Rect::with_size(0.0, 0.0, wh.x, wh.y);
+	let rect = Rect::from_min_dim(Point2::new(0.0, 0.0), wh);
 
 	let mut add = 0;
 	{
@@ -343,6 +362,23 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 
 				2 => { // main
 					*area = ctx.rect();
+					let hvr = Rect {
+						min: Point2::new(0.0, 200.0),
+						max: Point2::new(300.0, 400.0),
+					};
+					let id = ctx.reserve_widget_id();
+					ctx.onhover(id, hvr, state,
+						|| println!("hover start {:?} {:?}", id, hvr),
+						|| println!("hover end   {:?} {:?}", id, hvr),
+					);
+
+					let clk = Rect {
+						min: Point2::new(0.0, 400.0),
+						max: Point2::new(300.0, 600.0),
+					};
+
+					let id = ctx.reserve_widget_id();
+					ctx.onclick(id, clk, state, || println!("click {:?} {:?}", id, clk));
 				}
 
 				3 => xbar(&ctx, state),
@@ -352,10 +388,11 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 					let text = format!("count: {} last: {:?} ms: {:}", entity_count, last_active, dt);
 					ctx.label(0.0, 0.5, [0xFF; 4], &text);
 				}
-				_ => unreachable!(),
+				_ => (),
+				//_ => unreachable!(),
 			}
 		}
-		{
+		if false {
 			let widgets = &[
 				Flow::with_wh(60.0, 40.0),
 				Flow::with_wh(60.0, 40.0),
@@ -398,40 +435,23 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 			};
 			let slider_state_v = unsafe { &mut SLIDER_V };
 
-			let (hslider, vslider) = {
-				let background = ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]);
-				let fill = ColorDrawer::new([0, 0, 0, 0xCC]);
-
-				let normal  = ColorDrawer::new([0xFF, 0, 0xFF, 0xFF]);
-				let hovered = ColorDrawer::new([0xFF, 0, 0xFF, 0xCC]);
-				let pressed = ColorDrawer::new([0xFF, 0, 0, 0xFF]);
-
-				let h = Progress { background, fill, axis: Axis::Horizontal };
-				let v = Progress { background, fill, axis: Axis::Vertical };
-
-				(
-					Slider { progress: h, normal, hovered, pressed },
-					Slider { progress: v, normal, hovered, pressed },
-				)
-			};
-
 			let mut i = 0;
 			for ctx in ctx.horizontal_flow(0.0, 0.0, widgets) {
 				match i {
 				1 => {
-					toggle.behavior(&ctx, state, toggle_state);
+					TOGGLE.behavior(&ctx, state, toggle_state);
 					ctx.label(0.5, 0.5, [0xFF; 4], &format!("tgl{}", i));
 				}
 				2 => {
-					hslider.behavior(&ctx, state, slider_state_h);
+					HSLIDER.behavior(&ctx, state, slider_state_h);
 					ctx.label(0.5, 0.5, [0xFF; 4], &format!("val{}: {}", i, slider_state_h.current));
 				}
 				4 => {
-					vslider.behavior(&ctx, state, slider_state_v);
+					VSLIDER.behavior(&ctx, state, slider_state_v);
 					ctx.label(0.5, 0.5, [0xFF; 4], &format!("val{}: {}", i, slider_state_v.current));
 				}
 				_ => {
-					if btn.behavior(&ctx, state, &mut ()) {
+					if BTN.behavior(&ctx, state, &mut ()) {
 						println!("{} click", i);
 					}
 					ctx.label(0.5, 0.5, [0xFF; 4], &format!("btn{}", i));
@@ -473,7 +493,7 @@ fn toolbar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState, add: 
 	];
 	let mut to_add = 1;
 	for ctx in ctx.horizontal_flow(0.2, 0.0, widgets) {
-		if btn.behavior(&ctx, state, &mut ()) {
+		if BTN.behavior(&ctx, state, &mut ()) {
 			*add = to_add;
 		}
 		ctx.label(0.5, 0.5, [0xFF; 4], &format!("add {}", to_add));
@@ -481,9 +501,10 @@ fn toolbar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState, add: 
 	}
 }
 
-fn xbar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState) {
+fn xbar(ctx: &ui::Context<graphics::Graphics>, _state: &mut ui::UiState) {
 	use ui::*;
 	use math::*;
+	use graphics::CustomCmd;
 
 	let pos = ctx.rect().min;
 
@@ -492,7 +513,7 @@ fn xbar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState) {
 	proj.scale(50.0, 50.0);
 	proj.translate(pos.x + 150.0, pos.y + 30.0);
 
-	ctx.fill([0xFF, 0xFF, 0xFF, 0xAA], proj, {
+	ctx.custom(CustomCmd::Fill([0xFF, 0xFF, 0xFF, 0xAA], proj, {
 		use lyon::math::*;
 		use lyon::path::*;
 		use lyon::path_builder::*;
@@ -508,10 +529,8 @@ fn xbar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState) {
 			builder.close();
 		}
 		builder.build()
-	});
+	}));
 }
-
-
 
 fn second_menubar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState) {
 	use ui::menubar::*;
@@ -529,12 +548,16 @@ fn second_menubar(ctx: &ui::Context<graphics::Graphics>, state: &mut ui::UiState
 
 	let menubar = unsafe { &mut MENUBAR_MODEL };
 	if let Some((id, base_rect)) = menubar.open_root {
-		match MENU.run(&ctx, state, id, base_rect, &items) {
-			Exit => unsafe { MENUBAR_MODEL.open_root = None; },
-			Nothing => (),
+		let exit = match MENU.run(&ctx, state, id, base_rect, &items) {
+			Nothing => false,
+			Exit => true,
 			Clicked(id) => {
 				println!("click: {:?}", id);
+				true
 			}
+		};
+		if exit {
+			unsafe { MENUBAR_MODEL.open_root = None; }
 		}
 	}
 }

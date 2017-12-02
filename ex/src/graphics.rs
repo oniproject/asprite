@@ -1,7 +1,6 @@
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 
-use lyon::path::{Path, Builder};
-use lyon::path_builder::*;
+use lyon::path::Path;
 use lyon::tessellation::geometry_builder::{VertexConstructor, VertexBuffers, BuffersBuilder};
 use lyon::tessellation::{FillTessellator, FillOptions};
 use lyon::tessellation::FillVertex;
@@ -16,20 +15,23 @@ use renderer::*;
 
 type GpuFillVertex = vg::Vertex;
 
-type Canvas = SvgPathBuilder<Builder>;
-
 enum Command {
 	Quad([u8; 4], Rect<f32>),
 	Texture(Texture, Rect<f32>),
 	TextureFrame(Texture, Rect<f32>, Rect<f32>),
 	Text(Point2<f32>, [u8; 4], String),
 
+	Custom(CustomCmd),
+}
+
+pub enum CustomCmd {
 	Fill([u8;4], Affine<f32>, Path),
 }
 
 pub struct Graphics {
 	buffer: Mutex<Vec<Command>>,
 	pub font: Font<'static>,
+	glyphs: Mutex<Vec<rusttype::PositionedGlyph<'static>>>,
 	font_size: f32,
 	pub hovered: AtomicBool,
 	vg: Mutex<VertexBuffers<GpuFillVertex>>,
@@ -59,6 +61,7 @@ impl Graphics {
 			buffer: Mutex::new(Vec::new()),
 			hovered: AtomicBool::new(false),
 			vg: Mutex::new(VertexBuffers::new()),
+			glyphs: Mutex::new(Vec::new()),
 			font,
 			font_size,
 		}
@@ -78,7 +81,7 @@ impl Graphics {
 		self.hovered.load(Ordering::Relaxed)
 	}
 
-	pub fn run(&self, mut cb: AutoCommandBufferBuilder, renderer: &mut Renderer) -> errors::Result<AutoCommandBufferBuilder> {
+	pub fn run(&mut self, mut cb: AutoCommandBufferBuilder, renderer: &mut Renderer) -> errors::Result<AutoCommandBufferBuilder> {
 		self.hovered.store(false, Ordering::Relaxed);
 
 		const COLOR: [u8; 4] = [0xFF; 4];
@@ -116,21 +119,36 @@ impl Graphics {
 				cb = if sprite { cb } else { sprite = true; renderer.start_sprites(cb)? };
 				cb = renderer.texture_quad(cb, t, COLOR, &pos, &uv)?;
 			}
-			Command::Text(base, c, s) => {
-				let size = rusttype::Scale::uniform(self.font_size);
-				let v = self.font.v_metrics(size);
-				let mut base = base + Vector2::new(0.0, v.ascent + v.descent);
-				base.x = base.x.trunc();
-				base.y = base.y.trunc();
+			Command::Text(start, c, text) => {
+				use rusttype::{point, Scale};
 
-				// TODO: reduce reallocations
-				let lay: Vec<_> = renderer.text_lay(&self.font, self.font_size, &s, base.x, base.y).collect();
+				let scale = Scale::uniform(self.font_size);
+				let v = self.font.v_metrics(scale);
+
+				let start = start + Vector2::new(0.0, v.ascent + v.descent);
+				let start = point(start.x.trunc(), start.y.trunc());
+				let iter = text.chars()
+					.filter_map(|c| self.font.glyph(c))
+					.scan((None, 0.0), |save, g| {
+						let g = g.scaled(scale);
+						if let Some(last) = save.0 {
+							save.1 += self.font.pair_kerning(scale, last, g.id());
+						}
+						let g = g.positioned(point(start.x + save.1, start.y));
+						save.1 += g.unpositioned().h_metrics().advance_width;
+						save.0 = Some(g.id());
+						Some(g)
+					});
+
+				let mut glyphs = self.glyphs.lock().unwrap();
+				glyphs.clear();
+				glyphs.extend(iter);
 
 				cb = if !sprite { cb } else { sprite = false; renderer.end_sprites(cb)? };
-				cb = renderer.glyphs(cb, &lay, c)?;
+				cb = renderer.glyphs(cb, &glyphs, c)?;
 			}
 
-			Command::Fill(color, proj, path) => {
+			Command::Custom(CustomCmd::Fill(color, proj, path)) => {
 				let mut tessellator = FillTessellator::new();
 				{
 					tessellator.tessellate_path(
@@ -157,7 +175,7 @@ impl Graphics {
 impl ui::Graphics for Graphics {
 	type Texture = Texture;
 	type Color = [u8; 4];
-	type Path = Path;
+	type Custom = CustomCmd;
 
 	#[inline]
 	fn set_hovered(&self) {
@@ -182,21 +200,18 @@ impl ui::Graphics for Graphics {
 	}
 	#[inline]
 	fn measure_text(&self, text: &str) -> Vector2<f32> {
-		let size = rusttype::Scale::uniform(self.font_size);
-		let p = self.font.layout(text, size, rusttype::point(0.0, 0.0))
+		let scale = rusttype::Scale::uniform(self.font_size);
+		let p = self.font.layout(text, scale, rusttype::point(0.0, 0.0))
 			.filter_map(|g| g.pixel_bounding_box())
-			.map(|bb| Rect::with_coords(bb.min.x, bb.min.y, bb.max.x, bb.max.y))
-			.fold(Rect::new(), |rect, bb|
-				rect.union_raw(bb) //.intersect(Rect::with_size(-10, -s, 300, s * 2))
-			);
+			.map(|bb| Rect::from_coords(bb.min.x, bb.min.y, bb.max.x, bb.max.y))
+			.fold(Rect::default(), |rect, bb| rect.union_with_empty(bb));
 
-		let vm = self.font.v_metrics(size);
+		let vm = self.font.v_metrics(scale);
 
 		let w = p.dx();
-		assert!(w >= 0);
-		//let h = p.dy();
-		//assert!(h > 0);
 		let h = vm.ascent + vm.descent;
+
+		debug_assert!(w >= 0);
 
 		Vector2::new(w as f32, h as f32)
 	}
@@ -205,8 +220,9 @@ impl ui::Graphics for Graphics {
 		self.push(Command::Text(base, color, text.to_string()))
 	}
 
-	fn fill(&self, color: Self::Color, proj: Affine<f32>, path: Path) {
-		self.push(Command::Fill(color, proj, path))
+	#[inline]
+	fn custom(&self, cmd: Self::Custom) {
+		self.push(Command::Custom(cmd))
 	}
 }
 

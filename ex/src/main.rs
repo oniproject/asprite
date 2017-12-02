@@ -106,7 +106,7 @@ fn main() {
 	println!();
 	println!("run");
 
-	let arena = arena::Scene { textures: Vec::new(), queue, area: Rect::new() };
+	let arena = arena::Scene { textures: Vec::new(), queue, area: Rect::default() };
 	app.run(Box::new(arena), |world, states|
 		events_loop.poll_events(|event| states.event(world, event))
 	);

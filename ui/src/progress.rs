@@ -8,9 +8,9 @@ pub struct Progress<BG, F> {
 	pub axis: Axis,
 }
 
-impl<D, BG, F> Component<D> for Progress<BG, F>
+impl<'a, D, BG, F> Component<Context<'a, D>, UiState> for Progress<BG, F>
 	where
-		D: ?Sized + Graphics,
+		D: ?Sized + Graphics + 'a,
 		BG: FrameDrawer<D>,
 		F: FrameDrawer<D>,
 {
@@ -18,11 +18,18 @@ impl<D, BG, F> Component<D> for Progress<BG, F>
 	type Model = f32;
 	fn behavior(&self, ctx: &Context<D>, _state: &mut UiState, model: &mut Self::Model) -> Self::Event {
 		let rect = ctx.rect();
-		let fill_rect = match self.axis {
-			Axis::Horizontal => rect.w(rect.dx() * *model),
-			Axis::Vertical =>   rect.h(rect.dy() * *model),
-		};
 		self.background.draw_frame(ctx.draw(), rect);
-		self.fill.draw_frame(ctx.draw(), fill_rect);
+
+		let rect = match self.axis {
+			Axis::Horizontal => {
+				let w = rect.dx() * *model;
+				Rect { max: Point2::new(rect.min.x + w, rect.max.y), .. rect }
+			}
+			Axis::Vertical => {
+				let h = rect.dy() * *model;
+				Rect { max: Point2::new(rect.max.x, rect.min.y + h), .. rect }
+			}
+		};
+		self.fill.draw_frame(ctx.draw(), rect);
 	}
 }

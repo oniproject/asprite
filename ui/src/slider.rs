@@ -23,9 +23,9 @@ pub struct Slider<BG, F, H> {
 	pub normal: H,
 }
 
-impl<D, BG, F, H> Component<D> for Slider<BG, F, H>
+impl<'a, D, BG, F, H> Component<Context<'a, D>, UiState> for Slider<BG, F, H>
 	where
-		D: ?Sized + Graphics,
+		D: ?Sized + Graphics + 'a,
 		BG: FrameDrawer<D>,
 		F: FrameDrawer<D>,
 		H: FrameDrawer<D>,
@@ -44,8 +44,8 @@ impl<D, BG, F, H> Component<D> for Slider<BG, F, H>
 			ctx.set_hovered();
 
 			let (pos, min, delta) = match axis {
-				Axis::Vertical => (ctx.mouse().cursor.y, rect.min.y, rect.dy()),
-				Axis::Horizontal => (ctx.mouse().cursor.x, rect.min.x, rect.dx()),
+				Axis::Vertical => (ctx.cursor().y, rect.min.y, rect.dy()),
+				Axis::Horizontal => (ctx.cursor().x, rect.min.x, rect.dx()),
 			};
 
 			model.set_percent(clamp01((pos - min) / delta));
@@ -75,7 +75,7 @@ impl<D, BG, F, H> Component<D> for Slider<BG, F, H>
 					rect.min.x + delta,
 					lerp(rect.min.y + delta, rect.max.y - delta, percent),
 				);
-				(Rect { min: p, max: p }).inset(-delta)
+				(Rect { min: p, max: p }).pad(-delta)
 			}
 			Axis::Horizontal => {
 				let delta = rect.dy() / 2.0;
@@ -83,9 +83,8 @@ impl<D, BG, F, H> Component<D> for Slider<BG, F, H>
 					lerp(rect.min.x + delta, rect.max.x - delta, percent),
 					rect.min.y + delta,
 				);
-				(Rect { min: p, max: p }).inset(-delta)
+				(Rect { min: p, max: p }).pad(-delta)
 			}
 		});
 	}
 }
-

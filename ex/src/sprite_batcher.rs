@@ -73,7 +73,8 @@ impl<'a> Batcher<'a> {
 		let (chain, images, events_loop) = Chain::new(|caps| {
 			ChainConfig {
 				format: caps.supported_formats[0].0,
-				present_mode: PresentMode::Fifo,
+				//present_mode: PresentMode::Fifo,
+				present_mode: PresentMode::Immediate,
 			}
 		});
 
@@ -98,18 +99,18 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 	type SystemData = (
 		FetchMut<'sys, Future>,
 		FetchMut<'sys, Vector2<f32>>,
-		Fetch<'sys, Graphics>,
+		FetchMut<'sys, Graphics>,
 		Fetch<'sys, Time>,
 		ReadStorage<'sys, Sprite>,
 	);
 
 	fn running_time(&self) -> RunningTime { RunningTime::Long }
 
-	fn run(&mut self, (mut future, mut wh, graphics, time, sprites): Self::SystemData) {
+	fn run(&mut self, (mut future, mut wh, mut graphics, time, sprites): Self::SystemData) {
 		#[cfg(feature = "profiler")] profile_scope!("rendering");
 		future.cleanup_finished();
 
-		let (image_num, mut cb) = {
+		let (image_num, cb) = {
 			#[cfg(feature = "profiler")] profile_scope!("swap");
 			let ren = &mut self.renderer;
 			match self.chain.run(|m| ren.refill(m).unwrap()) {
@@ -143,26 +144,29 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 			let mut cb = self.renderer.start_vg(cb).unwrap();
 			let color = [0xFF, 0xFF, 0xFF, 0x11];
 			{
-
 				fn draw_grid<T, F: FnMut(T, Vector2<f32>, Vector2<f32>) -> T>(mut t: T, wh: Vector2<f32>, s: isize, mut f: F) -> T {
 					let w = wh.x as isize / s + 1;
 					let h = wh.y as isize / s + 1;
+					let s = s as f32;
 					for y in -1..h {
-						let min = Vector2::new(0.0, y as f32 * s as f32);
-						let max = Vector2::new(wh.x, y as f32 * s as f32 + 1.0);
+						let y = y as f32 * s;
+						let min = Vector2::new(0.0, y);
+						let max = Vector2::new(wh.x, y + 1.0);
 						t = f(t, min, max);
 					}
 					for x in -1..w {
-						let min = Vector2::new(x as f32 * s as f32, 0.0);
-						let max = Vector2::new(x as f32 * s as f32 + 1.0, wh.x);
+						let x = x as f32 * s;
+						let min = Vector2::new(x, 0.0);
+						let max = Vector2::new(x + 1.0, wh.x);
 						t = f(t, min, max);
 					}
 					t
 				}
-				cb = draw_grid(cb, *wh, 24, |cb, min, max|
+				let wh = *wh;
+				cb = draw_grid(cb, wh, 24, |cb, min, max|
 					self.renderer.x_quad(cb, min, max, color).unwrap()
 				);
-				cb = draw_grid(cb, *wh, 24 * 4, |cb, min, max|
+				cb = draw_grid(cb, wh, 24 * 4, |cb, min, max|
 					self.renderer.x_quad(cb, min, max, color).unwrap()
 				);
 			}

@@ -2,6 +2,7 @@
 #![feature(conservative_impl_trait)]
 #![feature(generators, generator_trait)]
 #![feature(const_cell_new)]
+#![feature(associated_type_defaults)]
 
 extern crate math;
 
@@ -40,17 +41,35 @@ pub use self::toggle::*;
 pub use self::progress::*;
 pub use self::slider::*;
 
+pub trait ActiveWidget {
+	fn active_widget(&self) -> Option<Id>;
+	fn active_widget_mut(&mut self) -> &mut Option<Id>;
+
+	#[inline(always)]
+	fn is_active(&self, id: Id) -> bool {
+		self.active_widget() == Some(id)
+	}
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UiState {
-	pub active_widget: Option<Id>,
+	active_widget: Option<Id>,
 }
 
 impl UiState {
 	pub const fn new() -> Self {
 		Self { active_widget: None }
 	}
-	pub fn is_active(&self, id: Id) -> bool {
-		self.active_widget == Some(id)
+}
+
+impl ActiveWidget for UiState {
+	#[inline(always)]
+	fn active_widget(&self) -> Option<Id> {
+		self.active_widget
+	}
+	#[inline(always)]
+	fn active_widget_mut(&mut self) -> &mut Option<Id> {
+		&mut self.active_widget
 	}
 }
 
@@ -61,8 +80,8 @@ pub type TextureButton<D> = SimpleButton<TextureDrawer<D>>;
 pub type SimpleToggle<D> = Toggle<D, D, D>;
 pub type ColorToggle<D> = SimpleToggle<ColorDrawer<D>>;
 
-pub trait Component<D: ?Sized + Graphics> {
+pub trait Component<C, S> {
 	type Event;
 	type Model;
-	fn behavior(&self, ctx: &Context<D>, state: &mut UiState, model: &mut Self::Model) -> Self::Event;
+	fn behavior(&self, ctx: &C, state: &mut S, model: &mut Self::Model) -> Self::Event;
 }

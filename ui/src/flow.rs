@@ -143,8 +143,8 @@ pub fn layout<'a>(axis: Axis, size: Vector2<f32>, widgets: &'a [Flow]) -> impl I
 	}
 
 	let gen = move || {
-		let mut p = Vector2::zero();
-		let mut q = Vector2::zero();
+		let mut p = Point2::new(0.0, 0.0);
+		let mut q = Point2::new(0.0, 0.0);
 		for c in widgets.iter() {
 			match axis {
 				Axis::Horizontal => p.x = q.x,
@@ -174,7 +174,7 @@ pub fn layout<'a>(axis: Axis, size: Vector2<f32>, widgets: &'a [Flow]) -> impl I
 				Axis::Vertical   => q.x = stretch_across(q.x, size.x, c.expand_across, c.shrink_across),
 			}
 
-			yield Rect::with_coords(p.x, p.y, q.x, q.y);
+			yield Rect::from_min_max(p, q);
 		}
 	};
 

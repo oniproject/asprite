@@ -8,7 +8,7 @@ pub struct ContextBuilder<'a, 'b, D: ?Sized + Graphics + 'a>
 	where 'a: 'b
 {
 	root: &'b Context<'a, D>,
-	rect: Option<Rect<f32>>,
+	rect: Rect<f32>,
 	range: Option<usize>,
 }
 
@@ -16,23 +16,19 @@ impl<'a, 'b, D: ?Sized + Graphics + 'a> ContextBuilder<'a, 'b, D> {
 	fn new(root: &'b Context<'a, D>) -> Self {
 		Self {
 			root,
-			rect: None,
+			rect: root.rect.get(),
 			range: None,
 		}
 	}
 
 	pub fn with_rect(mut self, rect: Rect<f32>) -> Self {
-		self.rect = Some(rect);
+		self.rect = rect;
 		self
 	}
 
 	pub fn transform(mut self, anchor: Rect<f32>, offset: Rect<f32>) -> Self {
 		let rect = self.root.rect.get();
-		self.rect = Some(rect_transform(rect, anchor, offset));
-		self
-	}
-	pub fn stretch(mut self) -> Self {
-		self.rect = Some(self.root.rect.get());
+		self.rect = rect_transform(rect, anchor, offset);
 		self
 	}
 
@@ -43,15 +39,12 @@ impl<'a, 'b, D: ?Sized + Graphics + 'a> ContextBuilder<'a, 'b, D> {
 
 	pub fn build(self) -> Context<'a, D> {
 		let Self { root, rect, range } = self;
-
-		let rect = Cell::new(rect.unwrap_or(root.rect.get()));
 		let generator = range
 			.and_then(|range| root.generator.range(range))
 			.map(|gen| Rc::new(gen))
 			.unwrap_or_else(|| root.generator.clone());
-
 		Context {
-			rect,
+			rect: Cell::new(rect),
 			generator,
 			mouse: root.mouse,
 			draw: root.draw,
@@ -112,7 +105,7 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 		let generator = self.generator.clone();
 		let size = Vector2::new(self.rect().dx(), self.rect().dy());
 		layout(axis, size, widgets)
-			.map(move |rect| Cell::new(rect.pos(offset)))
+			.map(move |rect| Cell::new(rect.shift_xy(offset)))
 			.map(move |rect| Self {
 				rect,
 				draw,
@@ -125,20 +118,8 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 		self.draw
 	}
 
-	pub fn mouse(&self) -> &Mouse {
-		&self.mouse
-	}
-
-	pub fn rect(&self) -> Rect<f32> {
-		self.rect.get()
-	}
-
 	pub fn reserve_widget_id(&self) -> Id {
 		self.generator.next().unwrap()
-	}
-
-	pub fn is_cursor_in_rect(&self, rect: &Rect<f32>) -> bool {
-		self.mouse.check_cursor(&rect)
 	}
 
 	pub fn is_cursor_hovering(&self) -> bool {
@@ -156,10 +137,50 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 	*/
 }
 
+pub trait Events: MouseEvent {
+	fn rect(&self) -> Rect<f32>;
+
+	fn onhover<E, L>(&self, id: Id, rect: Rect<f32>, state: &mut UiState, enter: E, leave: L)
+		where E: FnOnce(), L: FnOnce(),
+	{
+		if self.is_cursor_in_rect(&rect) {
+			if state.active_widget == None {
+				state.active_widget = Some(id);
+				enter();
+			}
+		} else if state.active_widget == Some(id) {
+			state.active_widget = None;
+			leave();
+		}
+	}
+	fn onclick<F: FnOnce()>(&self, id: Id, rect: Rect<f32>, state: &mut UiState, f: F) {
+		let hovered = self.is_cursor_in_rect(&rect);
+		if hovered {
+			if state.active_widget == None && self.was_pressed() {
+				state.active_widget = Some(id);
+			}
+			if state.active_widget == Some(id) && self.was_released() {
+				state.active_widget = None;
+				f()
+			}
+		} else {
+			if state.active_widget == Some(id) {
+				state.active_widget = None;
+			}
+		}
+	}
+}
+
+impl<'a, D: ?Sized + Graphics + 'a> Events for Context<'a, D> {
+	fn rect(&self) -> Rect<f32> {
+		self.rect.get()
+	}
+}
+
 impl<'a, D: ?Sized + Graphics + 'a> Graphics for Context<'a, D> {
 	type Texture = D::Texture;
 	type Color = D::Color;
-	type Path = D::Path;
+	type Custom = D::Custom;
 
 	#[inline(always)]
 	fn texture_dimensions(&self, texture: &Self::Texture) -> Vector2<f32> {
@@ -191,18 +212,16 @@ impl<'a, D: ?Sized + Graphics + 'a> Graphics for Context<'a, D> {
 	}
 
 	#[inline(always)]
-	fn fill(&self, color: Self::Color, proj: Affine<f32>, path: Self::Path) {
-		self.draw.fill(color, proj, path)
+	fn custom(&self, cmd: Self::Custom) {
+		self.draw.custom(cmd)
 	}
 }
 
 impl<'a, D: ?Sized + Graphics + 'a> MouseEvent for Context<'a, D> {
 	#[inline(always)]
-	fn was_pressed(&self) -> bool {
-		self.mouse.was_pressed()
-	}
+	fn cursor(&self) -> Point2<f32> { self.mouse.cursor }
 	#[inline(always)]
-	fn was_released(&self) -> bool {
-		self.mouse.was_released()
-	}
+	fn was_pressed(&self) -> bool { self.mouse.was_pressed() }
+	#[inline(always)]
+	fn was_released(&self) -> bool { self.mouse.was_released() }
 }

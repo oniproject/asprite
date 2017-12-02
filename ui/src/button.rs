@@ -6,9 +6,9 @@ pub struct Button<P, H, N> {
 	pub normal: N,
 }
 
-impl<D, P, H, N> Component<D> for Button<P, H, N>
+impl<'a, D, P, H, N> Component<Context<'a, D>, UiState> for Button<P, H, N>
 	where
-		D: ?Sized + Graphics,
+		D: ?Sized + Graphics + 'a,
 		P: FrameDrawer<D>,
 		H: FrameDrawer<D>,
 		N: FrameDrawer<D>,

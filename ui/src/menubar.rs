@@ -107,7 +107,7 @@ impl<T: Clone, D: ?Sized + Graphics> Menu<D, T> {
 						&self.normal
 					};
 					ctx.quad(style.bg, &rect);
-					let inset = rect.inset_x(self.text_inset);
+					let inset = rect.pad_x(self.text_inset);
 					ctx.label_rect(inset, label_align, style.label, name);
 					ctx.label_rect(inset, shortcut_align, style.shortcut, shortcut);
 					rect
@@ -115,7 +115,7 @@ impl<T: Clone, D: ?Sized + Graphics> Menu<D, T> {
 				&Item::Separator => {
 					let rect = Rect { min, max: Point2::new(min.x + self.width, min.y + self.sep_height) };
 					ctx.quad(self.normal.bg, &rect);
-					ctx.quad(self.separator, &rect.inset_y(self.sep_inset));
+					ctx.quad(self.separator, &rect.pad_y(self.sep_inset));
 					rect
 				}
 				&Item::Menu(_) => unimplemented!(),

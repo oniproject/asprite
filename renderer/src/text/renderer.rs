@@ -107,7 +107,7 @@ pub struct Renderer {
 	vbo: VBO<Vertex>,
 	ibo: QuadIBO<u16>,
 
-	cache: Cache,
+	cache: Cache<'static>,
 	image: CacheImage,
 
 	pipeline: ArcPipeline<Vertex>,
@@ -232,7 +232,7 @@ impl Renderer {
 		where I: Iterator<Item=PositionedGlyph<'a>>
 	{
 		for g in glyphs {
-			self.cache.queue_glyph(0, g);
+			self.cache.queue_glyph(0, g.standalone());
 		}
 
 		let upload = &mut self.upload;

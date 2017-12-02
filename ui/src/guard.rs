@@ -1,6 +1,7 @@
 use std::mem::ManuallyDrop;
 use std::mem::{uninitialized, replace, drop};
 
+#[allow(unused_macros)]
 macro_rules! deref {
 	($e:expr) => {
 		let _guard = Guard::new(|| $e);
