@@ -13,8 +13,20 @@ pub struct Frame {
 	pub h: f32,
 }
 
-#[derive(Default)]
-pub struct Local(pub Affine<f32>);
+#[derive(Derivative)]
+#[derivative(Default)]
+pub struct Local {
+	#[derivative(Default(value="Vector2::zero()"))]
+	pub position: Vector2<f32>,
+	#[derivative(Default(value="0.0"))]
+	pub rotation: f32,
+	#[derivative(Default(value="Vector2::new(1.0, 1.0)"))]
+	pub scale: Vector2<f32>,
+	#[derivative(Default(value="Vector2::zero()"))]
+	pub skew: Vector2<f32>,
+	#[derivative(Default(value="Vector2::zero()"))]
+	pub pivot: Vector2<f32>,
+}
 
 #[derive(Default)]
 pub struct Global(pub Affine<f32>);
@@ -35,7 +47,8 @@ impl ::tsys::Transform for Transform {
 	type Global = Global;
 	#[inline]
 	fn convert(l: &Local) -> Global {
-		Global(l.0)
+		let aff = Affine::compose(l.position, l.pivot, l.scale, l.rotation, l.skew);
+		Global(aff)
 	}
 	#[inline]
 	fn combine(a: &Global, b: &Global) -> Global {
@@ -77,13 +90,14 @@ pub struct SpriteSystem;
 
 impl<'a> System<'a> for SpriteSystem {
 	type SystemData = (
-		ReadStorage<'a, Global>,
+		WriteStorage<'a, Global>,
 		WriteStorage<'a, Sprite>,
 	);
-	fn run(&mut self, (tr, mut sprites): Self::SystemData) {
+	fn run(&mut self, (mut tr, mut sprites): Self::SystemData) {
 		//use rayon::prelude::*;
-		((&tr).open().1, &mut sprites).join().for_each(|(t, s)| s.recalc_pos(&t.0))
 		//(&tr, &mut sprites).par_join().for_each(|(t, s)| s.recalc_pos(t))
+		((&tr).open().1, &mut sprites).join().for_each(|(t, s)| s.recalc_pos(&t.0));
+		(&mut tr).open().1.clear_flags();
 	}
 }
 

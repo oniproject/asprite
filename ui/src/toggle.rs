@@ -17,7 +17,7 @@ impl<'a, D, P, H, N> Component<Context<'a, D>, UiState> for Toggle<P, H, N>
 	fn behavior(&self, ctx: &Context<D>, state: &mut UiState, checked: &mut Self::Model) -> Self::Event {
 		let btn = if *checked { &self.checked } else { &self.unchecked };
 		let event = btn.behavior(ctx, state, &mut ());
-		if event { *checked = false; }
+		if event { *checked = !*checked; }
 		event
 	}
 }

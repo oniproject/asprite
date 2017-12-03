@@ -1,7 +1,3 @@
-
-#![allow(non_upper_case_globals)]
-
-
 use rand::distributions::{IndependentSample, Range};
 use rand::{thread_rng, Rng};
 use math::Vector2;
@@ -19,6 +15,9 @@ use state;
 use toml;
 use math::*;
 
+use editor::*;
+
+
 pub struct Velocity {
 	pub vel: Vector2<f32>,
 }
@@ -31,6 +30,8 @@ pub struct Scene {
 	pub textures: Vec<Texture>,
 	pub queue: Arc<Queue>,
 	pub area: Rect<f32>,
+	pub inspector: Inspector,
+	pub up: bool,
 }
 
 use std::io::prelude::*;
@@ -108,7 +109,7 @@ impl state::State<World, Event> for Scene {
 		use state::ExecEvent::*;
 		println!("arena state change event: {:?}", event);
 		match event {
-			Start | Resume => {
+			Start => {
 				if self.textures.is_empty() {
 					let mut future = world.write_resource::<Future>();
 					let src = Directory::new("./res");
@@ -125,27 +126,17 @@ impl state::State<World, Event> for Scene {
 					min: Point2::new(0.0, 0.0),
 					max: Point2::new(wh.x, wh.y),
 				};
+
+				let pos = Vector2::new(300.0, 300.0);
+				self.inspector.set_entity(Some(spawn_fixed(world, &self.textures, pos)));
 			}
-			Stop | Pause => {
-				world.delete_all();
-			}
+			Stop => world.delete_all(),
+			Resume | Pause => (),
 		}
 	}
 
 	fn update(&mut self, world: &mut World) -> SceneTransition<Event> {
-		let add = {
-			let count = world.entities().join().count();
-			let wh = world.read_resource::<Vector2<f32>>();
-			let mouse = world.read_resource::<Mouse>();
-			let graphics = world.read_resource::<graphics::Graphics>();
-			let dt = world.read_resource::<Time>().delta.seconds;
-			draw_ui(&graphics, *wh, *mouse, count, dt, &mut self.area)
-		};
-
-		for _ in 0..add {
-			spawn(world, &self.textures);
-		}
-
+		self.draw_ui(world);
 		None
 	}
 
@@ -168,29 +159,30 @@ impl state::State<World, Event> for Scene {
 
 		//use rayon::prelude::*;
 		(&mut speed, &mut sprites).join().for_each(|(speed, sprite)| {
-			let sprite = &mut sprite.0;
+			let sprite = &mut sprite.position;
 			let speed = &mut speed.vel;
-			sprite.t += *speed * dt;
+
+			*sprite += *speed * dt;
 			speed.y += gravity * dt;
 
-			if sprite.t.x > area.max.x {
+			if sprite.x > area.max.x {
 				speed.x *= -1.0;
-				sprite.t.x = area.max.x;
-			} else if sprite.t.x < area.min.x {
+				sprite.x = area.max.x;
+			} else if sprite.x < area.min.x {
 				speed.x *= -1.0;
-				sprite.t.x = area.min.x;
+				sprite.x = area.min.x;
 			}
 
-			if sprite.t.y > area.max.y {
+			if sprite.y > area.max.y {
 				speed.y *= -0.85;
-				sprite.t.y = area.max.y;
+				sprite.y = area.max.y;
 				let mut rng = thread_rng();
 				if rng.gen() {
 					speed.y -= between.ind_sample(&mut rng);
 				}
-			} else if sprite.t.y < area.min.y {
+			} else if sprite.y < area.min.y {
 				speed.y = 0.0;
-				sprite.t.y = area.min.y;
+				sprite.y = area.min.y;
 			}
 		});
 		None
@@ -205,8 +197,16 @@ impl state::State<World, Event> for Scene {
 					MouseInput { state, button, .. } => {
 						mouse_event_buttons(&mut world.write_resource::<Mouse>(), state, button);
 					}
-					MouseMoved { position, .. } => {
+					CursorMoved { position, .. } => {
 						mouse_event_movement(&mut world.write_resource::<Mouse>(), position);
+					}
+					KeyboardInput { input: winit::KeyboardInput { state, virtual_keycode: Some(key), .. }, .. } => {
+						use winit::VirtualKeyCode as K;
+						use winit::ElementState::*;
+						match key {
+							K::W => self.up = state == Pressed,
+							_ => (),
+						}
 					}
 					_ => (),
 				}
@@ -215,6 +215,32 @@ impl state::State<World, Event> for Scene {
 		}
 		None
 	}
+}
+
+fn spawn_fixed(world: &mut World, textures: &[Texture], pos: Vector2<f32>) -> specs::Entity {
+	let mut rng = thread_rng();
+	let tex = Range::new(0, textures.len());
+
+	let tex = tex.ind_sample(&mut rng);
+	let t = &textures[tex];
+
+	let mut sprite = Sprite::new(t.clone());
+	sprite.anchor.y = 1.0;
+	sprite.size.x = t.wh.0 as f32;
+	sprite.size.y = t.wh.1 as f32;
+
+	let mut local = Local::default();
+	local.position = pos;
+
+	let global = Global::default();
+
+	sprite.recalc_pos(&global.0);
+
+	world.create_entity()
+		.with(sprite)
+		.with(local)
+		.with(global)
+		.build()
 }
 
 fn spawn(world: &mut World, textures: &[Texture]) {
@@ -248,117 +274,53 @@ fn spawn(world: &mut World, textures: &[Texture]) {
 		.build();
 }
 
-mod theme {
-	use math::*;
-	use ui::*;
-	use graphics::Graphics;
+impl Scene {
+	fn draw_ui(&mut self, world: &mut specs::World) {
+		#[cfg(feature = "profiler")] profile_scope!("ui");
+		use ui::*;
 
-	const background: ColorDrawer<Graphics> = ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]);
-	const fill: ColorDrawer<Graphics> = ColorDrawer::new([0, 0, 0, 0xCC]);
+		let entity_count = world.entities().join().count();
+		let wh = *world.read_resource::<Vector2<f32>>();
+		let mouse = *world.read_resource::<Mouse>();
+		let graphics = world.read_resource::<Arc<graphics::Graphics>>().clone();
+		let dt = world.read_resource::<Time>().delta.seconds;
 
-	const normal: ColorDrawer<Graphics>  = ColorDrawer::new([0xFF, 0, 0xFF, 0xFF]);
-	const hovered: ColorDrawer<Graphics> = ColorDrawer::new([0xFF, 0, 0xFF, 0xCC]);
-	const pressed: ColorDrawer<Graphics> = ColorDrawer::new([0xFF, 0, 0, 0xFF]);
+		let area = &mut self.area;
 
-	const h: Progress<ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Progress { background, fill, axis: Axis::Horizontal };
-	const v: Progress<ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Progress { background, fill, axis: Axis::Vertical};
+		static mut STATE: UiState = UiState::new();
+		let state = unsafe { &mut STATE };
+		let last_active = state.active_widget();
 
-	pub const HSLIDER: Slider<ColorDrawer<Graphics>, ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Slider { progress: h, normal, hovered, pressed };
-	pub const VSLIDER: Slider<ColorDrawer<Graphics>, ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Slider { progress: v, normal, hovered, pressed };
+		let rect = Rect::from_min_dim(Point2::new(0.0, 0.0), wh);
 
-	pub const BTN: ColorButton<Graphics> = ColorButton {
-		normal:  ColorDrawer::new([0x99, 0x99, 0x99, 0x99]),
-		hovered: ColorDrawer::new([0, 0, 0x99, 0x99]),
-		pressed: ColorDrawer::new([0x99, 0, 0, 0x99]),
-	};
-
-	pub const TOGGLE: ColorToggle<Graphics> = Toggle {
-		checked: ColorButton {
-			normal:   ColorDrawer::new([0xFF, 0, 0, 0xCC]),
-			hovered:  ColorDrawer::new([0xFF, 0, 0, 0x99]),
-			pressed:  ColorDrawer::new([0xFF, 0, 0, 0x66]),
-		},
-		unchecked: ColorButton {
-			normal:   ColorDrawer::new([0xFF, 0xFF, 0xFF, 0xCC]),
-			hovered:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x99]),
-			pressed:  ColorDrawer::new([0xFF, 0xFF, 0xFF, 0x66]),
-		},
-	};
-
-	pub const MENUBAR: menubar::MenuBar<Graphics> = menubar::MenuBar {
-		normal_color: [0xFF; 4],
-		hover_color:  [0x00, 0x00, 0x00, 0xFF],
-		hover_bg:     [0xCC; 4],
-	};
-
-	#[derive(Clone, Debug)]
-	pub enum Command {
-		New, Open, Recent,
-		Save, SaveAs,
-		Quit,
-	}
-
-	pub const MENU: menubar::Menu<Graphics, Command> = menubar::Menu {
-		marker: ::std::marker::PhantomData,
-		normal: menubar::ItemStyle {
-			label:    [0x00, 0x00, 0x00, 0xFF],
-			shortcut: [0x00, 0x00, 0x00, 0x88],
-			bg:       [0xFF, 0xFF, 0xFF, 0xFF],
-		},
-		hovered: menubar::ItemStyle {
-			label:    [0x00, 0x00, 0x00, 0xFF],
-			shortcut: [0x00, 0x00, 0x00, 0x88],
-			bg:       [0xAA, 0xAA, 0xAA, 0xFF],
-		},
-
-		separator: [0x00, 0x00, 0x00, 0x99],
-
-		width: 150.0,
-
-		text_height: 20.0,
-		text_inset: 8.0,
-		sep_height: 5.0,
-		sep_inset: 2.0,
-	};
-}
-
-use self::theme::*;
-
-
-fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_count: usize, dt: f32, area: &mut Rect<f32>) -> usize {
-	#[cfg(feature = "profiler")] profile_scope!("ui");
-	use ui::*;
-
-	static mut STATE: UiState = UiState::new();
-	let state = unsafe { &mut STATE };
-	let last_active = state.active_widget();
-
-	let rect = Rect::from_min_dim(Point2::new(0.0, 0.0), wh);
-
-	let mut add = 0;
-	{
-		let ctx = Context::new(gr, rect, mouse);
+		let ctx = Context::new(&*graphics, rect, mouse);
 
 		let widgets = [
-			Flow::with_wh(100.0, 20.0).expand_across(),
-			Flow::with_wh(100.0, 40.0).expand_across(),
+			Flow::with_wh(100.0, MENUBAR_HEIGHT).expand_across(),
+			Flow::with_wh(100.0, TOOLBAR_HEIGHT).expand_across(),
 			Flow::with_wh(100.0, 7.0).along_weight(1.0).expand_along().expand_across(),
 			Flow::with_wh(100.0, 200.0).expand_across(),
-			Flow::with_wh(100.0, 20.0).expand_across(),
+			Flow::with_wh(100.0, STATUSBAR_HEIGHT).expand_across(),
 		];
 
 		let colors = [
-			[0x22, 0x28, 0x33, 0xFF],
-			[0x3f, 0x49, 0x57, 0xFF],
+			MENUBAR_BG,
+			TOOLBAR_BG,
 			[0u8; 4],
 			[0x3a, 0x43, 0x51, 0xFF],
-			[0x3F, 0x43, 0x50, 0xFF],
+			STATUSBAR_BG,
 		];
 		for (i, (ctx, color)) in ctx.vertical_flow(0.0, 0.0, &widgets).zip(colors.iter().cloned()).enumerate() {
 			ctx.quad(color, &ctx.rect());
 			match i {
 				0 => menubar(&ctx, state),
-				1 => toolbar(&ctx, state, &mut add),
+				1 => {
+					let mut add = 0;
+					toolbar(&ctx, state, &mut add);
+					for _ in 0..add {
+						spawn(world, &self.textures);
+					}
+				}
 
 				2 => { // main
 					*area = ctx.rect();
@@ -379,6 +341,12 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 
 					let id = ctx.reserve_widget_id();
 					ctx.onclick(id, clk, state, || println!("click {:?} {:?}", id, clk));
+
+					ctx.quad([0x99; 4], &hvr);
+					ctx.quad([0xAA; 4], &clk);
+
+					let (_, insp) = ctx.split_x(0.85);
+					self.inspector.run(&insp, state, world);
 				}
 
 				3 => xbar(&ctx, state),
@@ -392,7 +360,7 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 				//_ => unreachable!(),
 			}
 		}
-		if false {
+		if true {
 			let widgets = &[
 				Flow::with_wh(60.0, 40.0),
 				Flow::with_wh(60.0, 40.0),
@@ -419,20 +387,21 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 			ctx.quad([0xFF, 0, 0, 0xCC], &ctx.rect());
 
 			static mut TOGGLE_STATE: bool = false;
-			let toggle_state = unsafe { &mut TOGGLE_STATE };
 
 			static mut SLIDER_H: SliderModel = SliderModel {
 				min: 1.0,
 				current: 2.7,
 				max: 3.0,
 			};
-			let slider_state_h = unsafe { &mut SLIDER_H };
 
 			static mut SLIDER_V: SliderModel = SliderModel {
 				min: 1.0,
 				current: 2.7,
 				max: 3.0,
 			};
+
+			let toggle_state = unsafe { &mut TOGGLE_STATE };
+			let slider_state_h = unsafe { &mut SLIDER_H };
 			let slider_state_v = unsafe { &mut SLIDER_V };
 
 			let mut i = 0;
@@ -462,10 +431,9 @@ fn draw_ui(gr: &graphics::Graphics, wh: Vector2<f32>, mouse: ui::Mouse, entity_c
 			}
 		}
 
+
 		second_menubar(&ctx, state);
 	}
-
-	add
 }
 
 

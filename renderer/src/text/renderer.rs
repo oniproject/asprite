@@ -103,11 +103,11 @@ impl CacheImage {
 	}
 }
 
-pub struct Renderer {
+pub struct Renderer<'font> {
 	vbo: VBO<Vertex>,
 	ibo: QuadIBO<u16>,
 
-	cache: Cache<'static>,
+	cache: Cache<'font>,
 	image: CacheImage,
 
 	pipeline: ArcPipeline<Vertex>,
@@ -120,7 +120,7 @@ pub struct Renderer {
 	pub fbo: FBO,
 }
 
-impl Renderer {
+impl<'font> Renderer<'font> {
 	pub fn new<'a>(init: Init<'a>, width: u32, height: u32) -> Result<Self> {
 		let Init { queue, index: ibo, swapchain, images } = init;
 
@@ -228,11 +228,11 @@ impl Renderer {
 		}
 	}
 
-	pub fn cache_queued<'a, I>(&mut self, glyphs: I) -> Result<()>
-		where I: Iterator<Item=PositionedGlyph<'a>>
+	pub fn cache_queued<I>(&mut self, glyphs: I) -> Result<()>
+		where I: Iterator<Item=PositionedGlyph<'font>>
 	{
 		for g in glyphs {
-			self.cache.queue_glyph(0, g.standalone());
+			self.cache.queue_glyph(0, g);
 		}
 
 		let upload = &mut self.upload;
@@ -262,7 +262,7 @@ impl Renderer {
 	}
 }
 
-impl Ren for Renderer {
+impl<'font> Ren for Renderer<'font> {
 	#[inline(always)]
 	fn init_framebuffer(&mut self, images: &[Arc<SwapchainImage>]) -> Result<()> {
 		self.fbo.fill(images);

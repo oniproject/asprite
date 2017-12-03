@@ -22,6 +22,7 @@ extern crate serde;
 #[macro_use] extern crate serde_derive;
 
 extern crate specs;
+extern crate shred;
 extern crate hibitset;
 extern crate fnv;
 
@@ -35,6 +36,7 @@ extern crate vulkano;
 mod graphics;
 
 mod loader;
+mod editor;
 
 mod app;
 mod arena;
@@ -106,7 +108,13 @@ fn main() {
 	println!();
 	println!("run");
 
-	let arena = arena::Scene { textures: Vec::new(), queue, area: Rect::default() };
+	let arena = arena::Scene {
+		textures: Vec::new(),
+		queue,
+		area: Rect::default(),
+		inspector: editor::Inspector::new(),
+		up: false,
+	};
 	app.run(Box::new(arena), |world, states|
 		events_loop.poll_events(|event| states.event(world, event))
 	);

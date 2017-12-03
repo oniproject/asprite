@@ -27,6 +27,8 @@ lyon = "0.8"
 
 thread_profiler = { version = "0.1", optional = true }
 
+shred = "0.5"
+
 [features]
 #default = ["profiler"]
 profiler = ["thread_profiler/thread_profiler"]

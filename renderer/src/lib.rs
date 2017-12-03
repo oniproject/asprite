@@ -5,6 +5,7 @@
 #![feature(collection_placement)]
 #![feature(placement_in_syntax)]
 #![feature(try_trait)]
+#![feature(shared, unique)]
 
 #[cfg(feature = "profiler")]
 #[macro_use] extern crate thread_profiler;
@@ -12,7 +13,6 @@
 
 extern crate math;
 
-extern crate lyon;
 extern crate smallvec;
 
 #[macro_use] extern crate vulkano;
@@ -22,7 +22,6 @@ pub extern crate winit;
 #[macro_use] extern crate derivative;
 extern crate image;
 
-pub extern crate unicode_normalization;
 pub extern crate rusttype;
 
 use vulkano::image::swapchain::SwapchainImage;

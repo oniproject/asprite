@@ -1,7 +1,6 @@
 use super::*;
 use math::*;
 
-use std::cell::Cell;
 use std::rc::Rc;
 
 pub struct ContextBuilder<'a, 'b, D: ?Sized + Graphics + 'a>
@@ -16,7 +15,7 @@ impl<'a, 'b, D: ?Sized + Graphics + 'a> ContextBuilder<'a, 'b, D> {
 	fn new(root: &'b Context<'a, D>) -> Self {
 		Self {
 			root,
-			rect: root.rect.get(),
+			rect: root.rect,
 			range: None,
 		}
 	}
@@ -27,7 +26,7 @@ impl<'a, 'b, D: ?Sized + Graphics + 'a> ContextBuilder<'a, 'b, D> {
 	}
 
 	pub fn transform(mut self, anchor: Rect<f32>, offset: Rect<f32>) -> Self {
-		let rect = self.root.rect.get();
+		let rect = self.root.rect;
 		self.rect = rect_transform(rect, anchor, offset);
 		self
 	}
@@ -43,12 +42,7 @@ impl<'a, 'b, D: ?Sized + Graphics + 'a> ContextBuilder<'a, 'b, D> {
 			.and_then(|range| root.generator.range(range))
 			.map(|gen| Rc::new(gen))
 			.unwrap_or_else(|| root.generator.clone());
-		Context {
-			rect: Cell::new(rect),
-			generator,
-			mouse: root.mouse,
-			draw: root.draw,
-		}
+		Context { generator, rect, .. *root }
 	}
 }
 
@@ -56,17 +50,21 @@ impl<'a, 'b, D: ?Sized + Graphics + 'a> ContextBuilder<'a, 'b, D> {
 pub struct Context<'a, D: ?Sized + Graphics + 'a> {
 	draw: &'a D,
 	generator: Rc<Generator>,
-	rect: Cell<Rect<f32>>,
-	mouse: Mouse,
+	rect: Rect<f32>,
+	cursor: Point2<f32>,
+	pressed: bool,
+	released: bool,
 }
 
 impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 	pub fn new(draw: &'a D, rect: Rect<f32>, mouse: Mouse) -> Self {
 		Self {
-			rect: Cell::new(rect),
+			rect,
 			generator: Rc::new(Generator::new()),
-			mouse,
 			draw,
+			cursor: mouse.cursor,
+			pressed: mouse.pressed[0],
+			released: mouse.released[0],
 		}
 	}
 
@@ -76,6 +74,20 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 
 	pub fn sub<'b>(&'b self) -> ContextBuilder<'a, 'b, D> {
 		ContextBuilder::new(self)
+	}
+
+	pub fn split_x(&self, x: f32) -> (Self, Self) {
+		let (a, b) = self.rect.split_x(x);
+		let a = self.sub().with_rect(a).build();
+		let b = self.sub().with_rect(b).build();
+		(a, b)
+	}
+
+	pub fn split_y(&self, y: f32) -> (Self, Self) {
+		let (a, b) = self.rect.split_y(y);
+		let a = self.sub().with_rect(a).build();
+		let b = self.sub().with_rect(b).build();
+		(a, b)
 	}
 
 	pub fn horizontal_flow(&self, x: f32, y: f32, widgets: &'a [Flow]) -> impl Iterator<Item=Context<'a, D>> {
@@ -101,16 +113,22 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 		let offset = rect_align(self.rect(), Vector2::new(x, y), size);
 		let offset = Vector2::new(offset.x, offset.y);
 		let draw = self.draw;
-		let mouse = self.mouse;
 		let generator = self.generator.clone();
 		let size = Vector2::new(self.rect().dx(), self.rect().dy());
+
+		let cursor = self.cursor;
+		let pressed = self.pressed;
+		let released = self.released;
 		layout(axis, size, widgets)
-			.map(move |rect| Cell::new(rect.shift_xy(offset)))
+			.map(move |rect| rect.shift_xy(offset))
 			.map(move |rect| Self {
 				rect,
 				draw,
 				generator: generator.clone(),
-				mouse,
+				//mouse,
+				cursor,
+				pressed,
+				released,
 			})
 	}
 
@@ -123,18 +141,8 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 	}
 
 	pub fn is_cursor_hovering(&self) -> bool {
-		self.is_cursor_in_rect(&self.rect.get())
+		self.is_cursor_in_rect(&self.rect)
 	}
-
-	/*
-	pub fn static_cursor(&self, id: Id) {
-		if self.hovered_widget().is_none() {
-			if self.is_cursor_hovering() {
-				self.set_hovered_widget(id);
-			}
-		}
-	}
-	*/
 }
 
 pub trait Events: MouseEvent {
@@ -173,7 +181,7 @@ pub trait Events: MouseEvent {
 
 impl<'a, D: ?Sized + Graphics + 'a> Events for Context<'a, D> {
 	fn rect(&self) -> Rect<f32> {
-		self.rect.get()
+		self.rect
 	}
 }
 
@@ -219,9 +227,9 @@ impl<'a, D: ?Sized + Graphics + 'a> Graphics for Context<'a, D> {
 
 impl<'a, D: ?Sized + Graphics + 'a> MouseEvent for Context<'a, D> {
 	#[inline(always)]
-	fn cursor(&self) -> Point2<f32> { self.mouse.cursor }
+	fn cursor(&self) -> Point2<f32> { self.cursor }
 	#[inline(always)]
-	fn was_pressed(&self) -> bool { self.mouse.was_pressed() }
+	fn was_pressed(&self) -> bool { self.pressed }
 	#[inline(always)]
-	fn was_released(&self) -> bool { self.mouse.was_released() }
+	fn was_released(&self) -> bool { self.released }
 }

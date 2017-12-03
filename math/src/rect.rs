@@ -183,21 +183,21 @@ impl<S> Rect<S> where S: BaseNum {
 	pub fn pad(self, pad: S) -> Self {
 		Self {
 			min: Point2::new(self.min.x + pad, self.min.y + pad),
-			max: Point2::new(self.min.x - pad, self.min.y - pad),
+			max: Point2::new(self.max.x - pad, self.max.y - pad),
 		}
 	}
 
 	pub fn pad_x(self, pad: S) -> Self {
 		Self {
 			min: Point2::new(self.min.x + pad, self.min.y),
-			max: Point2::new(self.min.x - pad, self.min.y),
+			max: Point2::new(self.max.x - pad, self.max.y),
 		}
 	}
 
 	pub fn pad_y(self, pad: S) -> Self {
 		Self {
 			min: Point2::new(self.min.x, self.min.y + pad),
-			max: Point2::new(self.min.x, self.min.y - pad),
+			max: Point2::new(self.max.x, self.max.y - pad),
 		}
 	}
 }

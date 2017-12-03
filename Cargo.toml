@@ -20,7 +20,6 @@ thread_profiler = { version = "0.1", optional = true }
 
 [profile.dev]
 debug-assertions = false
-panic = 'abort'
 
 [profile.release]
 #opt-level = 1

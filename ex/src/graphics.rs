@@ -29,9 +29,10 @@ pub enum CustomCmd {
 }
 
 pub struct Graphics {
-	buffer: Mutex<Vec<Command>>,
+	buffer: Vec<Command>,
 	pub font: Font<'static>,
-	glyphs: Mutex<Vec<rusttype::PositionedGlyph<'static>>>,
+	glyphs: Vec<rusttype::PositionedGlyph<'static>>,
+	string_buf: String,
 	font_size: f32,
 	pub hovered: AtomicBool,
 	vg: Mutex<VertexBuffers<GpuFillVertex>>,
@@ -58,23 +59,23 @@ pub fn gen_frame_uv(r: Rect<f32>, tw: f32, th: f32) -> [[u16;2]; 4] {
 impl Graphics {
 	pub fn new(font: Font<'static>, font_size: f32) -> Self {
 		Self {
-			buffer: Mutex::new(Vec::new()),
+			buffer: Vec::new(),
 			hovered: AtomicBool::new(false),
 			vg: Mutex::new(VertexBuffers::new()),
-			glyphs: Mutex::new(Vec::new()),
+			glyphs: Vec::new(),
+			string_buf: String::new(),
 			font,
 			font_size,
 		}
 	}
 
 	#[inline(always)]
-	fn buf(&self) -> MutexGuard<Vec<Command>> {
-		self.buffer.lock().unwrap()
-	}
-
-	#[inline(always)]
 	fn push(&self, cmd: Command)  {
-		self.buf().push(cmd)
+		unsafe {
+			let buf = &self.buffer as (*const Vec<Command>) as (*mut Vec<Command>);
+			let buf = &mut *buf;
+			buf.push(cmd);
+		}
 	}
 
 	pub fn is_hovered(&self) -> bool {
@@ -88,8 +89,8 @@ impl Graphics {
 		const UV: [[u16; 2]; 4] = zero_uv();
 
 		let mut sprite = false;
-		let mut buf = self.buf();
 		let mut vg = self.vg.lock().unwrap();
+		let buf = &mut self.buffer;
 		for cmd in buf.drain(..) {
 			match cmd {
 			Command::Quad(c, r) => {
@@ -127,12 +128,13 @@ impl Graphics {
 
 				let start = start + Vector2::new(0.0, v.ascent + v.descent);
 				let start = point(start.x.trunc(), start.y.trunc());
+				let font = &self.font;
 				let iter = text.chars()
-					.filter_map(|c| self.font.glyph(c))
+					.filter_map(|c| font.glyph(c))
 					.scan((None, 0.0), |save, g| {
 						let g = g.scaled(scale);
 						if let Some(last) = save.0 {
-							save.1 += self.font.pair_kerning(scale, last, g.id());
+							save.1 += font.pair_kerning(scale, last, g.id());
 						}
 						let g = g.positioned(point(start.x + save.1, start.y));
 						save.1 += g.unpositioned().h_metrics().advance_width;
@@ -140,12 +142,11 @@ impl Graphics {
 						Some(g)
 					});
 
-				let mut glyphs = self.glyphs.lock().unwrap();
-				glyphs.clear();
-				glyphs.extend(iter);
+				self.glyphs.clear();
+				self.glyphs.extend(iter);
 
 				cb = if !sprite { cb } else { sprite = false; renderer.end_sprites(cb)? };
-				cb = renderer.glyphs(cb, &glyphs, c)?;
+				cb = renderer.glyphs(cb, &self.glyphs, c)?;
 			}
 
 			Command::Custom(CustomCmd::Fill(color, proj, path)) => {
@@ -163,10 +164,12 @@ impl Graphics {
 				cb = renderer.path(cb, &vg.vertices, &vg.indices)?;
 				vg.vertices.clear();
 				vg.indices.clear();
-				cb = renderer.end_vg(cb)?
+				cb = renderer.end_vg(cb)?;
 			}
 			}
 		}
+
+		self.string_buf.clear();
 
 		Ok(if !sprite { cb } else { renderer.end_sprites(cb)? })
 	}

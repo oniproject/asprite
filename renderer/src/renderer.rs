@@ -1,16 +1,63 @@
 use super::*;
 use math::*;
 
+use std::ptr::Shared;
+
 use rusttype::PositionedGlyph;
 
 pub trait Ren {
 	fn init_framebuffer(&mut self, images: &[Arc<SwapchainImage>]) -> Result<()>;
 	fn set_projection(&mut self, proj: Affine<f32>) -> Result<()>;
+
+	fn flush(&mut self) { unimplemented!(); }
+	fn start(&mut self) { unimplemented!(); }
+	fn stop(&mut self) { self.flush(); }
+}
+
+pub struct EmptyRenderer;
+
+impl Ren for EmptyRenderer {
+	fn init_framebuffer(&mut self, _images: &[Arc<SwapchainImage>]) -> Result<()> { Ok(()) }
+	fn set_projection(&mut self, _proj: Affine<f32>) -> Result<()> { Ok(()) }
+
+	fn flush(&mut self) {}
+	fn start(&mut self) {}
+	fn stop(&mut self) {}
+}
+
+struct RendererManager {
+	current: Shared<Ren>,
+	empty_renderer: EmptyRenderer,
+}
+
+impl RendererManager {
+	unsafe fn new() -> Self {
+		use std::mem::uninitialized;
+		let mut m = Self {
+			current: uninitialized(),
+			empty_renderer: EmptyRenderer,
+		};
+		m.current = Shared::new_unchecked(&mut m.empty_renderer as *mut Ren);
+		m
+	}
+
+	unsafe fn set_renderer(&mut self, renderer: *mut Ren) {
+		if self.current.as_ptr() != renderer {
+			self.current.as_mut().stop();
+			self.current = Shared::new_unchecked(renderer);
+			self.current.as_mut().start();
+		}
+	}
+
+	unsafe fn flush(&mut self) {
+		let renderer = &mut self.empty_renderer as *mut Ren;
+		self.set_renderer(renderer);
+	}
 }
 
 pub struct Renderer {
 	pub sprite: sprite::Renderer,
-	pub text: text::Renderer,
+	pub text: text::Renderer<'static>,
 	pub vg: vg::Renderer,
 
 	// for clear
@@ -20,6 +67,7 @@ pub struct Renderer {
 	pub last_wh: Vector2<f32>,
 	pub num: usize,
 }
+
 
 impl Renderer {
 	pub fn new(queue: Arc<Queue>, swapchain: Arc<Swapchain>, images: &[Arc<SwapchainImage>], capacity: usize, group_size: u32)
@@ -46,10 +94,10 @@ impl Renderer {
 
 		let last_wh = Vector2::zero();
 
-		Ok((
-			Self { sprite, text, vg, fbo, state, last_wh, queue, num: 0, },
-			Box::new(index_future)
-		))
+		Ok((Self {
+			sprite, text, vg,
+			fbo, state, last_wh, queue, num: 0,
+		}, Box::new(index_future)))
 	}
 
 	#[inline]
@@ -113,7 +161,6 @@ impl Renderer {
 		Ok(cb.end_render_pass()?)
 	}
 
-
 	#[inline]
 	pub fn start_vg(&mut self, cb: CmdBuild) -> Result<CmdBuild> {
 		let fb = self.vg.fbo.at(self.num);
@@ -127,18 +174,8 @@ impl Renderer {
 	}
 
 	#[inline]
-	pub fn text_lay<'a, 'font, 'text>(&mut self, font: &'font Font<'a>, size: f32, text: &'text str, x: f32, y: f32)
-		-> ::rusttype::LayoutIter<'font, 'text>
-		where 'text: 'font,
-	{
-		let size = ::rusttype::Scale::uniform(size);
-		let pos = ::rusttype::point(x, y);
-		font.layout(text, size, pos)
-	}
-
-	#[inline]
 	pub fn glyphs<'a>(&mut self, cb: CmdBuild, glyphs: &[PositionedGlyph<'a>], color: [u8; 4]) -> Result<CmdBuild> {
-		self.text.cache_queued(glyphs.iter().cloned())?;
+		self.text.cache_queued(glyphs.iter().map(|g| g.standalone()))?;
 		self.text.glyphs(glyphs.into_iter(), color);
 		Ok(self.text.flush(cb, &self.state, self.num)?)
 	}

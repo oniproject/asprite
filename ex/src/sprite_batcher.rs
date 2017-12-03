@@ -47,7 +47,7 @@ impl<'a, 'b> Bundle<'a, 'b> for BatcherBundle<'a> {
 
 
 		let font = base_font();
-		world.add_resource(Graphics::new(font, 14.0));
+		world.add_resource(Arc::new(Graphics::new(font, 14.0)));
 
 		world.add_resource(future);
 		world.add_resource(Vector2::new(1024.0f32, 786.0));
@@ -99,7 +99,7 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 	type SystemData = (
 		FetchMut<'sys, Future>,
 		FetchMut<'sys, Vector2<f32>>,
-		FetchMut<'sys, Graphics>,
+		FetchMut<'sys, Arc<Graphics>>,
 		Fetch<'sys, Time>,
 		ReadStorage<'sys, Sprite>,
 	);
@@ -163,10 +163,10 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 					t
 				}
 				let wh = *wh;
-				cb = draw_grid(cb, wh, 24, |cb, min, max|
+				cb = draw_grid(cb, wh, 30, |cb, min, max|
 					self.renderer.x_quad(cb, min, max, color).unwrap()
 				);
-				cb = draw_grid(cb, wh, 24 * 4, |cb, min, max|
+				cb = draw_grid(cb, wh, 30 * 4, |cb, min, max|
 					self.renderer.x_quad(cb, min, max, color).unwrap()
 				);
 			}
@@ -187,19 +187,23 @@ impl<'a, 'sys> System<'sys> for Batcher<'a> {
 			self.renderer.end_sprites(cb).unwrap()
 		};
 
-		if graphics.is_hovered() {
-			self.chain.window.window().set_cursor(winit::MouseCursor::Hand);
+		self.chain.window.window().set_cursor(if graphics.is_hovered() {
+			winit::MouseCursor::Hand
 		} else {
-			self.chain.window.window().set_cursor(winit::MouseCursor::Default);
-		}
+			winit::MouseCursor::Default
+		});
 
-		let cb = graphics.run(cb, &mut self.renderer).unwrap();
+		let cb = Arc::get_mut(&mut graphics).unwrap().run(cb, &mut self.renderer).unwrap();
 
+		use vulkano::command_buffer::AutoCommandBufferBuilder;
+		let cb = cb.build().unwrap();
+		future.then_execute(self.queue.clone(), cb);
+		let cb = AutoCommandBufferBuilder::new(self.queue.device().clone(), self.queue.family()).unwrap();
 
 		let cb = {
 			let time = &time;
 			self.fd.push_back(time.delta.seconds);
-			while self.fd.len() > 200 {
+			while self.fd.len() > 50 {
 				self.fd.pop_front();
 			}
 
