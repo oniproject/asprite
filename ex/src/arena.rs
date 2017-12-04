@@ -296,11 +296,11 @@ impl Scene {
 		let ctx = Context::new(&*graphics, rect, mouse);
 
 		let widgets = [
-			Flow::with_wh(100.0, MENUBAR_HEIGHT).expand_across(),
-			Flow::with_wh(100.0, TOOLBAR_HEIGHT).expand_across(),
-			Flow::with_wh(100.0, 7.0).along_weight(1.0).expand_along().expand_across(),
-			Flow::with_wh(100.0, 200.0).expand_across(),
-			Flow::with_wh(100.0, STATUSBAR_HEIGHT).expand_across(),
+			Flow::with_height(MENUBAR_HEIGHT).expand_across(),
+			Flow::with_height(TOOLBAR_HEIGHT).expand_across(),
+			Flow::auto(1.0),
+			Flow::with_height(200.0).expand_across(),
+			Flow::with_height(STATUSBAR_HEIGHT).expand_across(),
 		];
 
 		let colors = [
@@ -310,56 +310,62 @@ impl Scene {
 			[0x3a, 0x43, 0x51, 0xFF],
 			STATUSBAR_BG,
 		];
-		for (i, (ctx, color)) in ctx.vertical_flow(0.0, 0.0, &widgets).zip(colors.iter().cloned()).enumerate() {
-			ctx.quad(color, &ctx.rect());
-			match i {
-				0 => menubar(&ctx, state),
-				1 => {
-					let mut add = 0;
-					toolbar(&ctx, state, &mut add);
-					for _ in 0..add {
-						spawn(world, &self.textures);
-					}
-				}
 
-				2 => { // main
-					*area = ctx.rect();
-					let hvr = Rect {
-						min: Point2::new(0.0, 200.0),
-						max: Point2::new(300.0, 400.0),
-					};
-					let id = ctx.reserve_widget_id();
-					ctx.onhover(id, hvr, state,
-						|| println!("hover start {:?} {:?}", id, hvr),
-						|| println!("hover end   {:?} {:?}", id, hvr),
-					);
+		let mut iter = ctx.vertical_flow(0.0, 0.0, &widgets)
+			.zip(colors.iter().cloned())
+			.map(|(ctx, color)| {
+				ctx.quad(color, &ctx.rect());
+				ctx
+			});
 
-					let clk = Rect {
-						min: Point2::new(0.0, 400.0),
-						max: Point2::new(300.0, 600.0),
-					};
+		if let Some(ctx) = iter.next() {
+			menubar(&ctx, state);
+		}
 
-					let id = ctx.reserve_widget_id();
-					ctx.onclick(id, clk, state, || println!("click {:?} {:?}", id, clk));
-
-					ctx.quad([0x99; 4], &hvr);
-					ctx.quad([0xAA; 4], &clk);
-
-					let (_, insp) = ctx.split_x(0.85);
-					self.inspector.run(&insp, state, world);
-				}
-
-				3 => xbar(&ctx, state),
-
-				// statusbar
-				4 => {
-					let text = format!("count: {} last: {:?} ms: {:}", entity_count, last_active, dt);
-					ctx.label(0.0, 0.5, [0xFF; 4], &text);
-				}
-				_ => (),
-				//_ => unreachable!(),
+		if let Some(ctx) = iter.next() {
+			let mut add = 0;
+			toolbar(&ctx, state, &mut add);
+			for _ in 0..add {
+				spawn(world, &self.textures);
 			}
 		}
+
+		if let Some(ctx) = iter.next() {
+			*area = ctx.rect();
+			let hvr = Rect {
+				min: Point2::new(0.0, 200.0),
+				max: Point2::new(300.0, 400.0),
+			};
+			let id = ctx.reserve_widget_id();
+			ctx.onhover(id, hvr, state,
+				|| println!("hover start {:?} {:?}", id, hvr),
+				|| println!("hover end   {:?} {:?}", id, hvr),
+			);
+
+			let clk = Rect {
+				min: Point2::new(0.0, 400.0),
+				max: Point2::new(300.0, 600.0),
+			};
+
+			let id = ctx.reserve_widget_id();
+			ctx.onclick(id, clk, state, || println!("click {:?} {:?}", id, clk));
+
+			ctx.quad([0x99; 4], &hvr);
+			ctx.quad([0xAA; 4], &clk);
+
+			let (_, insp) = ctx.split_x(0.85);
+			self.inspector.run(&insp, state, world);
+		}
+
+		if let Some(ctx) = iter.next() {
+			xbar(&ctx, state);
+		}
+
+		if let Some(ctx) = iter.next() {
+			let text = format!("count: {} last: {:?} ms: {:}", entity_count, last_active, dt);
+			ctx.label(0.0, 0.5, [0xFF; 4], &text);
+		}
+
 		if true {
 			let widgets = &[
 				Flow::with_wh(60.0, 40.0),

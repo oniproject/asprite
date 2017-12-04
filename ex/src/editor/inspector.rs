@@ -41,8 +41,8 @@ impl Inspector {
 			max: Point2::new(rect.max.x, rect.min.y + BAR_TITLE_HEIGHT),
 		};
 
-		let header = ctx.sub().with_rect(header).build();
-		let body = ctx.sub().with_rect(body).build();
+		let header = ctx.sub_rect(header);
+		let body = ctx.sub_rect(body);
 
 		header.quad(BAR_TITLE_BG, &header.rect());
 		body.quad(BAR_BG, &body.rect());
@@ -53,30 +53,26 @@ impl Inspector {
 			let mut lay = EditorLayout::new(body, state);
 
 			component_flagged(world, e, |t: &mut Local| {
-				lay.label("Transform");
-				lay.incr_indent();
-				let mut upd = false;
-				upd |= lay.vector2("Position", &mut t.position, 5.0);
-				upd |= lay.angle("Rotation", &mut t.rotation);
-				upd |= lay.vector2("Scale", &mut t.scale, 0.1);
-				upd |= lay.vector2("Skew", &mut t.skew, 0.1);
-				upd |= lay.vector2("Pivot", &mut t.pivot, 1.0);
-				lay.decr_indent();
-				upd
+				lay.tree("Transform", |lay| {
+					lay.vector2("Position", &mut t.position, 5.0);
+					lay.angle("Rotation", &mut t.rotation);
+					lay.vector2("Scale", &mut t.scale, 0.1);
+					lay.vector2("Skew", &mut t.skew, 0.1);
+					lay.vector2("Pivot", &mut t.pivot, 1.0);
+				});
+				lay.check_reset()
 			});
 
 			component(world, e, |t: &mut Sprite| {
-				lay.label("Sprite");
-				let mut upd = false;
-				lay.incr_indent();
-				upd |= lay.vector2("Anchor", &mut t.anchor, 0.1);
-				lay.decr_indent();
-				upd
+				lay.tree("Sprite", |lay| {
+					lay.vector2("Anchor", &mut t.anchor, 0.1);
+				});
+				lay.check_reset()
 			});
 
 		} else {
 			header.label(0.5, 0.5, [0xFF; 4], "Inspector: None");
-			// please select entity
+			body.label(0.5, 0.5, [0xCC; 4], "Please select entity");
 		}
 	}
 }

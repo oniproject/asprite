@@ -46,7 +46,6 @@ impl<'a, 'b, D: ?Sized + Graphics + 'a> ContextBuilder<'a, 'b, D> {
 	}
 }
 
-
 pub struct Context<'a, D: ?Sized + Graphics + 'a> {
 	draw: &'a D,
 	generator: Rc<Generator>,
@@ -76,17 +75,29 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 		ContextBuilder::new(self)
 	}
 
+	pub fn sub_range(&self, range: usize) -> Self {
+		self.sub().with_range(range).build()
+	}
+
+	pub fn sub_rect(&self, rect: Rect<f32>) -> Self {
+		Self {
+			rect,
+			generator: self.generator.clone(),
+			.. *self
+		}
+	}
+
 	pub fn split_x(&self, x: f32) -> (Self, Self) {
 		let (a, b) = self.rect.split_x(x);
-		let a = self.sub().with_rect(a).build();
-		let b = self.sub().with_rect(b).build();
+		let a = self.sub_rect(a);
+		let b = self.sub_rect(b);
 		(a, b)
 	}
 
 	pub fn split_y(&self, y: f32) -> (Self, Self) {
 		let (a, b) = self.rect.split_y(y);
-		let a = self.sub().with_rect(a).build();
-		let b = self.sub().with_rect(b).build();
+		let a = self.sub_rect(a);
+		let b = self.sub_rect(b);
 		(a, b)
 	}
 

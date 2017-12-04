@@ -16,24 +16,22 @@ impl SliderModel {
 	}
 }
 
-pub struct Slider<BG, F, H> {
-	pub progress: Progress<BG, F>,
+pub struct Slider<H> {
 	pub pressed: H,
 	pub hovered: H,
 	pub normal: H,
+	pub axis: Axis,
 }
 
-impl<'a, D, BG, F, H> Component<Context<'a, D>, UiState> for Slider<BG, F, H>
+impl<'a, D, H> Component<Context<'a, D>, UiState> for Slider<H>
 	where
 		D: ?Sized + Graphics + 'a,
-		BG: FrameDrawer<D>,
-		F: FrameDrawer<D>,
 		H: FrameDrawer<D>,
 {
 	type Event = ();
 	type Model = SliderModel;
 	fn behavior(&self, ctx: &Context<D>, state: &mut UiState, model: &mut Self::Model) -> Self::Event {
-		let axis = self.progress.axis;
+		let axis = self.axis;
 
 		let id = ctx.reserve_widget_id();
 		let hovered = ctx.is_cursor_hovering();
@@ -65,9 +63,7 @@ impl<'a, D, BG, F, H> Component<Context<'a, D>, UiState> for Slider<BG, F, H>
 			&self.normal
 		};
 
-		let mut percent = model.percent();
-		self.progress.behavior(ctx, state, &mut percent);
-
+		let percent = model.percent();
 		handle.draw_frame(ctx.draw(), match axis {
 			Axis::Vertical => {
 				let delta = rect.dx() / 2.0;

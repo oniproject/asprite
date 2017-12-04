@@ -52,11 +52,11 @@ const normal: ColorDrawer<Graphics>  = ColorDrawer::new([0xFF, 0, 0xFF, 0xFF]);
 const hovered: ColorDrawer<Graphics> = ColorDrawer::new([0xFF, 0, 0xFF, 0xCC]);
 const pressed: ColorDrawer<Graphics> = ColorDrawer::new([0xFF, 0, 0, 0xFF]);
 
-const h: Progress<ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Progress { background, fill, axis: Axis::Horizontal };
-const v: Progress<ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Progress { background, fill, axis: Axis::Vertical};
+pub const HPROGRESS: Progress<ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Progress { background, fill, axis: Axis::Horizontal };
+pub const VPROGRESS: Progress<ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Progress { background, fill, axis: Axis::Vertical };
 
-pub const HSLIDER: Slider<ColorDrawer<Graphics>, ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Slider { progress: h, normal, hovered, pressed };
-pub const VSLIDER: Slider<ColorDrawer<Graphics>, ColorDrawer<Graphics>, ColorDrawer<Graphics>> = Slider { progress: v, normal, hovered, pressed };
+pub const HSLIDER: Slider<ColorDrawer<Graphics>> = Slider { normal, hovered, pressed, axis: Axis::Horizontal };
+pub const VSLIDER: Slider<ColorDrawer<Graphics>> = Slider { normal, hovered, pressed, axis: Axis::Vertical };
 
 pub const BTN: ColorButton<Graphics> = ColorButton {
 	normal:  ColorDrawer::new(BTN_NORMAL),
