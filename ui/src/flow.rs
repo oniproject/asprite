@@ -12,13 +12,48 @@ pub struct Flow {
 	pub shrink_along: bool,
 	pub expand_across: bool,
 	pub shrink_across: bool,
+
+	pub skip: bool,
 }
 
 impl Flow {
-	pub fn with_wh(w: f32, h: f32) -> Self {
-		Self::with_size(Vector2::new(w, h))
+	pub const fn with_width(w: f32) -> Self {
+		Self::with_size(Vector2 {
+			x: w,
+			y: 0.0,
+		})
 	}
-	pub fn with_size(size: Vector2<f32>) -> Self {
+	pub const fn with_height(h: f32) -> Self {
+		Self::with_size(Vector2 {
+			x: 0.0,
+			y: h,
+		})
+	}
+	pub const fn with_wh(w: f32, h: f32) -> Self {
+		Self::with_size(Vector2 {
+			x: w,
+			y: h,
+		})
+	}
+
+	pub const fn auto(along_weight: f32) -> Self {
+		Self {
+			along_weight,
+
+			measured_size: Vector2 {
+				x: 0.0,
+				y: 0.0,
+			},
+			expand_along: true,
+			shrink_along: true,
+			expand_across: true,
+			shrink_across: true,
+
+			skip: false,
+		}
+	}
+
+	pub const fn with_size(size: Vector2<f32>) -> Self {
 		Self {
 			measured_size: size,
 			along_weight: 0.0,
@@ -26,28 +61,47 @@ impl Flow {
 			shrink_along: false,
 			expand_across: false,
 			shrink_across: false,
+
+			skip: false,
 		}
 	}
 
-	pub fn along_weight(mut self, w: f32) -> Self {
-		self.along_weight = w;
-		self
+	pub const fn skip(self) -> Self {
+		Self {
+			skip: true,
+			.. self
+		}
 	}
-	pub fn expand_along(mut self) -> Self {
-		self.expand_along = true;
-		self
+
+	pub const fn along_weight(self, w: f32) -> Self {
+		Self {
+			along_weight: w,
+			.. self
+		}
 	}
-	pub fn shrink_along(mut self) -> Self {
-		self.shrink_along = true;
-		self
+	pub const fn expand_along(self) -> Self {
+		Self {
+			expand_along: true,
+			.. self
+		}
 	}
-	pub fn expand_across(mut self) -> Self {
-		self.expand_across = true;
-		self
+	pub const fn shrink_along(self) -> Self {
+		Self {
+			shrink_along: true,
+			.. self
+		}
 	}
-	pub fn shrink_across(mut self) -> Self {
-		self.shrink_across = true;
-		self
+	pub const fn expand_across(self) -> Self {
+		Self {
+			expand_across: true,
+			.. self
+		}
+	}
+	pub const fn shrink_across(self) -> Self {
+		Self {
+			shrink_across: true,
+			.. self
+		}
 	}
 }
 
@@ -174,7 +228,9 @@ pub fn layout<'a>(axis: Axis, size: Vector2<f32>, widgets: &'a [Flow]) -> impl I
 				Axis::Vertical   => q.x = stretch_across(q.x, size.x, c.expand_across, c.shrink_across),
 			}
 
-			yield Rect::from_min_max(p, q);
+			if !c.skip {
+				yield Rect::from_min_max(p, q);
+			}
 		}
 	};
 
