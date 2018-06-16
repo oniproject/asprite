@@ -8,6 +8,7 @@ use sdl2::video::WindowContext;
 use sdl2::ttf::{self, Sdl2TtfContext};
 use sdl2::gfx::primitives::{DrawRenderer, ToColor};
 use sdl2::rect;
+use sdl2::image::LoadTexture;
 
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
@@ -21,7 +22,8 @@ use ui;
 use math::*;
 
 use line::*;
-use button::*;
+use math::*;
+use ui::Graphics;
 
 pub type TextureCanvas = WindowCanvas;
 
@@ -63,9 +65,7 @@ pub struct Bundle;
 impl world::Bundle for Bundle {
     fn add_to_world(self, world: &mut World) {
         use line::*;
-        use button::*;
         world.register::<Line>();
-        world.register::<Button>();
         world.add_resource::<bool>(false);
     }
 }
@@ -79,7 +79,7 @@ pub struct Canvas {
     video: VideoSubsystem,
     pub canvas: RefCell<WindowCanvas>,
     events: EventPump,
-    font: ttf::Font<'static, 'static>,
+    //font: ttf::Font<'static, 'static>,
     texture_creator: TextureCreator<WindowContext>,
     textures: HashMap<usize, (Texture, u32, u32)>,
     liner: Liner,
@@ -95,7 +95,7 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    pub fn new(title: &str, w: u32, h: u32, font: &str) -> Self {
+    pub fn new(title: &str, w: u32, h: u32) -> Self {
         let sdl = init().unwrap();
         let video = sdl.video().unwrap();
         let window = video.window(title, w, h)
@@ -104,10 +104,12 @@ impl Canvas {
             .build()
             .unwrap();
 
-        let ttf = Box::leak(Box::new(ttf::init().unwrap()));
-        let font = ttf.load_font(font, 12).unwrap();
+        //let ttf = Box::leak(Box::new(ttf::init().unwrap()));
+        //let font = ttf.load_font(font, 12).unwrap();
 
-        let mut canvas = window.into_canvas().build().unwrap();
+        let mut canvas = window.into_canvas()
+            .software()
+            .build().unwrap();
 
         let texture_creator = canvas.texture_creator();
 
@@ -122,7 +124,7 @@ impl Canvas {
             video,
             canvas: RefCell::new(canvas),
             events,
-            font,
+            //font,
 
             last_texture_id: AtomicUsize::new(0),
             texture_creator,
@@ -147,16 +149,28 @@ impl Canvas {
     }
 
     pub fn vline(&self, x: i16, y1: i16, y2: i16, color: u32) {
-        self.canvas.borrow_mut().vline(x, y1, y2, color);
+        self.canvas.borrow_mut().vline(x, y1, y2, color).unwrap();
     }
 
     pub fn hline(&self, x1: i16, x2: i16, y: i16, color: u32) {
-        self.canvas.borrow_mut().hline(x1, x2, y, color);
+        self.canvas.borrow_mut().hline(x1, x2, y, color).unwrap();
     }
 
-    pub fn create_texture(&mut self, id: usize, w: u32, h: u32) -> usize {
-        let id = self.last_texture_id.fetch_add(1, Ordering::Relaxed);
+    fn gen_id<T: Into<Option<usize>>>(&mut self, id: T) -> usize {
+        id.into().unwrap_or_else(|| self.last_texture_id.fetch_add(1, Ordering::Relaxed))
+    }
 
+    pub fn load_texture<T: Into<Option<usize>>, P: AsRef<Path>>(&mut self, id: T, filename: P) -> usize {
+        let id = self.gen_id(id);
+        let mut texture = self.texture_creator.load_texture(filename).unwrap();
+        texture.set_blend_mode(BlendMode::Blend);
+        let TextureQuery { width, height, .. } = texture.query();
+        self.textures.insert(id, (texture, width, height));
+        id
+    }
+
+    pub fn create_texture<T: Into<Option<usize>>>(&mut self, id: T, w: u32, h: u32) -> usize {
+        let id = self.gen_id(id);
         let mut texture = self.texture_creator
             .create_texture_target(PixelFormatEnum::RGBA8888, w, h).unwrap();
         texture.set_blend_mode(BlendMode::Blend);
@@ -164,13 +178,6 @@ impl Canvas {
         self.textures.insert(id, (texture, width, height));
         id
     }
-
-    /*
-    pub fn canvas<F>(&mut self, id: usize, cb: F)
-        where F: FnOnce()
-    {
-    }
-    */
 
     pub fn canvas<F>(&mut self, id: usize, f: F)
         where F: FnOnce(&mut TextureCanvas, u32, u32)
@@ -187,23 +194,123 @@ impl Canvas {
     pub fn image_zoomed(&mut self, id: usize, pos: Point2<i16>, zoom: i16) {
         let (ref texture, w, h) = self.textures[&id];
         let (w, h) = (w as i16, h as i16);
-        let src = rect!(pos.x, pos.y, w, h);
+        let src = rect!(0, 0, w, h);
         let dst = rect!(pos.x, pos.y, w * zoom, h * zoom);
 
         self.canvas.borrow_mut().copy(texture, src, dst).unwrap();
     }
-
 }
 
 impl<'a> System<'a> for Canvas {
     type SystemData = (
         Write<'a, bool>,
+        Write<'a, Option<::editor::App>>,
         WriteStorage<'a, Line>,
-        WriteStorage<'a, Button>,
         Entities<'a>,
     );
 
-    fn run(&mut self, (mut quit, mut lines, mut btns, entities): Self::SystemData) {
+    fn run(&mut self, (mut quit, mut app, mut lines, entities): Self::SystemData) {
+
+        /*
+        if let Some(ref mut app) = &mut *app {
+            if let Some(event) = self.events.wait_event_timeout(30) {
+                app.event(event.clone());
+                for event in self.events.poll_iter() {
+                    app.event(event.clone());
+                }
+            }
+        }
+        */
+
+        {
+            use std::iter;
+            let poll = self.events.wait_event_timeout(60)
+                .into_iter()
+                .chain(self.events.poll_iter());
+
+            for event in poll {
+                if let Some(ref mut app) = &mut *app {
+                    app.event(event.clone());
+                }
+                match event {
+                    Event::Quit {..} => {
+                        *quit = true;
+                        return;
+                    }
+
+                    Event::KeyDown {keycode: Some(keycode), ..} => {
+                        if keycode == Keycode::Escape {
+                            *quit = true;
+                            return;
+                        } else if keycode == Keycode::Space {
+                            println!("space down");
+                            /*
+                            for i in 0..400 {
+                                self.canvas.pixel(i as i16, i as i16, 0xFF000FFu32).unwrap();
+                            }
+                            self.canvas.present();
+                            */
+                        }
+                    }
+
+                    Event::MouseButtonDown { x, y, .. } => {
+                        let (x, y) = (x as i16, y as i16);
+                        /*
+                        for b in (&mut btns).join() {
+                            b.mouse((x, y), Some(true))
+                        }
+                        */
+                        self.liner.down(x, y);
+
+                        self.mouse.cursor = Point2::new(x as f32, y as f32);
+                        self.mouse.pressed[0] = true;
+                    }
+                    Event::MouseButtonUp {x, y, ..} => {
+                        let (x, y) = (x as i16, y as i16);
+                        /*
+                        for b in (&mut btns).join() {
+                            b.mouse((x, y), Some(false))
+                        }
+                        */
+                        self.liner.up(x, y);
+
+                        self.mouse.cursor = Point2::new(x as f32, y as f32);
+                        self.mouse.released[0] = true;
+                    }
+                    Event::MouseMotion { x, y, .. } => {
+                        self.mouse.cursor = Point2::new(x as f32, y as f32);
+
+                        let (x, y) = (x as i16, y as i16);
+                        /*
+                        for b in (&mut btns).join() {
+                            b.mouse((x, y), None)
+                        }
+                        */
+                        self.liner.mov(x, y);
+
+                        if let Some((start, end)) = self.liner.next() {
+                            if start == end {
+                                println!("dup");
+                                return;
+                            }
+
+                            let r = end.0 as u8;
+                            let g = end.1 as u8;
+                            let color = Color::RGB(r, g, 255);
+
+                            let entry = entities.create();
+                            lines.insert(entry, Line {
+                                start, end, color,
+                            }).unwrap();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+
+
         let cur = if self.hovered.load(Ordering::Relaxed) {
             SystemCursor::Hand
         } else {
@@ -212,8 +319,12 @@ impl<'a> System<'a> for Canvas {
         self.cursors[&cur].set();
         self.hovered.store(false, Ordering::Relaxed);
 
-        self.canvas.get_mut().set_draw_color(Color::RGB(0xFF, 0xFF, 0xFF));
-        self.canvas.get_mut().clear();
+        /*
+        {
+            let canvas = self.canvas.get_mut();
+            canvas.set_draw_color(Color::RGB(0xFF, 0xFF, 0xFF));
+            canvas.clear();
+        }
 
         for l in lines.join() {
             l.paint(self)
@@ -222,100 +333,19 @@ impl<'a> System<'a> for Canvas {
         for b in btns.join() {
             b.paint(self)
         }
+        */
 
         {
             let m = self.mouse;
-            ::editor::draw_ui(self, m)
+            if let Some(ref mut app) = &mut *app {
+                app.draw_ui(self, m);
+            }
+            self.mouse.cleanup();
+            self.canvas.get_mut().present();
         }
-        self.mouse.cleanup();
-
-        self.canvas.get_mut().present();
-
-        if false {
-            let cv = ::std::mem::replace(self.canvas.get_mut(), unsafe {
-                ::std::mem::zeroed()
-            });
-
-            let w = cv.into_window();
-            let xx = w.into_canvas().build().unwrap();
-
-            let cv = ::std::mem::replace(self.canvas.get_mut(), xx);
-            ::std::mem::forget(cv);
-        }
-
 
         self.vec.get_mut().clear();
 
-        for event in self.events.poll_iter() {
-            match event {
-                Event::Quit {..} => {
-                    *quit = true;
-                    return;
-                }
-
-                Event::KeyDown {keycode: Some(keycode), ..} => {
-                    if keycode == Keycode::Escape {
-                        *quit = true;
-                        return;
-                    } else if keycode == Keycode::Space {
-                        println!("space down");
-                        /*
-                        for i in 0..400 {
-                            self.canvas.pixel(i as i16, i as i16, 0xFF000FFu32).unwrap();
-                        }
-                        self.canvas.present();
-                        */
-                    }
-                }
-
-                Event::MouseButtonDown { x, y, .. } => {
-                    let (x, y) = (x as i16, y as i16);
-                    for b in (&mut btns).join() {
-                        b.mouse((x, y), Some(true))
-                    }
-                    self.liner.down(x, y);
-
-                    self.mouse.cursor = Point2::new(x as f32, y as f32);
-                    self.mouse.pressed[0] = true;
-                }
-                Event::MouseButtonUp {x, y, ..} => {
-                    let (x, y) = (x as i16, y as i16);
-                    for b in (&mut btns).join() {
-                        b.mouse((x, y), Some(false))
-                    }
-                    self.liner.up(x, y);
-
-                    self.mouse.cursor = Point2::new(x as f32, y as f32);
-                    self.mouse.released[0] = true;
-                }
-                Event::MouseMotion { x, y, .. } => {
-                    self.mouse.cursor = Point2::new(x as f32, y as f32);
-
-                    let (x, y) = (x as i16, y as i16);
-                    for b in (&mut btns).join() {
-                        b.mouse((x, y), None)
-                    }
-                    self.liner.mov(x, y);
-
-                    if let Some((start, end)) = self.liner.next() {
-                        if start == end {
-                            println!("dup");
-                            return;
-                        }
-
-                        let r = end.0 as u8;
-                        let g = end.1 as u8;
-                        let color = Color::RGB(r, g, 255);
-
-                        let entry = entities.create();
-                        lines.insert(entry, Line {
-                            start, end, color,
-                        }).unwrap();
-                    }
-                }
-                _ => {}
-            }
-        }
     }
 }
 
@@ -345,30 +375,41 @@ fn get_centered_rect(rect_width: u32, rect_height: u32, cons_width: u32, cons_he
 }
 */
 
-use math::*;
-use ui::Graphics;
-
 impl Graphics for Canvas {
     type Texture = usize;
     type Color = u32;
 
-    fn texture_dimensions(&self, texture: &Self::Texture) -> Vector2<f32> {
-        unimplemented!()
+    fn texture_dimensions(&self, id: &Self::Texture) -> Vector2<f32> {
+        let (_, w, h) = self.textures[&id];
+        Vector2::new(w as f32, h as f32)
     }
 
     fn quad(&self, color: Self::Color, rect: &Rect<f32>) {
         let sx = rect.min.x as i16;
         let sy = rect.min.y as i16;
-        let ex = rect.max.x as i16;
-        let ey = rect.max.y as i16;
+        let ex = rect.max.x as i16 - 1;
+        let ey = rect.max.y as i16 - 1;
         let color = Self::color(color);
-        self.canvas.borrow_mut().box_(sx, sy, ex, ey, color).expect("draw_box");
+        self.canvas.borrow_mut().box_(sx, sy, ex, ey, color)
+            .expect("draw_box");
     }
 
-    fn texture(&self, texture: &Self::Texture, rect: &Rect<f32>) {
+    fn texture(&self, id: &Self::Texture, rect: &Rect<f32>) {
+        let (ref texture, w, h) = self.textures[&id];
+        let src = rect!(0, 0, w, h);
+        let dst = rect!(rect.min.x, rect.min.y, rect.dx(), rect.dy());
+        self.canvas.borrow_mut()
+            .copy(texture, src, dst)
+            .expect("copy texture");
     }
 
-    fn texture_frame(&self, texture: &Self::Texture, rect: &Rect<f32>, frame: &Rect<f32>) {
+    fn texture_frame(&self, id: &Self::Texture, rect: &Rect<f32>, frame: &Rect<f32>) {
+        let (ref texture, _, _) = self.textures[&id];
+        let src = rect!(frame.min.x, frame.min.y, frame.dx(), frame.dy());
+        let dst = rect!(rect.min.x, rect.min.y, rect.dx(), rect.dy());
+        self.canvas.borrow_mut()
+            .copy(texture, src, dst)
+            .expect("copy texture");
     }
 
     fn measure_text(&self, text: &str) -> Vector2<f32> {

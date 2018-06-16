@@ -2,7 +2,7 @@ use math::*;
 //use gui::*;
 //
 use ui::*;
-use theme::*;
+use editor::theme::*;
 
 use render::*;
 

@@ -4,6 +4,21 @@ use math::*;
 use ui::*;
 use render::Canvas;
 
+
+pub const TRANSPARENT: u32 = 0x000000_00;
+
+pub const EDITOR_SPRITE_ID: usize = 777;
+pub const EDITOR_PREVIEW_ID: usize = 888;
+
+pub const GRID_COLOR: u32 = 0xFF0000_AA;
+pub const CORNER_COLOR: u32 = 0x00FF00_AA;
+
+pub const ICON_TOOL_FREEHAND: usize = 1000_0;
+pub const ICON_TOOL_FILL: usize = 1000_1;
+pub const ICON_TOOL_CIRC: usize = 1000_2;
+pub const ICON_TOOL_RECT: usize = 1000_3;
+pub const ICON_TOOL_PIP: usize = 1000_4;
+
 pub const fn rgba(c: u32) -> u32 {
     ((c >> 24) & 0xFF) <<  0 |
     ((c >> 16) & 0xFF) <<  8 |

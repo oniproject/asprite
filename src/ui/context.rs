@@ -233,6 +233,7 @@ impl<'a, D: ?Sized + Graphics + 'a> Graphics for Context<'a, D> {
     fn clip(&self, r: Rect<i16>) {
         self.draw.clip(r)
     }
+    #[inline(always)]
     fn unclip(&self) {
         self.draw.unclip()
     }

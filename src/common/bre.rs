@@ -1,4 +1,4 @@
-use super::*;
+use math::*;
 
 use std::iter::Step;
 

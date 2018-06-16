@@ -2,116 +2,297 @@ use ui;
 use render::Canvas;
 use math::*;
 
-mod theme;
+pub mod theme;
 mod layout;
 
 use self::theme::*;
 
+use ui::*;
+use ui::menubar::MenuBarModel;
 
-pub fn draw_ui(canvas: &mut Canvas, mouse: ui::Mouse) {
-    use ui::*;
+use ed::CurrentTool;
+use tool::PrimitiveMode;
+use sdl2;
 
-    /*
-    let entity_count = world.entities().join().count();
-    let wh = *world.read_resource::<Vector2<f32>>();
-    let mouse = *world.read_resource::<Mouse>();
-    let graphics = world.read_resource::<Arc<graphics::Graphics>>().clone();
-    let dt = world.read_resource::<Time>().delta.seconds;
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::mouse::MouseButton;
 
-    let area = &mut self.area;
-    */
+use math::*;
 
-    let dt = 1.5;
-    let entity_count = 500;
+//use tool::*;
+use ed::*;
+use cmd::*;
+//use theme::*;
+use ui::*;
+use render;
 
-    let wh = Vector2::new(::SCREEN_WIDTH as f32, ::SCREEN_HEIGHT as f32);
+use cmd::{Sprite, ImageCell, image_cell};
+use ed::Tools;
 
-    let rect = Rect::from_min_dim(Point2::new(0.0, 0.0), wh);
-    let ctx = Context::new(canvas, rect, mouse);
+use undo::Record;
 
-    static mut STATE: UiState = UiState::new();
-    let state = unsafe { &mut STATE };
-    let last_active = state.active_widget();
+pub struct App {
+    pub init: bool,
+    pub update: bool,
+    pub quit: bool,
 
-    let widgets = [
-        Flow::with_height(MENUBAR_HEIGHT).expand_across(),
-        Flow::with_height(TOOLBAR_HEIGHT).expand_across(),
-        Flow::auto(1.0),
-        Flow::with_height(200.0).expand_across(),
-        Flow::with_height(STATUSBAR_HEIGHT).expand_across(),
-    ];
+    pub files: Vec<ImageCell>,
+    pub current: usize,
 
-    let colors = [
-        MENUBAR_BG,
-        TOOLBAR_BG,
-        rgba(0),
-        rgba(0x3a4351_FF),
-        STATUSBAR_BG,
-    ];
+    pub tools: Tools,
 
-    let mut iter = ctx.vertical_flow(0.0, 0.0, &widgets)
-        .zip(colors.iter().cloned())
-        .map(|(ctx, color)| {
-            ctx.quad(color, &ctx.rect());
-            ctx
-        });
+    pub menubar: MenuBarModel,
+}
 
-    if let Some(ctx) = iter.next() {
-        menubar(&ctx, state);
-    }
+impl App {
+    pub fn new(sprite: Sprite) -> Self {
+        use tool::Context;
+        let files = vec![image_cell(sprite)];
 
-    if let Some(ctx) = iter.next() {
-        let mut add = 0;
-        toolbar(&ctx, state, &mut add);
-        /*
-        for _ in 0..add {
-            spawn(world, &self.textures);
+        let mut tools = Tools::new(1, Point2::new(300, 200), files[0].clone());
+        tools.editor.sync();
+        Self {
+            init: false,
+
+            update: true,
+            quit: false,
+            current: 0,
+            files,
+            tools,
+            menubar: MenuBarModel { open_root: None },
         }
-        */
     }
 
-    if let Some(ctx) = iter.next() {
-        //*area = ctx.rect();
+    pub fn event(&mut self, event: sdl2::event::Event) {
+        use tool::*;
 
-        let hvr = Rect {
-            min: Point2::new(0.0, 200.0),
-            max: Point2::new(300.0, 400.0),
-        };
-        let id = ctx.reserve_widget_id();
-        ctx.onhover(id, hvr, state,
-            || println!("hover start {:?} {:?}", id, hvr),
-            || println!("hover end   {:?} {:?}", id, hvr),
-        );
+        self.update = true;
+        match event {
+        Event::MouseMotion {x, y, xrel, yrel, ..} => {
+            let p = Point2::new(x as i16, y as i16);
+            //render.mouse(Mouse::Move(p));
+            let p = Point2::new(x as i32, y as i32);
+            let v = Vector2::new(xrel as i32, yrel as i32);
+            self.tools.mouse_move(p, v);
+        }
 
-        let clk = Rect {
-            min: Point2::new(0.0, 400.0),
-            max: Point2::new(300.0, 600.0),
-        };
+        Event::Quit {..} => self.quit = true,
 
-        let id = ctx.reserve_widget_id();
-        ctx.onclick(id, clk, state, || println!("click {:?} {:?}", id, clk));
+        Event::KeyUp { keycode: Some(keycode), .. } => {
+            match keycode {
+                Keycode::LShift |
+                Keycode::RShift =>
+                    self.tools.input(Input::Special(false)),
+                Keycode::LCtrl |
+                Keycode::RCtrl =>
+                    self.tools.drag = false,
+                _ => (),
+            }
+        }
 
-        ctx.quad(rgba(0x999999_99), &hvr);
-        ctx.quad(rgba(0xAAAAAA_AA), &clk);
+        Event::KeyDown { keycode: Some(keycode), keymod, ..} => {
+            let shift = keymod.intersects(sdl2::keyboard::LSHIFTMOD | sdl2::keyboard::RSHIFTMOD);
+            let _alt = keymod.intersects(sdl2::keyboard::LALTMOD | sdl2::keyboard::RALTMOD);
+            let _ctrl = keymod.intersects(sdl2::keyboard::LCTRLMOD | sdl2::keyboard::RCTRLMOD);
+            match keycode {
+                Keycode::Escape => self.tools.input(Input::Cancel),
 
-        /*
+                Keycode::Plus  | Keycode::KpPlus  => self.tools.zoom_from_center(1),
+                Keycode::Minus | Keycode::KpMinus => self.tools.zoom_from_center(-1),
+
+                Keycode::LShift |
+                Keycode::RShift =>
+                    self.tools.input(Input::Special(true)),
+
+                Keycode::LCtrl |
+                Keycode::RCtrl =>
+                    self.tools.drag = true,
+
+                Keycode::U => self.tools.undo(),
+                Keycode::R => self.tools.redo(),
+
+                //Keycode::Tab if shift => render.key = Some(gui::Key::PrevWidget),
+                //Keycode::Tab if !shift => render.key = Some(gui::Key::NextWidget),
+
+                _ => (),
+            }
+        }
+
+        Event::MouseButtonDown { mouse_btn: MouseButton::Middle, .. } => {
+            self.tools.drag = true;
+        }
+        Event::MouseButtonUp { mouse_btn: MouseButton::Middle, .. } => {
+            self.tools.drag = false;
+        }
+
+        Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
+            let p = Point2::new(x as i16, y as i16);
+            //render.mouse(Mouse::Press(p));
+            let p = Point2::new(x as i32, y as i32);
+            self.tools.mouse_press(p);
+        }
+        Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
+            let p = Point2::new(x as i16, y as i16);
+            //render.mouse(Mouse::Release(p));
+            let p = Point2::new(x as i32, y as i32);
+            self.tools.mouse_release(p);
+        }
+
+        Event::MouseWheel { y, ..} => { self.tools.zoom_from_mouse(y as i32); }
+
+        _ => (),
+        }
+    }
+
+    pub fn draw_ui(&mut self, canvas: &mut Canvas, mouse: ui::Mouse) {
+        if !self.init {
+            use tool::Context;
+            self.init = true;
+            self.tools.editor.change_color(2);
+            canvas.load_texture(ICON_TOOL_FREEHAND, "res/tool_freehand.png");
+            canvas.load_texture(ICON_TOOL_PIP, "res/tool_pip.png");
+            canvas.load_texture(ICON_TOOL_RECT, "res/tool_rect.png");
+            canvas.load_texture(ICON_TOOL_CIRC, "res/tool_circ.png");
+            canvas.load_texture(ICON_TOOL_FILL, "res/tool_fill.png");
+            //canvas.create_texture(EDITOR_SPRITE_ID);
+            //canvas.create_texture(EDITOR_PREVIEW_ID);
+        }
+
+        {
+            let canvas = canvas.canvas.get_mut();
+            canvas.set_draw_color(::sdl2::pixels::Color::RGB(0xFF, 0xFF, 0xFF));
+            canvas.clear();
+        }
+
+        self.tools.paint(canvas);
+
+        let dt = 1.5;
+        let entity_count = 500;
+
+        let wh = Vector2::new(::SCREEN_WIDTH as f32, ::SCREEN_HEIGHT as f32);
+
+        let rect = Rect::from_min_dim(Point2::new(0.0, 0.0), wh);
+        let ctx = Context::new(canvas, rect, mouse);
+
+        static mut STATE: UiState = UiState::new();
+        let state = unsafe { &mut STATE };
+        let last_active = state.active_widget();
+
+
+
+        let widgets = [
+            Flow::with_height(MENUBAR_HEIGHT).expand_across(),
+            Flow::with_height(TOOLBAR_HEIGHT).expand_across(),
+            Flow::auto(1.0),
+            Flow::with_height(200.0).expand_across(),
+            Flow::with_height(STATUSBAR_HEIGHT).expand_across(),
+        ];
+
+        let colors = [
+            MENUBAR_BG,
+            TOOLBAR_BG,
+            rgba(0),
+            rgba(0x3a4351_FF),
+            STATUSBAR_BG,
+        ];
+
+        let mut iter = ctx.vertical_flow(0.0, 0.0, &widgets)
+            .zip(colors.iter().cloned())
+            .map(|(ctx, color)| {
+                ctx.quad(color, &ctx.rect());
+                ctx
+            });
+
+        if let Some(ctx) = iter.next() {
+            self.menubar(&ctx, state);
+        }
+
+        if let Some(ctx) = iter.next() {
+            let mut add = 0;
+            self.toolbar(&ctx, state, &mut add);
+            /*
+            for _ in 0..add {
+                spawn(world, &self.textures);
+            }
+            */
+        }
+
+        if let Some(ctx) = iter.next() {
+            //*area = ctx.rect();
+
+            /*
+            let hvr = Rect {
+                min: Point2::new(0.0, 200.0),
+                max: Point2::new(300.0, 400.0),
+            };
+            let id = ctx.reserve_widget_id();
+            ctx.onhover(id, hvr, state,
+                || println!("hover start {:?} {:?}", id, hvr),
+                || println!("hover end   {:?} {:?}", id, hvr),
+            );
+
+            let clk = Rect {
+                min: Point2::new(0.0, 400.0),
+                max: Point2::new(300.0, 600.0),
+            };
+
+            let id = ctx.reserve_widget_id();
+            ctx.onclick(id, clk, state, || println!("click {:?} {:?}", id, clk));
+
+            ctx.quad(rgba(0x999999_99), &hvr);
+            ctx.quad(rgba(0xAAAAAA_AA), &clk);
+            */
+
+            use tool::Context;
+            let mut r = ctx.rect();
+            r.max.x = r.min.x + 250.0;
+
+            let ctx = ctx.sub_rect(r);
+            {
+                let r = ctx.rect();
+                let start = r.min;
+
+                const WH: usize = 15;
+                let w = ((r.dx() as usize - 5 * 2) / WH);
+                for i in 0..256 {
+                    let r = Rect::from_min_dim(start + Vector2::new(
+                        ( 5 + (i % w) * WH) as f32,
+                        (40 + (i / w) * WH) as f32,
+                    ), Vector2::new(WH as f32, WH as f32));
+                    let color = self.tools.pal(i as u8);
+
+                    if BTN.behavior(&ctx.sub_rect(r), state, &mut ()) {
+                        self.tools.editor.change_color(i as u8);
+                    }
+                    ctx.quad(rgba(color), &r.pad(1.0));
+                }
+            }
+        }
+
+        if let Some(ctx) = iter.next() {
+            //xbar(&ctx, state);
+        }
+
+        if let Some(ctx) = iter.next() {
+
+            let text = format!("zoom: {}  #{:<3}", self.tools.zoom, self.tools.color_index());
+            ctx.label(0.01, 0.5, WHITE, &text);
+            let text = format!("[{:>+5} {:<+5}]", self.tools.mouse.x, self.tools.mouse.y);
+            ctx.label(0.2, 0.5, WHITE, &text);
+            let text = format!("count: {} last: {:?} ms: {:}", entity_count, last_active, dt);
+            ctx.label(0.5, 0.5, WHITE, &text);
+        }
+
+
         if false {
-            let (_, insp) = ctx.split_x(0.85);
-            self.inspector.run(&insp, state, world);
+            self.sample(&ctx, state);
         }
-        */
+
+        self.second_menubar(&ctx, state);
     }
 
-    if let Some(ctx) = iter.next() {
-        //xbar(&ctx, state);
-    }
-
-    if let Some(ctx) = iter.next() {
-        let text = format!("count: {} last: {:?} ms: {:}", entity_count, last_active, dt);
-        ctx.label(0.0, 0.5, WHITE, &text);
-    }
-
-    if true {
+    fn sample(&mut self, ctx: &ui::Context<Canvas>, state: &mut ui::UiState) {
         let widgets = &[
             Flow::with_wh(60.0, 40.0),
             Flow::with_wh(60.0, 40.0),
@@ -182,104 +363,120 @@ pub fn draw_ui(canvas: &mut Canvas, mouse: ui::Mouse) {
         }
     }
 
+    fn toolbar(&mut self, ctx: &ui::Context<Canvas>, state: &mut ui::UiState, add: &mut usize) {
+        let widgets = &[
+            Flow::with_wh(80.0, 40.0),
+            Flow::with_wh(80.0, 40.0),
+            Flow::with_wh(80.0, 40.0),
+            Flow::with_wh(80.0, 40.0),
+        ];
+        let mut to_add = 1;
+        for ctx in ctx.horizontal_flow(0.2, 0.0, widgets) {
+            if BTN.behavior(&ctx, state, &mut ()) {
+                *add = to_add;
+            }
+            ctx.label(0.5, 0.5, WHITE, &format!("add {}", to_add));
+            //ctx.draw().texture(&ICON_TOOL_FREEHAND, &ctx.rect());
+            to_add *= 10;
+        }
 
-    second_menubar(&ctx, state);
-}
+        let widgets = &[
+            Flow::with_wh(40.0, 40.0),
+            Flow::with_wh(40.0, 40.0),
+            Flow::with_wh(40.0, 40.0),
+            Flow::with_wh(40.0, 40.0),
+            Flow::with_wh(40.0, 40.0),
+        ];
 
+        let MODES: &[(usize, CurrentTool)] = &[
+            (ICON_TOOL_FREEHAND, CurrentTool::Freehand),
+            (ICON_TOOL_FILL, CurrentTool::Bucket),
+            (ICON_TOOL_CIRC, CurrentTool::Primitive(PrimitiveMode::Ellipse)),
+            (ICON_TOOL_RECT, CurrentTool::Primitive(PrimitiveMode::Rect)),
+            (ICON_TOOL_PIP, CurrentTool::EyeDropper),
+        ];
+        for (ctx, (icon, tool)) in ctx.horizontal_flow(0.7, 0.5, widgets).zip(MODES.iter().cloned()) {
+            if BTN.behavior(&ctx, state, &mut ()) {
+                self.tools.current = tool;
+            }
+            let r = ctx.rect().pad(4.0);
+            if self.tools.current == tool {
+                BTN.pressed.draw_frame(ctx.draw(), ctx.rect());
+            }
+            ctx.draw().texture(&icon, &r);
+        }
 
+    }
 
+    /*
+    fn xbar(ctx: &ui::Context<graphics::Graphics>, _state: &mut ui::UiState) {
+        use ui::*;
+        use math::*;
+        use graphics::CustomCmd;
 
-static mut MENUBAR_MODEL: ui::menubar::MenuBarModel = ui::menubar::MenuBarModel {
-	open_root: None,
-};
+        let pos = ctx.rect().min;
 
-fn menubar(ctx: &ui::Context<Canvas>, state: &mut ui::UiState) {
-	MENUBAR.run(&ctx, state, unsafe { &mut MENUBAR_MODEL }, &[
-		(ctx.reserve_widget_id(), "File"),
-		(ctx.reserve_widget_id(), "Edit"),
-		(ctx.reserve_widget_id(), "View"),
-		(ctx.reserve_widget_id(), "Tools"),
-		(ctx.reserve_widget_id(), "Help"),
-	]);
-}
+        let mut proj = Affine::one();
+        //proj.scale(5.0, 5.0);
+        proj.scale(50.0, 50.0);
+        proj.translate(pos.x + 150.0, pos.y + 30.0);
 
-fn toolbar(ctx: &ui::Context<Canvas>, state: &mut ui::UiState, add: &mut usize) {
-	use ui::*;
-	let widgets = &[
-		Flow::with_wh(80.0, 40.0),
-		Flow::with_wh(80.0, 40.0),
-		Flow::with_wh(80.0, 40.0),
-		Flow::with_wh(80.0, 40.0),
-	];
-	let mut to_add = 1;
-	for ctx in ctx.horizontal_flow(0.2, 0.0, widgets) {
-		if BTN.behavior(&ctx, state, &mut ()) {
-			*add = to_add;
-		}
-		ctx.label(0.5, 0.5, WHITE, &format!("add {}", to_add));
-		to_add *= 10;
-	}
-}
+        ctx.custom(CustomCmd::Fill(rgba(0xFFFFFF_AA), proj, {
+            use lyon::math::*;
+            use lyon::path::*;
+            use lyon::path::builder::*;
 
-/*
-fn xbar(ctx: &ui::Context<graphics::Graphics>, _state: &mut ui::UiState) {
-	use ui::*;
-	use math::*;
-	use graphics::CustomCmd;
+            let mut builder = SvgPathBuilder::new(Path::builder());
+            if false {
+                //lyon::extra::rust_logo::build_logo_path(&mut builder);
+            } else {
+                builder.move_to(point(0.0, 0.0));
+                builder.line_to(point(1.0, 0.0));
+                builder.quadratic_bezier_to(point(2.0, 0.0), point(2.0, 1.0));
+                builder.cubic_bezier_to(point(1.0, 1.0), point(0.0, 1.0), point(0.0, 0.0));
+                builder.close();
+            }
+            builder.build()
+        }));
+    }
+    */
 
-	let pos = ctx.rect().min;
+    fn menubar(&mut self, ctx: &ui::Context<Canvas>, state: &mut ui::UiState) {
+        MENUBAR.run(&ctx, state, &mut self.menubar, &[
+            (ctx.reserve_widget_id(), "File"),
+            (ctx.reserve_widget_id(), "Edit"),
+            (ctx.reserve_widget_id(), "View"),
+            (ctx.reserve_widget_id(), "Tools"),
+            (ctx.reserve_widget_id(), "Help"),
+        ]);
+    }
 
-	let mut proj = Affine::one();
-	//proj.scale(5.0, 5.0);
-	proj.scale(50.0, 50.0);
-	proj.translate(pos.x + 150.0, pos.y + 30.0);
+    fn second_menubar(&mut self, ctx: &ui::Context<Canvas>, state: &mut ui::UiState) {
+        use ui::menubar::*;
+        use ui::menubar::MenuEvent::*;
+        let items = [
+            Item::Text(Command::New, "New", "Ctrl-N"),
+            Item::Text(Command::Open, "Open", "Ctrl-O"),
+            Item::Text(Command::Recent, "Recent", ">"),
+            Item::Separator,
+            Item::Text(Command::Save, "Save", "Ctrl-S"),
+            Item::Text(Command::SaveAs, "Save as...", "Shift-Ctrl-S"),
+            Item::Separator,
+            Item::Text(Command::Quit, "Quit", "Ctrl-Q"),
+        ];
 
-	ctx.custom(CustomCmd::Fill(rgba(0xFFFFFF_AA), proj, {
-		use lyon::math::*;
-		use lyon::path::*;
-		use lyon::path::builder::*;
-
-		let mut builder = SvgPathBuilder::new(Path::builder());
-		if false {
-			//lyon::extra::rust_logo::build_logo_path(&mut builder);
-		} else {
-			builder.move_to(point(0.0, 0.0));
-			builder.line_to(point(1.0, 0.0));
-			builder.quadratic_bezier_to(point(2.0, 0.0), point(2.0, 1.0));
-			builder.cubic_bezier_to(point(1.0, 1.0), point(0.0, 1.0), point(0.0, 0.0));
-			builder.close();
-		}
-		builder.build()
-	}));
-}
-*/
-
-fn second_menubar(ctx: &ui::Context<Canvas>, state: &mut ui::UiState) {
-	use ui::menubar::*;
-	use ui::menubar::MenuEvent::*;
-	let items = [
-		Item::Text(Command::New, "New", "Ctrl-N"),
-		Item::Text(Command::Open, "Open", "Ctrl-O"),
-		Item::Text(Command::Recent, "Recent", ">"),
-		Item::Separator,
-		Item::Text(Command::Save, "Save", "Ctrl-S"),
-		Item::Text(Command::SaveAs, "Save as...", "Shift-Ctrl-S"),
-		Item::Separator,
-		Item::Text(Command::Quit, "Quit", "Ctrl-Q"),
-	];
-
-	let menubar = unsafe { &mut MENUBAR_MODEL };
-	if let Some((id, base_rect)) = menubar.open_root {
-		let exit = match MENU.run(&ctx, state, id, base_rect, &items) {
-			Nothing => false,
-			Exit => true,
-			Clicked(id) => {
-				println!("click: {:?}", id);
-				true
-			}
-		};
-		if exit {
-			unsafe { MENUBAR_MODEL.open_root = None; }
-		}
-	}
+        if let Some((id, base_rect)) = self.menubar.open_root {
+            let exit = match MENU.run(&ctx, state, id, base_rect, &items) {
+                Nothing => false,
+                Exit => true,
+                Clicked(id) => {
+                    println!("click: {:?}", id);
+                    true
+                }
+            };
+            if exit {
+                self.menubar.open_root = None;
+            }
+        }
+    }
 }
