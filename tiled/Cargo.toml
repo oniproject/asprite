@@ -1,9 +1,0 @@
-[package]
-name = "tiled"
-version = "0.1.0"
-authors = ["Lain-dono <lain.dono@gmail.com>"]
-
-[dependencies]
-bitflags = "1.0"
-nalgebra = "0.13"
-num-traits = "0.1"

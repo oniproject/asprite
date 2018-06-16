@@ -1,8 +1,0 @@
-[package]
-name = "math"
-version = "0.1.0"
-authors = ["Lain-dono <lain.dono@gmail.com>"]
-
-[dependencies]
-cgmath = "0.15"
-derivative = "1"
