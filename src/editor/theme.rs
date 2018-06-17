@@ -13,11 +13,15 @@ pub const EDITOR_PREVIEW_ID: usize = 888;
 pub const GRID_COLOR: u32 = 0xFF0000_AA;
 pub const CORNER_COLOR: u32 = 0x00FF00_AA;
 
+
 pub const ICON_TOOL_FREEHAND: usize = 1000_0;
 pub const ICON_TOOL_FILL: usize = 1000_1;
 pub const ICON_TOOL_CIRC: usize = 1000_2;
 pub const ICON_TOOL_RECT: usize = 1000_3;
 pub const ICON_TOOL_PIP: usize = 1000_4;
+
+pub const ICON_UNDO: usize = 2000_0;
+pub const ICON_REDO: usize = 2000_1;
 
 pub const fn rgba(c: u32) -> u32 {
     ((c >> 24) & 0xFF) <<  0 |
@@ -31,7 +35,7 @@ pub const WHITE: u32 = rgba(0xFFFFFF_FF);
 pub const MENUBAR_BG: u32 = rgba(0x222833_FF);
 pub const MENUBAR_HEIGHT: f32 = 20.0;
 
-pub const TOOLBAR_HEIGHT: f32 = 40.0;
+pub const TOOLBAR_HEIGHT: f32 = 32.0;
 pub const TOOLBAR_BG: u32 = BAR_BG;
 
 pub const STATUSBAR_BG: u32 = rgba(0x3F4350_FF);
@@ -101,7 +105,7 @@ pub const TOGGLE: ColorToggle<Canvas> = Toggle {
 	},
 };
 
-pub const MENUBAR: menubar::MenuBar<Canvas> = menubar::MenuBar {
+pub const MENUBAR: MenuBar<Canvas> = MenuBar {
 	normal_color: rgba(0xFFFFFF_FF),
 	hover_color:  rgba(0x000000_FF),
 	hover_bg:     rgba(0xCCCCCC_CC),
@@ -114,14 +118,14 @@ pub enum Command {
 	Quit,
 }
 
-pub const MENU: menubar::Menu<Canvas, Command> = menubar::Menu {
+pub const MENU: Menu<Canvas, Command> = Menu {
 	marker: ::std::marker::PhantomData,
-	normal: menubar::ItemStyle {
+	normal: ItemStyle {
 		label:    rgba(0x000000_FF),
 		shortcut: rgba(0x000000_88),
 		bg:       rgba(0xFFFFFF_FF),
 	},
-	hovered: menubar::ItemStyle {
+	hovered: ItemStyle {
 		label:    rgba(0x000000_FF),
 		shortcut: rgba(0x000000_88),
 		bg:       rgba(0xAAAAAA_FF),

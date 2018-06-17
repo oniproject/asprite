@@ -89,18 +89,33 @@ fn new_sprite() -> draw::Sprite {
     use math::*;
     use draw::*;
 
-    fn create_pal(pal: &mut Palette<u32>) {
-        const GB0: u32 = 0xCADC9F_FF;
-        const GB1: u32 = 0x0F380F_FF;
-        const GB2: u32 = 0x306230_FF;
-        const GB3: u32 = 0x8BAC0F_FF;
-        const GB4: u32 = 0x9BBC0F_FF;
+    const TRANSPARENT: u32 = 0x000000_00;
 
-        pal[0] = GB0;
-        pal[1] = GB1;
-        pal[2] = GB2;
-        pal[3] = GB3;
-        pal[4] = GB4;
+    const BLACK: u32    = 0x18140C_FF;
+    const WHITE: u32    = 0xF4F0E8_FF;
+    const RED: u32      = 0xC44448_FF;
+    const GREEN: u32    = 0x30845C_FF;
+    const YELLOW: u32   = 0xF0E848_FF;
+    const VIOLET: u32   = 0x343074_FF;
+    const PINK: u32     = 0xBC306C_FF;
+    const BLUE: u32     = 0x2874C4_FF;
+
+    const GB0: u32      = 0xCADC9F_FF;
+    const GB1: u32      = 0x0F380F_FF;
+    const GB2: u32      = 0x306230_FF;
+    const GB3: u32      = 0x8BAC0F_FF;
+    const GB4: u32      = 0x9BBC0F_FF;
+
+    fn create_pal(pal: &mut Palette<u32>) {
+        pal[0] = TRANSPARENT;
+        pal[1] = BLACK;
+        pal[2] = WHITE;
+        pal[3] = RED;
+        pal[4] = GREEN;
+        pal[5] = YELLOW;
+        pal[6] = VIOLET;
+        pal[7] = PINK;
+        pal[8] = BLUE;
     }
 
     let mut sprite = draw::Sprite::new("GEN", 160, 120);

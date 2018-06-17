@@ -33,6 +33,11 @@ pub trait Canvas<C, N>
         }
     }
 
+    fn clear(&mut self, color: C) {
+        let r = self.bounds();
+        self.rect_fill(r, color);
+    }
+
     fn rect_fill(&mut self, r: Rect<N>, color: C) {
         if let Some(r) = self.intersect(r) {
             fill_rect(r, |p| unsafe {
@@ -43,7 +48,9 @@ pub trait Canvas<C, N>
 
     fn ellipse_fill(&mut self, r: Rect<N>, color: C) {
         draw_ellipse(r, |a, b| {
-            hline_(a.x, b.x, a.y, |p| self.pixel(p.x, p.y, color));
+            for x in a.x..b.x + N::one() {
+                self.pixel(x, a.y, color)
+            }
         });
     }
 
@@ -190,22 +197,7 @@ pub fn mask<N, F>(r: Rect<N>, br: Rect<N>, brush: &[bool], mut f: F)
         F: FnMut(N, N),
         N: BaseNum + Step
 {
-    let w = br.dx();
-    let start = r.min - br.min;
-    let start = (start.x + start.y * w).to_isize().unwrap();
-    let stride = (w - r.dx()).to_isize().unwrap();
-    unsafe {
-        let mut pix = brush.as_ptr().offset(start);
-        for y in r.min.y..r.max.y {
-            for x in r.min.x..r.max.x {
-                if *pix {
-                    f(x, y)
-                }
-                pix = pix.offset(1);
-            }
-            pix = pix.offset(stride);
-        }
-    }
+    blit(r, br, brush, |x, y, pix| if pix { f(x, y) });
 }
 
 pub fn blit<N, F, C>(r: Rect<N>, br: Rect<N>, brush: &[C], mut f: F)
@@ -230,18 +222,7 @@ pub fn blit<N, F, C>(r: Rect<N>, br: Rect<N>, brush: &[C], mut f: F)
     }
 }
 
-pub fn hline_<N, F>(x1: N, x2: N, y: N, mut pixel: F)
-    where
-        F: FnMut(Point2<N>),
-        N: BaseNum + Step
-{
-    let one = N::one();
-    for x in x1..x2+one {
-        pixel(Point2::new(x, y))
-    }
-}
-
-fn hline<N, F>(x1: N, x2: N, y: N, pixel: &mut F)
+fn _hline<N, F>(x1: N, x2: N, y: N, pixel: &mut F)
     where
         F: FnMut(Point2<N>),
         N: BaseNum + Step
@@ -251,7 +232,7 @@ fn hline<N, F>(x1: N, x2: N, y: N, pixel: &mut F)
     }
 }
 
-fn vline<N, F>(x: N, y1: N, y2: N, pixel: &mut F)
+fn _vline<N, F>(x: N, y1: N, y2: N, pixel: &mut F)
     where
         F: FnMut(Point2<N>),
         N: BaseNum + Step
@@ -266,10 +247,10 @@ pub fn draw_rect<N, F>(r: Rect<N>, mut pixel: F)
         F: FnMut(Point2<N>),
         N: BaseNum + Step
 {
-    hline(r.min.x, r.max.x, r.min.y, &mut pixel);
-    hline(r.min.x, r.max.x, r.max.y, &mut pixel);
-    vline(r.min.x, r.min.y, r.max.y, &mut pixel);
-    vline(r.max.x, r.min.y, r.max.y, &mut pixel);
+    _hline(r.min.x, r.max.x, r.min.y, &mut pixel);
+    _hline(r.min.x, r.max.x, r.max.y, &mut pixel);
+    _vline(r.min.x, r.min.y, r.max.y, &mut pixel);
+    _vline(r.max.x, r.min.y, r.max.y, &mut pixel);
 }
 
 pub fn fill_rect<N, F>(r: Rect<N>, mut pixel: F)

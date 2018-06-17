@@ -1,69 +1,54 @@
+pub mod layout;
+pub mod components;
+
 mod guard;
 
 mod id;
 mod transform;
-mod flow;
 mod context;
 mod graphics;
 mod mouse;
 mod ninepatch;
-
 mod frame_drawer;
 
 pub use self::transform::*;
 
-pub use self::flow::*;
 pub use self::guard::*;
-pub use self::context::*;
-pub use self::id::*;
-pub use self::graphics::*;
-pub use self::mouse::*;
 pub use self::ninepatch::*;
-pub use self::frame_drawer::*;
 
-mod button;
-mod toggle;
-mod progress;
-mod slider;
+pub use self::mouse::{Mouse, MouseEvent};
+pub use self::graphics::Graphics;
+pub use self::frame_drawer::{NoDrawer, FrameDrawer, ColorDrawer, TextureDrawer};
 
-pub mod menubar;
+pub use self::context::{Context, ContextBuilder, Events};
+pub use self::id::{Id, IdGenerator, Generator};
 
-pub use self::button::*;
-pub use self::toggle::*;
-pub use self::progress::*;
-pub use self::slider::*;
+pub use self::layout::flow::{
+    Flow,
+    LayoutIter,
+    layout,
+    measure,
+};
 
-pub trait ActiveWidget {
-    fn active_widget(&self) -> Option<Id>;
-    fn active_widget_mut(&mut self) -> &mut Option<Id>;
+pub use self::components::{
+    ActiveWidget,
+    UiState,
+};
 
-    #[inline(always)]
-    fn is_active(&self, id: Id) -> bool {
-        self.active_widget() == Some(id)
-    }
-}
+pub use self::components::button::Button;
+pub use self::components::progress::Progress;
+pub use self::components::toggle::Toggle;
+pub use self::components::slider::{Slider, SliderModel};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct UiState {
-    active_widget: Option<Id>,
-}
+pub use self::components::menubar::{
+    Item,
+    ItemStyle,
+    Menu,
+    MenuEvent,
+    MenuBar,
+    MenuBarModel,
+};
 
-impl UiState {
-    pub const fn new() -> Self {
-        Self { active_widget: None }
-    }
-}
-
-impl ActiveWidget for UiState {
-    #[inline(always)]
-    fn active_widget(&self) -> Option<Id> {
-        self.active_widget
-    }
-    #[inline(always)]
-    fn active_widget_mut(&mut self) -> &mut Option<Id> {
-        &mut self.active_widget
-    }
-}
 
 pub type SimpleButton<D> = Button<D, D, D>;
 pub type ColorButton<D> = SimpleButton<ColorDrawer<D>>;

@@ -1,4 +1,3 @@
-use ui;
 use render::Canvas;
 use math::*;
 
@@ -7,8 +6,8 @@ mod layout;
 
 use self::theme::*;
 
+use ui;
 use ui::*;
-use ui::menubar::MenuBarModel;
 
 use ed::CurrentTool;
 use tool::PrimitiveMode;
@@ -152,8 +151,9 @@ impl App {
             canvas.load_texture(ICON_TOOL_RECT, "res/tool_rect.png");
             canvas.load_texture(ICON_TOOL_CIRC, "res/tool_circ.png");
             canvas.load_texture(ICON_TOOL_FILL, "res/tool_fill.png");
-            //canvas.create_texture(EDITOR_SPRITE_ID);
-            //canvas.create_texture(EDITOR_PREVIEW_ID);
+
+            canvas.load_texture(ICON_UNDO, "res/undo.png");
+            canvas.load_texture(ICON_REDO, "res/redo.png");
         }
 
         {
@@ -363,27 +363,11 @@ impl App {
 
     fn toolbar(&mut self, ctx: &ui::Context<Canvas>, state: &mut ui::UiState, add: &mut usize) {
         let widgets = &[
-            Flow::with_wh(80.0, 40.0),
-            Flow::with_wh(80.0, 40.0),
-            Flow::with_wh(80.0, 40.0),
-            Flow::with_wh(80.0, 40.0),
-        ];
-        let mut to_add = 1;
-        for ctx in ctx.horizontal_flow(0.2, 0.0, widgets) {
-            if BTN.behavior(&ctx, state, &mut ()) {
-                *add = to_add;
-            }
-            ctx.label(0.5, 0.5, WHITE, &format!("add {}", to_add));
-            //ctx.draw().texture(&ICON_TOOL_FREEHAND, &ctx.rect());
-            to_add *= 10;
-        }
-
-        let widgets = &[
-            Flow::with_wh(40.0, 40.0),
-            Flow::with_wh(40.0, 40.0),
-            Flow::with_wh(40.0, 40.0),
-            Flow::with_wh(40.0, 40.0),
-            Flow::with_wh(40.0, 40.0),
+            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
+            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
+            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
+            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
+            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
         ];
 
         let MODES: &[(usize, CurrentTool)] = &[
@@ -397,13 +381,30 @@ impl App {
             if BTN.behavior(&ctx, state, &mut ()) {
                 self.tools.current = tool;
             }
-            let r = ctx.rect().pad(4.0);
+            let r = ctx.rect();
             if self.tools.current == tool {
                 BTN.pressed.draw_frame(ctx.draw(), ctx.rect());
             }
             ctx.draw().texture(&icon, &r);
         }
 
+        let mut flow = ctx.horizontal_flow(0.0, 0.5, &[
+            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
+            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
+        ]);
+
+        let undo = flow.next().unwrap();
+        let redo = flow.next().unwrap();
+
+        if BTN.behavior(&redo, state, &mut ()) {
+            self.tools.redo();
+        }
+        if BTN.behavior(&undo, state, &mut ()) {
+            self.tools.undo();
+        }
+
+        ctx.draw().texture(&ICON_UNDO, &undo.rect());
+        ctx.draw().texture(&ICON_REDO, &redo.rect());
     }
 
     /*
@@ -450,8 +451,6 @@ impl App {
     }
 
     fn second_menubar(&mut self, ctx: &ui::Context<Canvas>, state: &mut ui::UiState) {
-        use ui::menubar::*;
-        use ui::menubar::MenuEvent::*;
         let items = [
             Item::Text(Command::New, "New", "Ctrl-N"),
             Item::Text(Command::Open, "Open", "Ctrl-O"),
@@ -465,9 +464,9 @@ impl App {
 
         if let Some((id, base_rect)) = self.menubar.open_root {
             let exit = match MENU.run(&ctx, state, id, base_rect, &items) {
-                Nothing => false,
-                Exit => true,
-                Clicked(id) => {
+                MenuEvent::Nothing => false,
+                MenuEvent::Exit => true,
+                MenuEvent::Clicked(id) => {
                     println!("click: {:?}", id);
                     true
                 }

@@ -13,8 +13,9 @@ specs-derive = "0.2"
 
 rand = "0.4"
 
-undo = "0.21"
-#redo = "0.21"
+undo = "0.22"
+redo = "0.22"
+
 image = "0.19"
 nfd = "0.0.4"
 

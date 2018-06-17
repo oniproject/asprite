@@ -1,4 +1,5 @@
 use super::*;
+use super::button::Button;
 
 pub struct Toggle<P, H, N> {
     pub checked: Button<P, H, N>,

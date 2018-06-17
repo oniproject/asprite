@@ -4,6 +4,8 @@ use render::Canvas;
 
 use math::*;
 use ui::*;
+use ui::components::menubar;
+use ui::layout::*;
 
 use std::mem::replace;
 
