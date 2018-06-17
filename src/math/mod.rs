@@ -9,16 +9,17 @@ pub use cgmath::Vector2;
 pub use cgmath::Matrix2;
 pub use cgmath::Matrix4;
 
-pub mod affine;
-pub mod rect;
-pub mod d8;
-pub mod time;
-pub mod stopwatch;
+mod affine;
+mod rect;
+mod d8;
+mod time;
+mod stopwatch;
 
-pub use self::rect::*;
-pub use self::affine::*;
-pub use self::time::*;
-pub use self::stopwatch::*;
+pub use self::rect::Rect;
+pub use self::affine::Affine;
+pub use self::time::{Time, TimePair};
+pub use self::stopwatch::Stopwatch;
+pub use self::d8::D8;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Axis {

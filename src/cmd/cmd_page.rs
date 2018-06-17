@@ -1,8 +1,8 @@
-use undo::Command;
+use redo::Command;
 use std::error::Error;
 use std::mem::swap;
 
-use super::{Frame, Sprite};
+use draw::{Frame, Sprite};
 
 #[derive(Debug)]
 pub struct DrawCommand {
@@ -15,13 +15,14 @@ impl DrawCommand {
     pub fn new(frame: usize, layer: usize, page: Frame) -> Self {
         Self { frame, layer, page }
     }
-    fn run(&mut self, image: &mut Sprite) -> Result<(), Box<Error>> {
+    fn run(&mut self, image: &mut Sprite) -> Result<(), ()> {
         swap(&mut self.page, image.page_mut(self.frame, self.layer));
         Ok(())
     }
 }
 
 impl Command<Sprite> for DrawCommand {
-    fn apply(&mut self, image: &mut Sprite) -> Result<(), Box<Error>> { self.run(image) }
-    fn undo(&mut self, image: &mut Sprite) -> Result<(), Box<Error>> { self.run(image) }
+    type Error = ();
+    fn apply(&mut self, image: &mut Sprite) -> Result<(), Self::Error> { self.run(image) }
+    fn undo(&mut self, image: &mut Sprite) -> Result<(), Self::Error> { self.run(image) }
 }

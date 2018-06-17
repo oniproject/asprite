@@ -1,4 +1,5 @@
 use super::*;
+use draw::*;
 
 pub struct Freehand<N: BaseNum, C: Copy + PartialEq> {
     pub perfect: bool,

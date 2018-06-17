@@ -1,8 +1,8 @@
-use common::*;
 use math::*;
 use tool::*;
 
 use cmd::*;
+use draw::*;
 use editor::theme::*;
 use grid::*;
 use render::{self, TextureCanvas};
@@ -217,14 +217,11 @@ impl Tools {
             CurrentTool::Freehand => {
                 // freehand preview
                 let color = self.freehand.color;
-                for &(p, active) in &self.freehand.pts {
-                    let c = if active {
-                        self.pal(color).to_be()
-                    } else {
-                        red
-                    };
-                    canvas.pixel(p.x as i16, p.y as i16, c).unwrap();
-                }
+                let c = self.pal(color).to_be();
+                let iter = self.freehand.pts.iter()
+                    .filter_map(|(p, active)| if *active { Some(p) } else { None })
+                    .map(|p| (p.x as i16, p.y as i16))
+                    .for_each(|(x, y)| canvas.pixel(x, y, c).unwrap());
 
                 // preview brush
                 canvas.pixel(

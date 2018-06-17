@@ -20,17 +20,14 @@ use sdl2::mouse::MouseButton;
 
 use math::*;
 
-//use tool::*;
 use ed::*;
 use cmd::*;
-//use theme::*;
 use ui::*;
 use render;
 
-use cmd::{Sprite, ImageCell, image_cell};
+use draw::Sprite;
+use cmd::{ImageCell, image_cell};
 use ed::Tools;
-
-use undo::Record;
 
 pub struct App {
     pub init: bool,
@@ -170,7 +167,8 @@ impl App {
         let dt = 1.5;
         let entity_count = 500;
 
-        let wh = Vector2::new(::SCREEN_WIDTH as f32, ::SCREEN_HEIGHT as f32);
+        let (w, h) = canvas.canvas.borrow().logical_size();
+        let wh = Vector2::new(w as f32, h as f32);
 
         let rect = Rect::from_min_dim(Point2::new(0.0, 0.0), wh);
         let ctx = Context::new(canvas, rect, mouse);

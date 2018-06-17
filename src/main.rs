@@ -6,9 +6,11 @@
 #![feature(const_cell_new)]
 
 #![allow(dead_code)]
+#![allow(unused_imports)]
+
 
 extern crate rand;
-extern crate undo;
+extern crate redo;
 extern crate image;
 extern crate nfd;
 extern crate cgmath;
@@ -42,12 +44,12 @@ macro_rules! color(
 
 
 mod math;
+mod draw;
 mod ui;
-mod common;
+//mod common;
 mod cmd;
 mod tool;
 
-//mod app;
 //mod theme;
 mod grid;
 mod ed;
@@ -83,10 +85,9 @@ fn main() {
     }
 }
 
-fn new_sprite() -> cmd::Sprite {
+fn new_sprite() -> draw::Sprite {
     use math::*;
-    use common::gradient;
-    use common::Palette;
+    use draw::*;
 
     fn create_pal(pal: &mut Palette<u32>) {
         const GB0: u32 = 0xCADC9F_FF;
@@ -102,7 +103,7 @@ fn new_sprite() -> cmd::Sprite {
         pal[4] = GB4;
     }
 
-    let mut sprite = cmd::Sprite::new("GEN", 160, 120);
+    let mut sprite = draw::Sprite::new("GEN", 160, 120);
     sprite.add_layer("Layer Down");
     sprite.add_layer("Layer 2");
     sprite.add_layer("Layer 3");

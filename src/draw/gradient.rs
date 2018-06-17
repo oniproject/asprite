@@ -1,8 +1,8 @@
 use rand;
 use std::num::Wrapping;
 
-use super::bre::fill_rect;
 use math::*;
+use super::canvas::fill_rect;
 
 fn pos_from_idx(index: i32, total: i32, bounds: i32, factor: i32) -> i32 {
 	let rnd = rand::random::<i32>();

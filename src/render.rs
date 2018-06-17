@@ -1,4 +1,4 @@
-use sdl2::event::Event;
+use sdl2::event::{Event, WindowEvent};
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::keyboard::Keycode;
 use sdl2::render::{self, BlendMode, Texture, TextureCreator, TextureQuery, WindowCanvas};
@@ -101,6 +101,7 @@ impl Canvas {
         let window = video.window(title, w, h)
             .position_centered()
             //.opengl()
+            .resizable()
             .build()
             .unwrap();
 
@@ -210,18 +211,6 @@ impl<'a> System<'a> for Canvas {
     );
 
     fn run(&mut self, (mut quit, mut app, mut lines, entities): Self::SystemData) {
-
-        /*
-        if let Some(ref mut app) = &mut *app {
-            if let Some(event) = self.events.wait_event_timeout(30) {
-                app.event(event.clone());
-                for event in self.events.poll_iter() {
-                    app.event(event.clone());
-                }
-            }
-        }
-        */
-
         {
             use std::iter;
             let poll = self.events.wait_event_timeout(60)
@@ -238,7 +227,11 @@ impl<'a> System<'a> for Canvas {
                         return;
                     }
 
-                    Event::KeyDown {keycode: Some(keycode), ..} => {
+                    Event::Window { win_event: WindowEvent::Resized(w, h), .. } => {
+                        self.canvas.get_mut().set_logical_size(w as u32, h as u32);
+                    }
+
+                    Event::KeyDown { keycode: Some(keycode), ..} => {
                         if keycode == Keycode::Escape {
                             *quit = true;
                             return;
@@ -308,8 +301,6 @@ impl<'a> System<'a> for Canvas {
                 }
             }
         }
-
-
 
         let cur = if self.hovered.load(Ordering::Relaxed) {
             SystemCursor::Hand
