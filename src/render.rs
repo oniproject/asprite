@@ -18,12 +18,11 @@ use specs::prelude::*;
 use specs::world;
 use specs::shred::MetaTable;
 
+use draw;
 use ui;
 use math::*;
 
 use line::*;
-use math::*;
-use ui::Graphics;
 
 pub type TextureCanvas = WindowCanvas;
 
@@ -109,7 +108,7 @@ impl Canvas {
         //let font = ttf.load_font(font, 12).unwrap();
 
         let mut canvas = window.into_canvas()
-            .software()
+            //.software()
             .build().unwrap();
 
         let texture_creator = canvas.texture_creator();
@@ -228,7 +227,7 @@ impl<'a> System<'a> for Canvas {
                     }
 
                     Event::Window { win_event: WindowEvent::Resized(w, h), .. } => {
-                        self.canvas.get_mut().set_logical_size(w as u32, h as u32);
+                        self.canvas.get_mut().set_logical_size(w as u32, h as u32).unwrap();
                     }
 
                     Event::KeyDown { keycode: Some(keycode), ..} => {
@@ -366,7 +365,24 @@ fn get_centered_rect(rect_width: u32, rect_height: u32, cons_width: u32, cons_he
 }
 */
 
-impl Graphics for Canvas {
+impl draw::Bounded<i32> for Canvas {
+    #[inline(always)]
+    fn bounds(&self) -> Rect<i32> {
+        let (w, h) = self.canvas.borrow().logical_size();
+        Rect::from_coords_and_size(0, 0, w as i32, h as i32)
+    }
+}
+
+impl draw::CanvasWrite<u32, i32> for Canvas {
+    #[inline(always)]
+    unsafe fn set_pixel_unchecked(&mut self, x: i32, y: i32, color: u32) {
+        let canvas = self.canvas.get_mut();
+        canvas.set_draw_color(Self::color(color));
+        canvas.draw_point((x, y)).expect("draw_point");
+    }
+}
+
+impl ui::Graphics for Canvas {
     type Texture = usize;
     type Color = u32;
 

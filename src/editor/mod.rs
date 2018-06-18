@@ -66,7 +66,7 @@ impl App {
         self.update = true;
         match event {
         Event::MouseMotion {x, y, xrel, yrel, ..} => {
-            let p = Point2::new(x as i16, y as i16);
+            //let p = Point2::new(x as i16, y as i16);
             //render.mouse(Mouse::Move(p));
             let p = Point2::new(x as i32, y as i32);
             let v = Vector2::new(xrel as i32, yrel as i32);
@@ -123,13 +123,13 @@ impl App {
         }
 
         Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
-            let p = Point2::new(x as i16, y as i16);
+            //let p = Point2::new(x as i16, y as i16);
             //render.mouse(Mouse::Press(p));
             let p = Point2::new(x as i32, y as i32);
             self.tools.mouse_press(p);
         }
         Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
-            let p = Point2::new(x as i16, y as i16);
+            //let p = Point2::new(x as i16, y as i16);
             //render.mouse(Mouse::Release(p));
             let p = Point2::new(x as i32, y as i32);
             self.tools.mouse_release(p);
@@ -217,31 +217,6 @@ impl App {
         }
 
         if let Some(ctx) = iter.next() {
-            //*area = ctx.rect();
-
-            /*
-            let hvr = Rect {
-                min: Point2::new(0.0, 200.0),
-                max: Point2::new(300.0, 400.0),
-            };
-            let id = ctx.reserve_widget_id();
-            ctx.onhover(id, hvr, state,
-                || println!("hover start {:?} {:?}", id, hvr),
-                || println!("hover end   {:?} {:?}", id, hvr),
-            );
-
-            let clk = Rect {
-                min: Point2::new(0.0, 400.0),
-                max: Point2::new(300.0, 600.0),
-            };
-
-            let id = ctx.reserve_widget_id();
-            ctx.onclick(id, clk, state, || println!("click {:?} {:?}", id, clk));
-
-            ctx.quad(rgba(0x999999_99), &hvr);
-            ctx.quad(rgba(0xAAAAAA_AA), &clk);
-            */
-
             use tool::Context;
             let mut r = ctx.rect();
             r.max.x = r.min.x + 250.0;
@@ -252,7 +227,7 @@ impl App {
                 let start = r.min;
 
                 const WH: usize = 15;
-                let w = ((r.dx() as usize - 5 * 2) / WH);
+                let w = (r.dx() as usize - 5 * 2) / WH;
                 for i in 0..256 {
                     let r = Rect::from_min_dim(start + Vector2::new(
                         ( 5 + (i % w) * WH) as f32,
@@ -268,7 +243,7 @@ impl App {
             }
         }
 
-        if let Some(ctx) = iter.next() {
+        if let Some(_ctx) = iter.next() {
             //xbar(&ctx, state);
         }
 
@@ -362,49 +337,64 @@ impl App {
     }
 
     fn toolbar(&mut self, ctx: &ui::Context<Canvas>, state: &mut ui::UiState, add: &mut usize) {
-        let widgets = &[
-            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
-            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
-            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
-            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
-            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
+        let height = ctx.rect().dy();
+        let btn = Flow::with_wh(height, height);
+        let flow = [
+            btn, btn,
+            Flow::auto(1.0),
+            btn, btn, btn, btn, btn,
+            Flow::auto(1.0),
+            Flow::with_width(130.0).expand_across(),
+            Flow::auto(1.0),
         ];
+        let mut flow = ctx.horizontal_flow(0.0, 0.5, &flow);
 
-        let MODES: &[(usize, CurrentTool)] = &[
-            (ICON_TOOL_FREEHAND, CurrentTool::Freehand),
-            (ICON_TOOL_FILL, CurrentTool::Bucket),
-            (ICON_TOOL_CIRC, CurrentTool::Primitive(PrimitiveMode::Ellipse)),
-            (ICON_TOOL_RECT, CurrentTool::Primitive(PrimitiveMode::Rect)),
-            (ICON_TOOL_PIP, CurrentTool::EyeDropper),
-        ];
-        for (ctx, (icon, tool)) in ctx.horizontal_flow(0.7, 0.5, widgets).zip(MODES.iter().cloned()) {
-            if BTN.behavior(&ctx, state, &mut ()) {
-                self.tools.current = tool;
+        {
+            let undo = flow.next().unwrap();
+            let redo = flow.next().unwrap();
+
+            if BTN.behavior(&redo, state, &mut ()) {
+                self.tools.redo();
             }
-            let r = ctx.rect();
-            if self.tools.current == tool {
-                BTN.pressed.draw_frame(ctx.draw(), ctx.rect());
+            if BTN.behavior(&undo, state, &mut ()) {
+                self.tools.undo();
             }
-            ctx.draw().texture(&icon, &r);
+
+            ctx.draw().texture(&ICON_UNDO, &undo.rect());
+            ctx.draw().texture(&ICON_REDO, &redo.rect());
         }
 
-        let mut flow = ctx.horizontal_flow(0.0, 0.5, &[
-            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
-            Flow::with_wh(TOOLBAR_HEIGHT, TOOLBAR_HEIGHT),
-        ]);
+        flow.next().unwrap();
 
-        let undo = flow.next().unwrap();
-        let redo = flow.next().unwrap();
+        {
+            static MODES: &[(usize, CurrentTool)] = &[
+                (ICON_TOOL_FREEHAND, CurrentTool::Freehand),
+                (ICON_TOOL_FILL, CurrentTool::Bucket),
+                (ICON_TOOL_CIRC, CurrentTool::Primitive(PrimitiveMode::Ellipse)),
+                (ICON_TOOL_RECT, CurrentTool::Primitive(PrimitiveMode::Rect)),
+                (ICON_TOOL_PIP, CurrentTool::EyeDropper),
+            ];
 
-        if BTN.behavior(&redo, state, &mut ()) {
-            self.tools.redo();
+            for ((icon, tool), ctx) in MODES.iter().cloned().zip(flow.by_ref()) {
+                if BTN.behavior(&ctx, state, &mut ()) {
+                    self.tools.current = tool;
+                }
+                let r = ctx.rect();
+                if self.tools.current == tool {
+                    BTN.pressed.draw_frame(ctx.draw(), ctx.rect());
+                }
+                ctx.draw().texture(&icon, &r);
+            }
         }
-        if BTN.behavior(&undo, state, &mut ()) {
-            self.tools.undo();
-        }
 
-        ctx.draw().texture(&ICON_UNDO, &undo.rect());
-        ctx.draw().texture(&ICON_REDO, &redo.rect());
+        let _ = flow.next().unwrap();
+        let ctx = flow.next().unwrap();
+
+        match layout::edit_num(&ctx, state, self.tools.zoom, "zoom") {
+            Some(true) => self.tools.zoom_from_center(1),
+            Some(false) => self.tools.zoom_from_center(-1),
+            _ => (),
+        }
     }
 
     /*

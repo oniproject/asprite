@@ -123,10 +123,10 @@ fn gen_measure() {
 
     {
         let axis = Axis::Horizontal;
-        let size = axis.measure(widgets);
+        let size = measure(axis, widgets);
         assert_eq!(size, Vector2::new(11.0, 15.0));
 
-        let mut lay = axis.layout(size, widgets);
+        let mut lay = layout(axis, size, widgets);
 
         assert_eq!(lay.next(), Some(Rect { min: Point2::new(0.0, 0.0),  max: Point2::new(10.0, 5.0) }));
         assert_eq!(lay.next(), Some(Rect { min: Point2::new(10.0, 0.0), max: Point2::new(11.0, 15.0) }));
@@ -135,10 +135,10 @@ fn gen_measure() {
 
     {
         let axis = Axis::Vertical;
-        let size = axis.measure(widgets);
+        let size = measure(axis, widgets);
         assert_eq!(size, Vector2::new(10.0, 20.0));
 
-        let mut lay = axis.layout(size, widgets);
+        let mut lay = layout(axis, size, widgets);
 
         assert_eq!(lay.next(), Some(Rect { min: Point2::new(0.0, 0.0), max: Point2::new(10.0, 5.0) }));
         assert_eq!(lay.next(), Some(Rect { min: Point2::new(0.0, 5.0), max: Point2::new(1.0, 20.0) }));

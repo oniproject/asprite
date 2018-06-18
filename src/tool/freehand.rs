@@ -44,6 +44,7 @@ impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
             }
             Input::Special(on) => {
                 self.line = on && !self.active;
+                println!("special: {} line: {}", on, self.line);
                 if !self.active {
                     ctx.sync();
                 }
@@ -58,14 +59,17 @@ impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
                 }
             }
             Input::Release(p) => {
-                self.last = p;
                 if self.active {
                     self.active = false;
                     while self.pts.len() > 0 {
                         self.flatten_first_point(ctx);
                     }
+                    // for just click
+                    if p == self.last {
+                        ctx.paint_brush(p, self.color);
+                    }
                 }
-                ctx.paint_brush(p, self.color);
+                self.last = p;
                 ctx.commit();
             }
             Input::Cancel => {
@@ -73,6 +77,16 @@ impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
                 self.pts.clear();
                 ctx.rollback();
             }
+        }
+    }
+
+    fn preview<Ctx: PreviewContext<N, C>>(&mut self, mouse: Point2<N>, ctx: &mut Ctx) {
+        if self.active {
+            self.pts.iter()
+                .filter_map(|(p, active)| if *active { Some(p) } else { None })
+                .for_each(|p| ctx.paint_brush(*p, self.color));
+        } else {
+            ctx.paint_brush(mouse, self.color);
         }
     }
 }

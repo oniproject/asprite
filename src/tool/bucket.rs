@@ -1,5 +1,7 @@
 use super::*;
 
+use draw::CanvasFill;
+
 pub struct Bucket<N: BaseNum, C: Copy> {
     pub start: Point2<N>,
     pub color: C,

@@ -3,15 +3,22 @@
 use math::*;
 use std::iter::Step;
 
-pub trait Canvas<C, N>
+pub trait Bounded<N>
+    where N: BaseNumExt + Step,
+{
+    fn bounds(&self) -> Rect<N>;
+
+    fn intersect(&self, r: Rect<N>) -> Option<Rect<N>> {
+        self.bounds().intersect(r)
+    }
+}
+
+pub trait CanvasRead<C, N>: Bounded<N>
     where
         C: Copy + Clone + Eq,
         N: BaseNumExt + Step,
 {
-    unsafe fn set_pixel_unchecked(&mut self, x: N, y: N, color: C);
     unsafe fn get_pixel_unchecked(&self, x: N, y: N) -> C;
-
-    fn bounds(&self) -> Rect<N>;
 
     fn at(&self, x: N, y: N) -> Option<C> {
         if self.bounds().contains_xy(x, y) {
@@ -20,9 +27,20 @@ pub trait Canvas<C, N>
             None
         }
     }
+}
 
-    fn intersect(&self, r: Rect<N>) -> Option<Rect<N>> {
-        self.bounds().intersect(r)
+
+pub trait CanvasWrite<C, N>: Bounded<N>
+    where
+        C: Copy + Clone + Eq,
+        N: BaseNumExt + Step,
+{
+    unsafe fn set_pixel_unchecked(&mut self, x: N, y: N, color: C);
+
+    fn pixel(&mut self, x: N, y: N, color: C) {
+        if self.bounds().contains_xy(x, y) {
+            unsafe { self.set_pixel_unchecked(x, y, color) }
+        }
     }
 
     fn rect(&mut self, r: Rect<N>, color: C) {
@@ -69,17 +87,18 @@ pub trait Canvas<C, N>
         }
     }
 
-    fn brush_line(&mut self, r: Rect<N>, size: Point2<N>, brush: &[bool], color: C) {
+    fn mask_line(&mut self, r: Rect<N>, size: Point2<N>, brush: &[bool], color: C) {
         draw_line(r.min, r.max, |p| {
             let br = Rect::from_coords_and_size(p.x, p.y, size.x, size.y);
             self.mask(br, brush, color);
         });
     }
 
-    fn pixel(&mut self, x: N, y: N, color: C) {
-        if self.bounds().contains_xy(x, y) {
-            unsafe { self.set_pixel_unchecked(x, y, color) }
-        }
+    fn blit_line(&mut self, r: Rect<N>, size: Point2<N>, brush: &[C]) {
+        draw_line(r.min, r.max, |p| {
+            let br = Rect::from_coords_and_size(p.x, p.y, size.x, size.y);
+            self.blit(br, brush);
+        });
     }
 
     fn mask(&mut self, br: Rect<N>, brush: &[bool], color: C) {
@@ -97,7 +116,20 @@ pub trait Canvas<C, N>
             }
         }
     }
+}
 
+impl<T, C, N> CanvasFill<C, N> for T
+    where
+        C: Copy + Clone + Eq,
+        N: BaseNumExt + Step,
+        T: CanvasRead<C, N> + CanvasWrite<C, N>
+{}
+
+pub trait CanvasFill<C, N>: CanvasRead<C, N> + CanvasWrite<C, N>
+    where
+        C: Copy + Clone + Eq,
+        N: BaseNumExt + Step,
+{
     /// see http://will.thimbleby.net/scanline-flood-fill/
     fn scanline_fill(&mut self, p: Point2<N>, color: C) {
         let x = p.x;

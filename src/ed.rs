@@ -1,4 +1,4 @@
-use math::*;
+use math::{Rect, Vector2, Point2};
 use tool::*;
 
 use cmd::*;
@@ -176,11 +176,7 @@ impl Tools {
             render.create_texture(EDITOR_PREVIEW_ID, w, h);
         }
 
-        let redraw = self.editor.redraw;
-        self.editor.redraw = None;
-
-        if let Some(r) = redraw {
-            println!("redraw: {:?}", r);
+        if let Some(r) = self.editor.take_redraw() {
             render.canvas(EDITOR_SPRITE_ID, |canvas: &mut TextureCanvas, _w, _h| {
                 let r = r.normalize();
                 let clear_rect = rect!(r.min.x, r.min.y, r.dx(), r.dy());
@@ -209,25 +205,20 @@ impl Tools {
             });
         }
 
-        render.canvas(EDITOR_PREVIEW_ID, |canvas: &mut TextureCanvas, _, _| {
+        render.canvas(EDITOR_PREVIEW_ID, |canvas: &mut TextureCanvas, w, h| {
             canvas.set_draw_color(color!(TRANSPARENT));
             canvas.clear();
 
-            match self.current {
-            CurrentTool::Freehand => {
-                // freehand preview
-                let color = self.freehand.color;
-                let c = self.pal(color).to_be();
-                let iter = self.freehand.pts.iter()
-                    .filter_map(|(p, active)| if *active { Some(p) } else { None })
-                    .map(|p| (p.x as i16, p.y as i16))
-                    .for_each(|(x, y)| canvas.pixel(x, y, c).unwrap());
+            let m = self.editor.sprite();
+            let mut prev = Prev {
+                canvas,
+                rect: Rect::from_coords_and_size(0, 0, w as i32, h as i32),
+                palette: &m.as_receiver().palette,
+                editor: &self.editor,
+            };
 
-                // preview brush
-                canvas.pixel(
-                    self.mouse.x as i16, self.mouse.y as i16,
-                    self.color().to_be()).unwrap();
-            }
+            match self.current {
+            CurrentTool::Freehand => self.freehand.preview(self.mouse, &mut prev),
             _ => (),
             }
         });
@@ -245,5 +236,40 @@ impl Tools {
         };
 
         self.grid.paint(render);
+    }
+}
+
+struct Prev<'a> {
+    canvas: &'a mut TextureCanvas,
+    rect: Rect<i32>,
+    palette: &'a Palette<u32>,
+    editor: &'a Editor,
+}
+
+impl<'a> Bounded<i32> for Prev<'a> {
+    #[inline(always)]
+    fn bounds(&self) -> Rect<i32> {
+        self.rect
+    }
+}
+
+impl<'a> CanvasWrite<u8, i32> for Prev<'a> {
+    #[inline(always)]
+    unsafe fn set_pixel_unchecked(&mut self, x: i32, y: i32, color: u8) {
+        let c = self.palette[color].to_be();
+        self.canvas.pixel(x as i16, y as i16, c).unwrap()
+    }
+}
+
+impl<'a> CanvasRead<u8, i32> for Prev<'a> {
+    #[inline(always)]
+    unsafe fn get_pixel_unchecked(&self, x: i32, y: i32) -> u8 {
+        self.editor.get_pixel_unchecked(x, y)
+    }
+}
+
+impl<'a> PreviewContext<i32, u8> for Prev<'a> {
+    fn brush(&self) -> (Brush<u8>, Rect<i32>) {
+        self.editor.brush()
     }
 }

@@ -1,4 +1,4 @@
-use super::Canvas;
+//use super::Canvas;
 use math::Rect;
 
 #[derive(Clone, Debug)]
@@ -24,7 +24,9 @@ impl Frame {
         self.page.resize(other.page.len(), 0);
         self.page.copy_from_slice(&other.page);
     }
+}
 
+/*
     pub fn view(&mut self, rect: Rect<isize>) -> Option<FrameView> {
         let w = self.width as isize;
         let h = self.height as isize;
@@ -77,4 +79,4 @@ impl<'a> Canvas<u8, isize> for FrameView<'a> {
         self.rect
     }
 }
-
+*/

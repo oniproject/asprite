@@ -7,7 +7,10 @@ mod frame;
 mod sprite;
 
 pub use self::canvas::{
-    Canvas,
+    Bounded,
+    CanvasRead,
+    CanvasWrite,
+    CanvasFill,
     blit,
     draw_line,
 };

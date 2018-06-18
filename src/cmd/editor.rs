@@ -1,16 +1,20 @@
 use math::{Rect, Point2, Vector2};
 use tool::Context;
+use tool::Brush;
 
 use super::DrawCommand;
 
 use draw::{
-    Canvas,
+    Bounded,
+    CanvasRead,
+    CanvasWrite,
     Sprite,
     Frame,
     Palette,
 };
 
 use redo::Record;
+use std::mem::replace;
 use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
 
@@ -21,7 +25,7 @@ pub fn image_cell(sprite: Sprite) -> ImageCell {
 
 pub struct Editor {
     pub image: ImageCell,
-    pub redraw: Option<Rect<i32>>,
+    redraw: Option<Rect<i32>>,
 
     pub brush_rect: Rect<i16>,
     pub brush_offset: Vector2<i16>,
@@ -52,6 +56,10 @@ impl Editor {
             brush_rect: Rect::from_coords_and_size(0, 0, 3, 3),
             brush_offset: Vector2::new(-1, -1),
         }
+    }
+
+    pub fn take_redraw(&mut self) -> Option<Rect<i32>> {
+        self.redraw.take()
     }
 
     pub fn sprite(&self) -> MutexGuard<Record<Sprite, DrawCommand>> {
@@ -96,7 +104,14 @@ impl Editor {
     }
 }
 
-impl Canvas<u8, i32> for Editor {
+impl Bounded<i32> for Editor {
+    #[inline(always)]
+    fn bounds(&self) -> Rect<i32> {
+        self.rect
+    }
+}
+
+impl CanvasWrite<u8, i32> for Editor {
     #[inline(always)]
     unsafe fn set_pixel_unchecked(&mut self, x: i32, y: i32, color: u8) {
         let x = x as usize;
@@ -104,18 +119,15 @@ impl Canvas<u8, i32> for Editor {
         let idx = self.start + x + y * self.stride;
         *self.canvas.page.get_unchecked_mut(idx) = color;
     }
+}
 
+impl CanvasRead<u8, i32> for Editor {
     #[inline(always)]
     unsafe fn get_pixel_unchecked(&self, x: i32, y: i32) -> u8 {
         let x = x as usize;
         let y = y as usize;
         let idx = self.start + x + y * self.stride;
         *self.canvas.page.get_unchecked(idx)
-    }
-
-    #[inline(always)]
-    fn bounds(&self) -> Rect<i32> {
-        self.rect
     }
 }
 
@@ -160,15 +172,13 @@ impl Context<i32, u8> for Editor {
         self.sprite().as_receiver().color.set(color);
     }
 
-    fn paint_brush(&mut self, p: Point2<i32>, color: u8) {
-        let brush = [
+    fn brush(&self) -> (Brush<u8>, Rect<i32>) {
+        static BRUSH: &[bool] = &[
             true,  false,  true,
             false,  true, false,
             true,  false,  true,
         ];
-        let r = Rect::from_coords_and_size(p.x, p.y, 3, 3).pad(-1);
-
-        self.mask(r, &brush, color);
-        self.update(r);
+        let r = Rect::from_coords_and_size(-1, -1, 3, 3);
+        (Brush::Mask(BRUSH.into()), r)
     }
 }

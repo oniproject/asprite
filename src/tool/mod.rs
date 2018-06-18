@@ -2,6 +2,7 @@ use math::*;
 use draw;
 
 use std::iter::Step;
+use std::ptr::NonNull;
 
 mod freehand;
 mod primitive;
@@ -22,13 +23,51 @@ pub enum Input<N: BaseNum> {
     Cancel, // press ESC
 }
 
-pub trait Context<N: BaseNumExt + Step, C: Copy + Clone + Eq>: draw::Canvas<C, N> {
+pub enum Brush<C> {
+    Mask(NonNull<[bool]>),
+    Blit(NonNull<[C]>),
+}
+
+pub trait PreviewContext<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw::Bounded<N>
+    where N: BaseNumExt + Step, C: Copy + Clone + Eq
+{
+    fn brush(&self) -> (Brush<C>, Rect<N>);
+    fn paint_brush(&mut self, p: Point2<N>, color: C) {
+        let r = {
+            let (brush, r) = self.brush();
+            let r = r.shift_x_y(p.x, p.y);
+            match brush {
+                Brush::Mask(brush) => self.mask(r, unsafe { brush.as_ref() }, color),
+                Brush::Blit(brush) => self.blit(r, unsafe { brush.as_ref() }),
+            };
+            r
+        };
+    }
+}
+
+pub trait Context<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw::Bounded<N>
+    where N: BaseNumExt + Step, C: Copy + Clone + Eq
+{
     fn start(&mut self) -> C;
     fn commit(&mut self);
     fn rollback(&mut self);
     fn sync(&mut self);
-    fn change_color(&mut self, C);
-    fn paint_brush(&mut self, p: Point2<N>, C);
+    fn change_color(&mut self, color: C);
+
+    fn brush(&self) -> (Brush<C>, Rect<N>);
+
+    fn paint_brush(&mut self, p: Point2<N>, color: C) {
+        let r = {
+            let (brush, r) = self.brush();
+            let r = r.shift_x_y(p.x, p.y);
+            match brush {
+                Brush::Mask(brush) => self.mask(r, unsafe { brush.as_ref() }, color),
+                Brush::Blit(brush) => self.blit(r, unsafe { brush.as_ref() }),
+            };
+            r
+        };
+        self.update(r.pad(-N::one()));
+    }
 
     fn update(&mut self, r: Rect<N>);
     fn update_point(&mut self, p: Point2<N>) {
@@ -38,7 +77,9 @@ pub trait Context<N: BaseNumExt + Step, C: Copy + Clone + Eq>: draw::Canvas<C, N
     }
 }
 
-pub trait Tool<N: BaseNumExt + Step, C: Copy + Clone + Eq> {
+pub trait Tool<N, C>
+    where N: BaseNumExt + Step, C: Copy + Clone + Eq
+{
     fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx);
-    fn preview<Ctx: Context<N, C>>(&mut self, x: N, y: N, ctx: &mut Ctx) {}
+    fn preview<Ctx: PreviewContext<N, C>>(&mut self, mouse: Point2<N>, ctx: &mut Ctx) {}
 }
