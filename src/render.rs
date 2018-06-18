@@ -196,7 +196,7 @@ impl Canvas {
 impl<'a> System<'a> for Canvas {
     type SystemData = (
         Write<'a, bool>,
-        Write<'a, Option<::editor::App>>,
+        Write<'a, Option<::app::App>>,
         WriteStorage<'a, Line>,
         Entities<'a>,
     );

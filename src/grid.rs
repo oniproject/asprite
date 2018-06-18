@@ -1,33 +1,27 @@
 use math::*;
 use ui::*;
-use editor::theme::*;
-
+use theme::*;
 use render::*;
 
 #[derive(Clone, Copy)]
 pub struct Grid {
     pub show: bool,
-    pub rect: Rect<i32>,
     pub size: Vector2<i16>,
     pub offset: Vector2<i16>,
-    pub zoom: i16,
 }
 
 impl Grid {
-    pub fn paint(&self, ctx: &mut Canvas) {
+    pub fn paint(&self, ctx: &mut Canvas, zoom: i16, rect: Rect<i32>) {
         if !self.show {
             return;
         }
 
         let (pos, size) = {
-            let r = self.rect;
-            let min = r.min;
+            let min = rect.min;
             let pos = Point2::new(min.x as i16, min.y as i16);
-            let size = Vector2::new(r.dx() as i16, r.dy() as i16);
+            let size = Vector2::new(rect.dx() as i16, rect.dy() as i16);
             (pos, size)
         };
-
-        let zoom = self.zoom;
 
         let rr = GRID_COLOR.to_be();
         let gg = CORNER_COLOR.to_be();

@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use draw::*;
+use tool::Receiver;
 use image::math::nq::NeuQuant as NQ;
 
 fn get_pal(nq: &NQ) -> Vec<u32> {
@@ -39,7 +40,7 @@ fn get_pal(nq: &NQ) -> Vec<u32> {
     pal
 }
 
-pub fn load_sprite<P: AsRef<Path>>(filename: P) -> Option<Sprite> {
+pub fn load_sprite<P: AsRef<Path>>(filename: P) -> Option<Receiver> {
     use image::{load, ImageFormat};
     use image::imageops::{index_colors, dither};
     use image::math::nq::NeuQuant;
@@ -71,7 +72,7 @@ pub fn load_sprite<P: AsRef<Path>>(filename: P) -> Option<Sprite> {
 
     let (w, h) = (m.width() as usize, m.height() as usize);
 
-    let mut sprite = Sprite::new(&name, w, h);
+    let mut sprite = Receiver::new(&name, w, h);
 
     let data: Vec<u8> = m.pixels()
         .flat_map(|c| c.data.iter().map(|&u| u))

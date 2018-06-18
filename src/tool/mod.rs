@@ -4,11 +4,16 @@ use draw;
 use std::iter::Step;
 use std::ptr::NonNull;
 
+mod editor;
+mod receiver;
+
 mod freehand;
 mod primitive;
 mod bucket;
 mod eye_dropper;
 
+pub use self::receiver::{Receiver, Layer};
+pub use self::editor::{Editor, ImageCell, image_cell};
 pub use self::freehand::Freehand;
 pub use self::primitive::{Primitive, PrimitiveMode};
 pub use self::bucket::Bucket;
@@ -21,6 +26,20 @@ pub enum Input<N: BaseNum> {
     Move(Point2<N>),
     Special(bool),
     Cancel, // press ESC
+}
+
+pub enum BrushOwner<C> {
+    Mask(Vec<bool>),
+    Blit(Vec<C>),
+}
+
+impl<C> BrushOwner<C> {
+    pub fn get(&self) -> Brush<C> {
+        match self {
+            BrushOwner::Mask(data) => Brush::Mask(data.as_slice().into()),
+            BrushOwner::Blit(data) => Brush::Blit(data.as_slice().into()),
+        }
+    }
 }
 
 pub enum Brush<C> {

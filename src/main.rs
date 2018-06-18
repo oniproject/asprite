@@ -26,38 +26,43 @@ use specs::prelude::*;
 
 #[macro_export]
 macro_rules! rect(
-	($x:expr, $y:expr, $w:expr, $h:expr) => (
-		$crate::sdl2::rect::Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
-	)
+    ($x:expr, $y:expr, $w:expr, $h:expr) => (
+        $crate::sdl2::rect::Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
+    )
 );
 
 #[macro_export]
 macro_rules! color(
-	($c:expr) => (
-		{
-			use $crate::sdl2::gfx::primitives::ToColor;
-			let (r, g, b, a) = $c.to_be().as_rgba();
-			$crate::sdl2::pixels::Color::RGBA(r, g, b, a)
-		}
-	)
+    ($c:expr) => (
+        {
+            use $crate::sdl2::gfx::primitives::ToColor;
+            let (r, g, b, a) = $c.to_be().as_rgba();
+            $crate::sdl2::pixels::Color::RGBA(r, g, b, a)
+        }
+    )
 );
 
 
 mod math;
 mod draw;
 mod ui;
-mod open;
-mod cmd;
 mod tool;
 
+//mod editor;
+//
+mod app;
+mod grid;
+mod theme;
+mod layout;
+
+mod prev;
+
+mod open;
 mod util;
-mod line;
 mod render;
 
-mod editor;
-
+mod line;
 use line::*;
-//use button::*;
 
 const SCREEN_TITLE: &str = "rust-sdl2_gfx: draw line & FPSManager";
 pub const SCREEN_WIDTH: u32 = 1024;
@@ -68,7 +73,7 @@ fn main() {
 
     let mut world = World::new();
     world.add_bundle(render::Bundle);
-    world.add_resource(Some(::editor::App::new(new_sprite())));
+    world.add_resource(Some(app::App::new(new_sprite())));
 
     let mut dispatcher = DispatcherBuilder::new()
         .with_thread_local(r)
@@ -81,7 +86,7 @@ fn main() {
     }
 }
 
-fn new_sprite() -> draw::Sprite {
+fn new_sprite() -> tool::Receiver {
     use math::*;
     use draw::*;
 
@@ -114,7 +119,7 @@ fn new_sprite() -> draw::Sprite {
         }
     }
 
-    let mut sprite = draw::Sprite::new("GEN", 160, 120);
+    let mut sprite = tool::Receiver::new("GEN", 160, 120);
     sprite.add_layer("Layer Down");
     sprite.add_layer("Layer 2");
     sprite.add_layer("Layer 3");

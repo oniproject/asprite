@@ -16,5 +16,3 @@ pub use self::canvas::{
 };
 pub use self::palette::Palette;
 pub use self::frame::Frame;
-pub use self::layer::Layer;
-pub use self::sprite::Sprite;

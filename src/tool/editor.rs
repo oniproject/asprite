@@ -1,25 +1,47 @@
+use std::mem::{replace, swap};
+use std::sync::Arc;
+use std::sync::{Mutex, MutexGuard};
+use redo::{Record, Command};
+
 use math::{Rect, Point2, Vector2};
-use tool::Context;
-use tool::Brush;
-
-use super::DrawCommand;
-
 use draw::{
     Bounded,
     CanvasRead,
     CanvasWrite,
-    Sprite,
     Frame,
     Palette,
 };
 
-use redo::Record;
-use std::mem::replace;
-use std::sync::Arc;
-use std::sync::{Mutex, MutexGuard};
+use super::{
+    Context, Brush,
+    Receiver,
+};
 
-pub type ImageCell = Arc<Mutex<Record<Sprite, DrawCommand>>>;
-pub fn image_cell(sprite: Sprite) -> ImageCell {
+#[derive(Debug)]
+pub struct DrawCommand {
+    page: Frame,
+    frame: usize,
+    layer: usize,
+}
+
+impl DrawCommand {
+    pub fn new(frame: usize, layer: usize, page: Frame) -> Self {
+        Self { frame, layer, page }
+    }
+    fn run(&mut self, image: &mut Receiver) -> Result<(), ()> {
+        swap(&mut self.page, image.page_mut(self.frame, self.layer));
+        Ok(())
+    }
+}
+
+impl Command<Receiver> for DrawCommand {
+    type Error = ();
+    fn apply(&mut self, image: &mut Receiver) -> Result<(), Self::Error> { self.run(image) }
+    fn undo(&mut self, image: &mut Receiver) -> Result<(), Self::Error> { self.run(image) }
+}
+
+pub type ImageCell = Arc<Mutex<Record<Receiver, DrawCommand>>>;
+pub fn image_cell(sprite: Receiver) -> ImageCell {
     Arc::new(Mutex::new(Record::new(sprite)))
 }
 
@@ -62,7 +84,7 @@ impl Editor {
         self.redraw.take()
     }
 
-    pub fn sprite(&self) -> MutexGuard<Record<Sprite, DrawCommand>> {
+    pub fn sprite(&self) -> MutexGuard<Record<Receiver, DrawCommand>> {
         self.image.lock().unwrap()
     }
 
