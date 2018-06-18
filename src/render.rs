@@ -69,10 +69,6 @@ impl world::Bundle for Bundle {
     }
 }
 
-pub trait Painter {
-    fn paint(&self, &mut WindowCanvas);
-}
-
 pub struct Canvas {
     sdl: Sdl,
     video: VideoSubsystem,
@@ -85,10 +81,6 @@ pub struct Canvas {
 
     pub hovered: AtomicBool,
     last_texture_id: AtomicUsize,
-
-    mouse: ui::Mouse,
-
-    vec: RefCell<Vec<Texture>>,
 
     cursors: Cursors,
 }
@@ -132,10 +124,6 @@ impl Canvas {
 
             liner: Liner::new(),
 
-            mouse: ui::Mouse::new(),
-
-            vec: RefCell::new(Vec::new()),
-
             hovered: AtomicBool::new(false),
             cursors: create_cursors(),
         }
@@ -148,12 +136,16 @@ impl Canvas {
         Color::RGBA(r, g, b, a)
     }
 
-    pub fn vline(&self, x: i16, y1: i16, y2: i16, color: u32) {
-        self.canvas.borrow_mut().vline(x, y1, y2, color).unwrap();
+    pub fn vline(&mut self, x: i16, y1: i16, y2: i16, color: u32) {
+        self.canvas.get_mut().vline(x, y1, y2, color).unwrap();
     }
 
-    pub fn hline(&self, x1: i16, x2: i16, y: i16, color: u32) {
-        self.canvas.borrow_mut().hline(x1, x2, y, color).unwrap();
+    pub fn hline(&mut self, x1: i16, x2: i16, y: i16, color: u32) {
+        self.canvas.get_mut().hline(x1, x2, y, color).unwrap();
+    }
+
+    pub fn size(&self) -> (u32, u32) {
+        self.canvas.borrow().logical_size()
     }
 
     fn gen_id<T: Into<Option<usize>>>(&mut self, id: T) -> usize {
@@ -197,7 +189,7 @@ impl Canvas {
         let src = rect!(0, 0, w, h);
         let dst = rect!(pos.x, pos.y, w * zoom, h * zoom);
 
-        self.canvas.borrow_mut().copy(texture, src, dst).unwrap();
+        self.canvas.get_mut().copy(texture, src, dst).unwrap();
     }
 }
 
@@ -225,75 +217,13 @@ impl<'a> System<'a> for Canvas {
                         *quit = true;
                         return;
                     }
-
                     Event::Window { win_event: WindowEvent::Resized(w, h), .. } => {
                         self.canvas.get_mut().set_logical_size(w as u32, h as u32).unwrap();
                     }
-
                     Event::KeyDown { keycode: Some(keycode), ..} => {
                         if keycode == Keycode::Escape {
                             *quit = true;
                             return;
-                        } else if keycode == Keycode::Space {
-                            println!("space down");
-                            /*
-                            for i in 0..400 {
-                                self.canvas.pixel(i as i16, i as i16, 0xFF000FFu32).unwrap();
-                            }
-                            self.canvas.present();
-                            */
-                        }
-                    }
-
-                    Event::MouseButtonDown { x, y, .. } => {
-                        let (x, y) = (x as i16, y as i16);
-                        /*
-                        for b in (&mut btns).join() {
-                            b.mouse((x, y), Some(true))
-                        }
-                        */
-                        self.liner.down(x, y);
-
-                        self.mouse.cursor = Point2::new(x as f32, y as f32);
-                        self.mouse.pressed[0] = true;
-                    }
-                    Event::MouseButtonUp {x, y, ..} => {
-                        let (x, y) = (x as i16, y as i16);
-                        /*
-                        for b in (&mut btns).join() {
-                            b.mouse((x, y), Some(false))
-                        }
-                        */
-                        self.liner.up(x, y);
-
-                        self.mouse.cursor = Point2::new(x as f32, y as f32);
-                        self.mouse.released[0] = true;
-                    }
-                    Event::MouseMotion { x, y, .. } => {
-                        self.mouse.cursor = Point2::new(x as f32, y as f32);
-
-                        let (x, y) = (x as i16, y as i16);
-                        /*
-                        for b in (&mut btns).join() {
-                            b.mouse((x, y), None)
-                        }
-                        */
-                        self.liner.mov(x, y);
-
-                        if let Some((start, end)) = self.liner.next() {
-                            if start == end {
-                                println!("dup");
-                                return;
-                            }
-
-                            let r = end.0 as u8;
-                            let g = end.1 as u8;
-                            let color = Color::RGB(r, g, 255);
-
-                            let entry = entities.create();
-                            lines.insert(entry, Line {
-                                start, end, color,
-                            }).unwrap();
                         }
                     }
                     _ => {}
@@ -309,76 +239,10 @@ impl<'a> System<'a> for Canvas {
         self.cursors[&cur].set();
         self.hovered.store(false, Ordering::Relaxed);
 
-        /*
-        {
-            let canvas = self.canvas.get_mut();
-            canvas.set_draw_color(Color::RGB(0xFF, 0xFF, 0xFF));
-            canvas.clear();
+        if let Some(ref mut app) = &mut *app {
+            app.paint(self);
         }
-
-        for l in lines.join() {
-            l.paint(self)
-        }
-
-        for b in btns.join() {
-            b.paint(self)
-        }
-        */
-
-        {
-            let m = self.mouse;
-            if let Some(ref mut app) = &mut *app {
-                app.draw_ui(self, m);
-            }
-            self.mouse.cleanup();
-            self.canvas.get_mut().present();
-        }
-
-        self.vec.get_mut().clear();
-
-    }
-}
-
-/*
-// Scale fonts to a reasonable size when they're too big (though they might look less smooth)
-fn get_centered_rect(rect_width: u32, rect_height: u32, cons_width: u32, cons_height: u32) -> Rect {
-    let wr = rect_width as f32 / cons_width as f32;
-    let hr = rect_height as f32 / cons_height as f32;
-
-    let (w, h) = if wr > 1f32 || hr > 1f32 {
-        if wr > hr {
-            println!("Scaling down! The text will look worse!");
-            let h = (rect_height as f32 / wr) as i32;
-            (cons_width as i32, h)
-        } else {
-            println!("Scaling down! The text will look worse!");
-            let w = (rect_width as f32 / hr) as i32;
-            (w, cons_height as i32)
-        }
-    } else {
-        (rect_width as i32, rect_height as i32)
-    };
-
-    let cx = (::SCREEN_WIDTH as i32 - w) / 2;
-    let cy = (::SCREEN_HEIGHT as i32 - h) / 2;
-    rect!(cx, cy, w, h)
-}
-*/
-
-impl draw::Bounded<i32> for Canvas {
-    #[inline(always)]
-    fn bounds(&self) -> Rect<i32> {
-        let (w, h) = self.canvas.borrow().logical_size();
-        Rect::from_coords_and_size(0, 0, w as i32, h as i32)
-    }
-}
-
-impl draw::CanvasWrite<u32, i32> for Canvas {
-    #[inline(always)]
-    unsafe fn set_pixel_unchecked(&mut self, x: i32, y: i32, color: u32) {
-        let canvas = self.canvas.get_mut();
-        canvas.set_draw_color(Self::color(color));
-        canvas.draw_point((x, y)).expect("draw_point");
+        self.canvas.get_mut().present();
     }
 }
 
@@ -426,39 +290,6 @@ impl ui::Graphics for Canvas {
     }
 
     fn text(&self, base: Point2<f32>, color: Self::Color, text: &str) {
-        /*
-        let (r, g, b, a) = color.as_rgba();
-        let color = Color::RGBA(r, g, b, a);
-
-        let wh = self.measure_text(text);
-
-        let surface = self.font.render(text)
-            .blended(color)
-            .expect("blended");
-
-        let texture = self.texture_creator.create_texture_from_surface(&surface)
-            .expect("create texture");
-
-        let TextureQuery { width, height, .. } = texture.query();
-        let target = rect!(base.x + 1.0, base.y + 1.0, width, height);
-
-        /*
-        let x0 = base.x as i16;
-        let x1 = (base.x + wh.x) as i16;
-
-        let y0 = base.y as i16;
-        let y1 = (base.y + wh.y) as i16;
-
-        let vx = [x0, x1, x1, x0];
-        let vy = [y0, y0, y1, y1];
-        */
-
-        self.canvas.borrow_mut()
-            .copy(&texture, None, Some(target))
-            .expect("copy texture");
-        //self.vec.borrow_mut().push(texture)
-        */
-
         ::util::draw_text(&mut *self.canvas.borrow_mut(), base.x as i16, base.y as i16, text, color).unwrap();
     }
 

@@ -1,6 +1,4 @@
 use math::*;
-//use gui::*;
-//
 use ui::*;
 use editor::theme::*;
 
@@ -31,8 +29,8 @@ impl Grid {
 
         let zoom = self.zoom;
 
-        let rr = GRID_COLOR;
-        let gg = CORNER_COLOR;
+        let rr = GRID_COLOR.to_be();
+        let gg = CORNER_COLOR.to_be();
 
         let (ox, oy) = (pos.x, pos.y);
 

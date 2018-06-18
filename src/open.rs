@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use draw::*;
 use image::math::nq::NeuQuant as NQ;
 
 fn get_pal(nq: &NQ) -> Vec<u32> {

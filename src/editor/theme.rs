@@ -7,6 +7,14 @@ use render::Canvas;
 
 pub const TRANSPARENT: u32 = 0x000000_00;
 
+pub static PAL_GAMEBOY: &[u32] = &[
+    0xCADC9F_FF,
+    0x0F380F_FF,
+    0x306230_FF,
+    0x8BAC0F_FF,
+    0x9BBC0F_FF,
+];
+
 pub const EDITOR_SPRITE_ID: usize = 777;
 pub const EDITOR_PREVIEW_ID: usize = 888;
 

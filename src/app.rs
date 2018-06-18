@@ -45,7 +45,6 @@ impl App {
         }
     }
 
-    /*
     pub fn paint(&mut self, render: &mut gui::Render) {
         render.prepare(WINDOW_BG);
         self.tools.paint(render);
@@ -131,9 +130,7 @@ impl App {
         _ => (),
         }
     }
-    */
 
-        /*
     pub fn ui(&mut self, ui: &mut render::Canvas) {
 
         let widgets = [
@@ -204,7 +201,6 @@ impl App {
         */
 
 
-    /*
         let r = ui.bounds();
         let width = r.dx();
         let height = r.dy();
@@ -348,7 +344,5 @@ impl App {
                 }
             }
         });
-    */
     }
-    */
 }

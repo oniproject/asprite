@@ -46,13 +46,9 @@ macro_rules! color(
 mod math;
 mod draw;
 mod ui;
-//mod common;
+mod open;
 mod cmd;
 mod tool;
-
-//mod theme;
-mod grid;
-mod ed;
 
 mod util;
 mod line;
@@ -100,22 +96,22 @@ fn new_sprite() -> draw::Sprite {
     const PINK: u32     = 0xBC306C_FF;
     const BLUE: u32     = 0x2874C4_FF;
 
-    const GB0: u32      = 0xCADC9F_FF;
-    const GB1: u32      = 0x0F380F_FF;
-    const GB2: u32      = 0x306230_FF;
-    const GB3: u32      = 0x8BAC0F_FF;
-    const GB4: u32      = 0x9BBC0F_FF;
+    static PAL: &[u32] = &[
+        TRANSPARENT,
+        BLACK,
+        WHITE,
+        RED,
+        GREEN,
+        YELLOW,
+        VIOLET,
+        PINK,
+        BLUE,
+    ];
 
     fn create_pal(pal: &mut Palette<u32>) {
-        pal[0] = TRANSPARENT;
-        pal[1] = BLACK;
-        pal[2] = WHITE;
-        pal[3] = RED;
-        pal[4] = GREEN;
-        pal[5] = YELLOW;
-        pal[6] = VIOLET;
-        pal[7] = PINK;
-        pal[8] = BLUE;
+        for (i, &c) in PAL.iter().enumerate() {
+            pal[i as u8] = c;
+        }
     }
 
     let mut sprite = draw::Sprite::new("GEN", 160, 120);
