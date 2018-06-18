@@ -1,7 +1,6 @@
 use math::*;
 use draw;
 
-use std::iter::Step;
 use std::ptr::NonNull;
 
 mod editor;
@@ -14,6 +13,7 @@ mod eye_dropper;
 
 pub use self::receiver::{Receiver, Layer};
 pub use self::editor::{Editor, ImageCell, image_cell};
+
 pub use self::freehand::Freehand;
 pub use self::primitive::{Primitive, PrimitiveMode};
 pub use self::bucket::Bucket;
@@ -48,7 +48,7 @@ pub enum Brush<C> {
 }
 
 pub trait PreviewContext<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw::Bounded<N>
-    where N: BaseNumExt + Step, C: Copy + Clone + Eq
+    where N: BaseIntExt, C: Copy + Clone + Eq
 {
     fn brush(&self) -> (Brush<C>, Rect<N>);
     fn paint_brush(&mut self, p: Point2<N>, color: C) {
@@ -65,7 +65,7 @@ pub trait PreviewContext<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N>
 }
 
 pub trait Context<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw::Bounded<N>
-    where N: BaseNumExt + Step, C: Copy + Clone + Eq
+    where N: BaseIntExt, C: Copy + Clone + Eq
 {
     fn start(&mut self) -> C;
     fn commit(&mut self);
@@ -97,7 +97,7 @@ pub trait Context<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw
 }
 
 pub trait Tool<N, C>
-    where N: BaseNumExt + Step, C: Copy + Clone + Eq
+    where N: BaseIntExt, C: Copy + Clone + Eq
 {
     fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx);
     fn preview<Ctx: PreviewContext<N, C>>(&mut self, mouse: Point2<N>, ctx: &mut Ctx) {}

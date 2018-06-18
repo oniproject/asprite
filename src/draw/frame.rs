@@ -1,4 +1,3 @@
-//use super::Canvas;
 use math::Rect;
 
 #[derive(Clone, Debug)]

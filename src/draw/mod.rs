@@ -1,18 +1,24 @@
 pub mod gradient;
 
+mod common;
 mod canvas;
 mod palette;
-mod layer;
 mod frame;
-mod sprite;
+
+pub use self::common::{
+    blit,
+    mask,
+    draw_line,
+    draw_ellipse,
+    draw_rect,
+    fill_rect,
+};
 
 pub use self::canvas::{
     Bounded,
     CanvasRead,
     CanvasWrite,
     CanvasFill,
-    blit,
-    draw_line,
 };
 pub use self::palette::Palette;
 pub use self::frame::Frame;

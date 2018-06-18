@@ -1,6 +1,12 @@
 use super::*;
 use math::*;
 
+// TODO: maybe Painter like this?
+//
+// pub trait Painter<D: ?Sized> {
+//    fn paint(&self, &D, Rect<f32>);
+//}
+
 pub trait FrameDrawer<D: ?Sized> {
     fn draw_frame(&self, &D, Rect<f32>);
 }

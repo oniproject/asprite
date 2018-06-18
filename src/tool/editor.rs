@@ -49,9 +49,6 @@ pub struct Editor {
     pub image: ImageCell,
     redraw: Option<Rect<i32>>,
 
-    pub brush_rect: Rect<i16>,
-    pub brush_offset: Vector2<i16>,
-
     canvas: Frame,
     rect: Rect<i32>,
     start: usize,
@@ -75,8 +72,6 @@ impl Editor {
             stride: w,
 
             redraw: Some(rect),
-            brush_rect: Rect::from_coords_and_size(0, 0, 3, 3),
-            brush_offset: Vector2::new(-1, -1),
         }
     }
 

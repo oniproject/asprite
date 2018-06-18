@@ -14,7 +14,7 @@ impl EyeDropper<i32, u8> {
     }
 }
 
-impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Tool<N, C> for EyeDropper<N, C> {
+impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for EyeDropper<N, C> {
     fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
         match input {
             Input::Press(p) => {

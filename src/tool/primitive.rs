@@ -30,20 +30,18 @@ impl Primitive<i32, u8> {
     }
 }
 
-impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N, C> {
+impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N, C> {
     fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
         match input {
             Input::Move(p) => {
                 if self.active {
                     ctx.sync();
+
                     let min = if self.square {
-                        let dx = p.x - self.start.x;
-                        let dy = p.y - self.start.y;
-                        let min = {
-                            let (dx, dy) = (dx.abs(), dy.abs());
-                            if dx < dy { dx } else { dy }
-                        };
-                        self.start - Vector2::new(dx.signum(), dy.signum()) * min
+                        let delta = p - Vector2::new(self.start.x, self.start.y);
+                        let min = delta.x.abs().min(delta.y.abs());
+                        let signum = Vector2::new(delta.x.signum(), delta.y.signum());
+                        self.start - signum * min
                     } else {
                         p
                     };

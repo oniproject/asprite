@@ -96,13 +96,11 @@ impl App {
             drag: false,
 
             grid: Grid {
-                show: true,
                 size: Vector2::new(16, 16),
                 offset: Vector2::new(-6, -6),
             },
 
             current: CurrentTool::Freehand,
-
             prim: Primitive::new(),
             bucket: Bucket::new(),
             freehand: Freehand::new(),
@@ -204,7 +202,6 @@ impl App {
         let m = self.editor.sprite();
         m.as_receiver().color.get()
     }
-
 
     pub fn event(&mut self, event: sdl2::event::Event) {
         use tool::*;

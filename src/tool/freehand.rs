@@ -25,7 +25,7 @@ impl Freehand<i32, u8> {
     }
 }
 
-impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
+impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
     fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
         match input {
             Input::Move(p) => {
@@ -91,7 +91,7 @@ impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
     }
 }
 
-impl<N: BaseNumExt + Step, C: Copy + Clone + Eq> Freehand<N, C> {
+impl<N: BaseIntExt, C: Copy + Clone + Eq> Freehand<N, C> {
     pub fn update<Ctx: Context<N, C>>(&mut self, m: Point2<N>, last: Point2<N>, ctx: &mut Ctx) {
         if self.point_exists(m.x, m.y) {
             return;
