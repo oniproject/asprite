@@ -3,6 +3,7 @@ pub mod slider;
 pub mod toggle;
 pub mod progress;
 pub mod menubar;
+pub mod menu;
 
 use super::{Context, Events, Id, Painter, ColorDrawer, TextureDrawer, Graphics};
 

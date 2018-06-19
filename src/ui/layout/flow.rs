@@ -195,7 +195,7 @@ pub fn layout<'a>(axis: Axis, size: Vector2<f32>, widgets: &'a [Flow]) -> impl I
     let gen = move || {
         let mut p = Point2::new(0.0, 0.0);
         let mut q = Point2::new(0.0, 0.0);
-        for c in widgets.iter() {
+        for c in widgets.into_iter() {
             match axis {
                 Axis::Horizontal => p.x = q.x,
                 Axis::Vertical   => p.y = q.y,
@@ -233,7 +233,7 @@ pub fn layout<'a>(axis: Axis, size: Vector2<f32>, widgets: &'a [Flow]) -> impl I
     LayoutIter { gen }
 }
 
-pub struct LayoutIter<G>
+struct LayoutIter<G>
     where G: Generator<Yield=Rect<f32>, Return=()>
 {
     gen: G,

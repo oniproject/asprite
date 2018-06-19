@@ -19,25 +19,21 @@ pub use self::id::{Id, IdGenerator, Generator};
 
 pub use self::layout::flow::{
     Flow,
-    LayoutIter,
     layout,
     measure,
 };
 
 pub use self::components::{UiState, Component};
-
 pub use self::components::button::Button;
 pub use self::components::progress::Progress;
 pub use self::components::toggle::Toggle;
 pub use self::components::slider::{Slider, SliderModel};
-
-pub use self::components::menubar::{
+pub use self::components::menubar::{MenuBar,MenuBarModel};
+pub use self::components::menu::{
     Item,
     ItemStyle,
     Menu,
     MenuEvent,
-    MenuBar,
-    MenuBarModel,
 };
 
 pub type SimpleButton<D> = Button<D, D, D>;
