@@ -5,8 +5,8 @@
 #![feature(generators, generator_trait)]
 #![feature(const_cell_new)]
 
-#![allow(dead_code)]
-#![allow(unused_imports)]
+//#![allow(dead_code)]
+//#![allow(unused_imports)]
 
 
 extern crate rand;
@@ -60,9 +60,6 @@ mod prev;
 mod open;
 mod util;
 mod render;
-
-mod line;
-use line::*;
 
 const SCREEN_TITLE: &str = "rust-sdl2_gfx: draw line & FPSManager";
 pub const SCREEN_WIDTH: u32 = 1024;

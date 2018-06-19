@@ -2,7 +2,7 @@ use sdl2::gfx::primitives::DrawRenderer;
 
 use math::Rect;
 use draw::{Palette, Bounded, CanvasRead, CanvasWrite};
-use tool::{Editor, Brush, PreviewContext};
+use tool::{Editor, Brush, PreviewContext, Context};
 use render::TextureCanvas;
 
 pub struct Prev<'a> {
@@ -35,8 +35,5 @@ impl<'a> CanvasRead<u8, i32> for Prev<'a> {
 }
 
 impl<'a> PreviewContext<i32, u8> for Prev<'a> {
-    fn brush(&self) -> (Brush<u8>, Rect<i32>) {
-        use tool::Context;
-        self.editor.brush()
-    }
+    fn brush(&self) -> (Brush<u8>, Rect<i32>) { self.editor.brush() }
 }

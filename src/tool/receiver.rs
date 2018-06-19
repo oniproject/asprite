@@ -1,9 +1,12 @@
 use std::cell::Cell;
 use draw::{Frame, Palette};
 
+use math::{Rect, Vector2, Point2};
+
 pub struct Receiver {
-    pub name: String,
     pub data: Vec<Layer>,
+
+    pub name: String,
     pub palette: Palette<u32>,
     pub width: usize,
     pub height: usize,
@@ -12,10 +15,17 @@ pub struct Receiver {
     pub layer: Cell<usize>,
 
     pub color: Cell<u8>,
+
+    pub zoom: i32,
+    pub pos: Point2<i32>,
+
+    pub created: bool,
+    pub redraw: Option<Rect<i32>>,
 }
 
 impl Receiver {
     pub fn new(name: &str, width: usize, height: usize) -> Self {
+        let rect = Rect::from_coords_and_size(0, 0, width as i32, height as i32);
         Self {
             name: name.to_string(),
             data: Vec::new(),
@@ -24,7 +34,48 @@ impl Receiver {
             frame: Cell::new(0),
             layer: Cell::new(0),
             color: Cell::new(1),
+
+            zoom: 1,
+            pos: Point2::new(0, 0),
+
+            created: false,
+            redraw: Some(rect),
         }
+    }
+
+    pub fn take_update(&mut self) -> Option<Rect<i32>> {
+        self.redraw.take()
+    }
+
+    pub fn update_all(&mut self) {
+        let w = self.width as i32;
+        let h = self.height as i32;
+        self.redraw = Some(Rect::from_coords_and_size(0, 0, w, h));
+    }
+
+    pub fn update(&mut self, r: Rect<i32>) {
+        self.redraw = match self.redraw {
+            Some(r) => r.union(r),
+            None => Some(r),
+        };
+    }
+
+    pub fn rect(&self) -> Rect<i32> {
+        let dim = Vector2::new(self.width as i32, self.height as i32);
+        Rect::from_min_dim(self.pos, dim)
+    }
+
+    pub fn zoom<F: FnOnce(i32) -> Vector2<i32>>(&mut self, y: i32, f: F) {
+        let last = self.zoom;
+        self.zoom += y;
+        if self.zoom < 1 { self.zoom = 1 }
+        if self.zoom > 16 { self.zoom = 16 }
+        let diff = last - self.zoom;
+
+        let p = f(diff);
+
+        self.pos.x += p.x;
+        self.pos.y += p.y;
     }
 
     pub fn is_lock(&self) -> bool {

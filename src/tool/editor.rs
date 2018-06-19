@@ -1,6 +1,7 @@
 use std::mem::{replace, swap};
 use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
+
 use redo::{Record, Command};
 
 use math::{Rect, Point2, Vector2};
@@ -13,7 +14,7 @@ use draw::{
 };
 
 use super::{
-    Context, Brush,
+    Brush,
     Receiver,
 };
 
@@ -47,52 +48,88 @@ pub fn image_cell(sprite: Receiver) -> ImageCell {
 
 pub struct Editor {
     pub image: ImageCell,
-    redraw: Option<Rect<i32>>,
 
     canvas: Frame,
-    rect: Rect<i32>,
     start: usize,
     stride: usize,
 }
 
 impl Editor {
-    pub fn new(image: ImageCell) -> Self {
+    pub fn new(pos: Point2<i32>, image: ImageCell) -> Self {
         let (w, h) = {
             let m = image.lock().unwrap();
             let m = m.as_receiver();
             (m.width, m.height)
         };
-        let rect = Rect::from_coords_and_size(0, 0, w as i32, h as i32);
         Self {
             image,
-            rect,
 
             canvas: Frame::new(w, h),
             start: 0,
             stride: w,
-
-            redraw: Some(rect),
         }
     }
 
+    pub fn zoom(&self) -> i32 {
+        self.sprite().as_receiver().zoom
+    }
+
+    pub fn pos(&self) -> Point2<i32> {
+        self.sprite().as_receiver().pos
+    }
+
+    pub fn size(&self) -> Vector2<i32> {
+        let m = self.sprite();
+        let m = m.as_receiver();
+        Vector2::new(m.width as i32, m.height as i32)
+    }
+
+    pub fn rect(&self) -> Rect<i32> {
+        self.sprite().as_receiver().rect()
+    }
+
+    pub fn take_created(&mut self) -> bool {
+        let mut m = self.sprite();
+        let m = m.as_mut_receiver();
+
+        let c = m.created;
+        m.created = true;
+        c
+    }
+
+    pub fn color(&self) -> u32 {
+        let m = self.sprite();
+        let m = m.as_receiver();
+        m.palette[m.color.get()]
+    }
+
+    pub fn pal(&self, color: u8) -> u32 {
+        let m = self.sprite();
+        m.as_receiver().palette[color]
+    }
+
+    pub fn color_index(&self) -> u8 {
+        let m = self.sprite();
+        m.as_receiver().color.get()
+    }
+
     pub fn take_redraw(&mut self) -> Option<Rect<i32>> {
-        self.redraw.take()
+        let mut m = self.sprite();
+        m.as_mut_receiver().take_update()
     }
 
     pub fn sprite(&self) -> MutexGuard<Record<Receiver, DrawCommand>> {
         self.image.lock().unwrap()
     }
 
-    pub fn size(&self) -> Vector2<i32> {
-        Vector2::new(self.rect.dx() as i32, self.rect.dy() as i32)
-    }
-
     pub fn redo(&mut self) {
+        use super::Context;
         self.image.lock().unwrap().redo();
         self.sync();
     }
 
     pub fn undo(&mut self) {
+        use super::Context;
         self.image.lock().unwrap().undo();
         self.sync();
     }
@@ -124,7 +161,9 @@ impl Editor {
 impl Bounded<i32> for Editor {
     #[inline(always)]
     fn bounds(&self) -> Rect<i32> {
-        self.rect
+        let min = Point2::new(0, 0);
+        let dim = self.size();
+        Rect::from_min_dim(min, dim)
     }
 }
 
@@ -148,22 +187,19 @@ impl CanvasRead<u8, i32> for Editor {
     }
 }
 
-impl Context<i32, u8> for Editor {
+impl super::Context<i32, u8> for Editor {
     fn update(&mut self, r: Rect<i32>) {
-        self.redraw = match self.redraw {
-            Some(r) => r.union(r),
-            None => Some(r),
-        };
+        self.sprite().as_mut_receiver().update(r)
     }
 
     fn sync(&mut self) {
-        let m = self.image.lock().unwrap();
-        let m = m.as_receiver();
+        let mut m = self.image.lock().unwrap();
+        let mut m = m.as_mut_receiver();
         let (layer, frame) = {
             (m.layer.get(), m.frame.get())
         };
         self.canvas.copy_from(&m.page(layer, frame));
-        self.redraw = Some(self.rect);
+        m.update_all();
     }
 
     fn start(&mut self) -> u8 {

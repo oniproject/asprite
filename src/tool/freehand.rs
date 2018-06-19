@@ -80,7 +80,7 @@ impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
         }
     }
 
-    fn preview<Ctx: PreviewContext<N, C>>(&mut self, mouse: Point2<N>, ctx: &mut Ctx) {
+    fn preview<Ctx: PreviewContext<N, C>>(&self, mouse: Point2<N>, ctx: &mut Ctx) {
         if self.active {
             self.pts.iter()
                 .filter_map(|(p, active)| if *active { Some(p) } else { None })

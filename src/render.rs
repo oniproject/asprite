@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use sdl2::event::{Event, WindowEvent};
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::keyboard::Keycode;
@@ -21,8 +23,6 @@ use specs::shred::MetaTable;
 use draw;
 use ui;
 use math::*;
-
-use line::*;
 
 pub type TextureCanvas = WindowCanvas;
 
@@ -63,8 +63,6 @@ pub struct Bundle;
 
 impl world::Bundle for Bundle {
     fn add_to_world(self, world: &mut World) {
-        use line::*;
-        world.register::<Line>();
         world.add_resource::<bool>(false);
     }
 }
@@ -77,7 +75,6 @@ pub struct Canvas {
     //font: ttf::Font<'static, 'static>,
     texture_creator: TextureCreator<WindowContext>,
     textures: HashMap<usize, (Texture, u32, u32)>,
-    liner: Liner,
 
     pub hovered: AtomicBool,
     last_texture_id: AtomicUsize,
@@ -96,9 +93,6 @@ impl Canvas {
             .build()
             .unwrap();
 
-        //let ttf = Box::leak(Box::new(ttf::init().unwrap()));
-        //let font = ttf.load_font(font, 12).unwrap();
-
         let mut canvas = window.into_canvas()
             //.software()
             .build().unwrap();
@@ -116,13 +110,10 @@ impl Canvas {
             video,
             canvas: RefCell::new(canvas),
             events,
-            //font,
 
             last_texture_id: AtomicUsize::new(0),
             texture_creator,
             textures: HashMap::new(),
-
-            liner: Liner::new(),
 
             hovered: AtomicBool::new(false),
             cursors: create_cursors(),
@@ -197,11 +188,10 @@ impl<'a> System<'a> for Canvas {
     type SystemData = (
         Write<'a, bool>,
         Write<'a, Option<::app::App>>,
-        WriteStorage<'a, Line>,
         Entities<'a>,
     );
 
-    fn run(&mut self, (mut quit, mut app, mut lines, entities): Self::SystemData) {
+    fn run(&mut self, (mut quit, mut app, entities): Self::SystemData) {
         {
             use std::iter;
             let poll = self.events.wait_event_timeout(60)

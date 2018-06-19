@@ -100,5 +100,5 @@ pub trait Tool<N, C>
     where N: BaseIntExt, C: Copy + Clone + Eq
 {
     fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx);
-    fn preview<Ctx: PreviewContext<N, C>>(&mut self, mouse: Point2<N>, ctx: &mut Ctx) {}
+    fn preview<Ctx: PreviewContext<N, C>>(&self, mouse: Point2<N>, ctx: &mut Ctx) {}
 }

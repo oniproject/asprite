@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub use cgmath::prelude::*;
 pub use cgmath::{BaseNum, BaseFloat};
 
