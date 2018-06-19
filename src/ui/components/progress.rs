@@ -11,14 +11,14 @@ pub struct Progress<BG, F> {
 impl<'a, D, BG, F> Component<Context<'a, D>, UiState> for Progress<BG, F>
     where
         D: ?Sized + Graphics + 'a,
-        BG: FrameDrawer<D>,
-        F: FrameDrawer<D>,
+        BG: Painter<D>,
+        F: Painter<D>,
 {
     type Event = ();
     type Model = f32;
     fn behavior(&self, ctx: &Context<D>, _state: &mut UiState, model: &mut Self::Model) -> Self::Event {
         let rect = ctx.rect();
-        self.background.draw_frame(ctx.draw(), rect);
+        self.background.paint(ctx.draw(), rect);
 
         let rect = match self.axis {
             Axis::Horizontal => {
@@ -30,6 +30,6 @@ impl<'a, D, BG, F> Component<Context<'a, D>, UiState> for Progress<BG, F>
                 Rect { max: Point2::new(rect.max.x, rect.min.y + h), .. rect }
             }
         };
-        self.fill.draw_frame(ctx.draw(), rect);
+        self.fill.paint(ctx.draw(), rect);
     }
 }

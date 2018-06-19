@@ -9,9 +9,9 @@ pub struct Toggle<P, H, N> {
 impl<'a, D, P, H, N> Component<Context<'a, D>, UiState> for Toggle<P, H, N>
     where
         D: ?Sized + Graphics + 'a,
-        P: FrameDrawer<D>,
-        H: FrameDrawer<D>,
-        N: FrameDrawer<D>,
+        P: Painter<D>,
+        H: Painter<D>,
+        N: Painter<D>,
 {
     type Event = bool;
     type Model = bool;

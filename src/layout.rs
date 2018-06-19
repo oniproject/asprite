@@ -89,7 +89,7 @@ impl<'a, 'state> EditorLayout<'a, 'state> {
 
         let rect = ctx.rect();
         let pad = (rect.dy() - 2.0) / 2.0;
-        ctx.quad(rgba(0xAAAAAA_AA), &rect.pad_y(pad));
+        ctx.quad(rgba(0xAAAAAA_AA), rect.pad_y(pad));
 
         HSLIDER.behavior(&ctx, &mut self.state, &mut slider);
 

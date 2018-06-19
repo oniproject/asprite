@@ -250,12 +250,12 @@ impl ui::Graphics for Canvas {
     type Texture = usize;
     type Color = u32;
 
-    fn texture_dimensions(&self, id: &Self::Texture) -> Vector2<f32> {
+    fn texture_dimensions(&self, id: Self::Texture) -> Vector2<f32> {
         let (_, w, h) = self.textures[&id];
         Vector2::new(w as f32, h as f32)
     }
 
-    fn quad(&self, color: Self::Color, rect: &Rect<f32>) {
+    fn quad(&self, color: Self::Color, rect: Rect<f32>) {
         let sx = rect.min.x as i16;
         let sy = rect.min.y as i16;
         let ex = rect.max.x as i16 - 1;
@@ -265,7 +265,7 @@ impl ui::Graphics for Canvas {
             .expect("draw_box");
     }
 
-    fn texture(&self, id: &Self::Texture, rect: &Rect<f32>) {
+    fn texture(&self, id: Self::Texture, rect: Rect<f32>) {
         let (ref texture, w, h) = self.textures[&id];
         let src = rect!(0, 0, w, h);
         let dst = rect!(rect.min.x, rect.min.y, rect.dx(), rect.dy());
@@ -274,7 +274,7 @@ impl ui::Graphics for Canvas {
             .expect("copy texture");
     }
 
-    fn texture_frame(&self, id: &Self::Texture, rect: &Rect<f32>, frame: &Rect<f32>) {
+    fn texture_frame(&self, id: Self::Texture, rect: Rect<f32>, frame: Rect<f32>) {
         let (ref texture, _, _) = self.textures[&id];
         let src = rect!(frame.min.x, frame.min.y, frame.dx(), frame.dy());
         let dst = rect!(rect.min.x, rect.min.y, rect.dx(), rect.dy());

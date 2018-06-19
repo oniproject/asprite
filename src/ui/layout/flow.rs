@@ -147,15 +147,11 @@ fn gen_measure() {
 }
 
 pub fn measure(axis: Axis, widgets: &[Flow]) -> Vector2<f32> {
-    let f: fn (s: Vector2<f32>, v: Vector2<f32>) -> Vector2<f32> =
-        match axis {
-            Axis::Horizontal => move |s, v| Vector2::new(s.x + v.x, s.y.max(v.y)),
-            Axis::Vertical   => move |s, v| Vector2::new(s.x.max(v.x), s.y + v.y),
-        };
-
-    widgets.iter()
-        .map(|c| c.measured_size)
-        .fold(Vector2::zero(), f)
+    let i = widgets.iter().map(|c| c.measured_size);
+    match axis {
+    Axis::Horizontal => i.fold(Vector2::zero(), move |s, v| Vector2::new(s.x + v.x, s.y.max(v.y))),
+    Axis::Vertical   => i.fold(Vector2::zero(), move |s, v| Vector2::new(s.x.max(v.x), s.y + v.y)),
+    }
 }
 
 pub fn layout<'a>(axis: Axis, size: Vector2<f32>, widgets: &'a [Flow]) -> impl Iterator<Item=Rect<f32>> + 'a {

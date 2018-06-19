@@ -34,11 +34,11 @@ impl<D: ?Sized + Graphics> MenuBar<D> {
                 Rect { min, max }
             };
 
-            if ctx.is_cursor_in_rect(&rect) || state.active_widget == Some(id) {
+            if ctx.is_cursor_in_rect(rect) || state.active_widget == Some(id) {
                 model.open_root = Some((id, rect));
                 state.active_widget = Some(id);
                 ctx.set_hovered();
-                ctx.quad(self.hover_bg, &rect);
+                ctx.quad(self.hover_bg, rect);
                 ctx.label_rect(rect, align, self.hover_color, label);
             } else {
                 ctx.label_rect(rect, align, self.normal_color, label);
@@ -98,7 +98,7 @@ impl<T: Clone, D: ?Sized + Graphics> Menu<D, T> {
             let rect = match item {
                 &Item::Text(ref id, name, shortcut) => {
                     let rect = Rect { min, max: Point2::new(min.x + self.width, min.y + self.text_height) };
-                    let style = if ctx.is_cursor_in_rect(&rect) {
+                    let style = if ctx.is_cursor_in_rect(rect) {
                         if ctx.was_released() {
                             event = Some(id.clone());
                         }
@@ -106,7 +106,7 @@ impl<T: Clone, D: ?Sized + Graphics> Menu<D, T> {
                     } else {
                         &self.normal
                     };
-                    ctx.quad(style.bg, &rect);
+                    ctx.quad(style.bg, rect);
                     let inset = rect.pad_x(self.text_inset);
                     ctx.label_rect(inset, label_align, style.label, name);
                     ctx.label_rect(inset, shortcut_align, style.shortcut, shortcut);
@@ -114,8 +114,8 @@ impl<T: Clone, D: ?Sized + Graphics> Menu<D, T> {
                 }
                 &Item::Separator => {
                     let rect = Rect { min, max: Point2::new(min.x + self.width, min.y + self.sep_height) };
-                    ctx.quad(self.normal.bg, &rect);
-                    ctx.quad(self.separator, &rect.pad_y(self.sep_inset));
+                    ctx.quad(self.normal.bg, rect);
+                    ctx.quad(self.separator, rect.pad_y(self.sep_inset));
                     rect
                 }
                 &Item::Menu(_) => unimplemented!(),
@@ -123,13 +123,13 @@ impl<T: Clone, D: ?Sized + Graphics> Menu<D, T> {
 
             min.y += rect.dy();
 
-            any_hovering = any_hovering || ctx.is_cursor_in_rect(&rect);
+            any_hovering = any_hovering || ctx.is_cursor_in_rect(rect);
         }
 
         if let Some(item) = event {
             state.active_widget = None;
             MenuEvent::Clicked(item)
-        } else if !any_hovering && !ctx.is_cursor_in_rect(&base_rect) {
+        } else if !any_hovering && !ctx.is_cursor_in_rect(base_rect) {
             state.active_widget = None;
             MenuEvent::Exit
         } else {

@@ -4,17 +4,12 @@ pub mod toggle;
 pub mod progress;
 pub mod menubar;
 
-use super::{Context, Component, Events, Id, FrameDrawer, ColorDrawer, TextureDrawer, Graphics, MouseEvent};
-use super::transform::*;
+use super::{Context, Events, Id, Painter, ColorDrawer, TextureDrawer, Graphics};
 
-pub trait ActiveWidget {
-    fn active_widget(&self) -> Option<Id>;
-    fn active_widget_mut(&mut self) -> &mut Option<Id>;
-
-    #[inline(always)]
-    fn is_active(&self, id: Id) -> bool {
-        self.active_widget() == Some(id)
-    }
+pub trait Component<C, S> {
+    type Event;
+    type Model;
+    fn behavior(&self, ctx: &C, state: &mut S, model: &mut Self::Model) -> Self::Event;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,15 +21,13 @@ impl UiState {
     pub const fn new() -> Self {
         Self { active_widget: None }
     }
-}
 
-impl ActiveWidget for UiState {
     #[inline(always)]
-    fn active_widget(&self) -> Option<Id> {
+    pub(in ui) fn active_widget(&self) -> Option<Id> {
         self.active_widget
     }
     #[inline(always)]
-    fn active_widget_mut(&mut self) -> &mut Option<Id> {
+    pub(in ui) fn active_widget_mut(&mut self) -> &mut Option<Id> {
         &mut self.active_widget
     }
 }

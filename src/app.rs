@@ -268,13 +268,13 @@ impl App {
             let p = Point2::new(x as i32, y as i32);
             self.mouse_press(p);
             self.ui_mouse.cursor = Point2::new(x as f32, y as f32);
-            self.ui_mouse.pressed[0] = true;
+            self.ui_mouse.pressed = true;
         }
         Event::MouseButtonUp { mouse_btn: MouseButton::Left, x, y, .. } => {
             let p = Point2::new(x as i32, y as i32);
             self.mouse_release(p);
             self.ui_mouse.cursor = Point2::new(x as f32, y as f32);
-            self.ui_mouse.released[0] = true;
+            self.ui_mouse.released = true;
         }
 
         Event::MouseWheel { y, ..} => { self.zoom_from_mouse(y as i32); }
@@ -352,9 +352,9 @@ impl App {
                     let dim = Vector2::new(SIZE as f32, SIZE as f32);
                     let r = Rect::from_min_dim(min, dim);
                     if is {
-                        render.quad(0x333333_FFu32.to_be(), &r);
+                        render.quad(0x333333_FFu32.to_be(), r);
                     } else {
-                        render.quad(0x000000_FFu32.to_be(), &r);
+                        render.quad(0x000000_FFu32.to_be(), r);
                     }
                 }
             }
@@ -421,7 +421,7 @@ impl App {
         let mut iter = ctx.vertical_flow(0.0, 0.0, &widgets)
             .zip(colors.iter().cloned())
             .map(|(ctx, color)| {
-                ctx.quad(color, &ctx.rect());
+                ctx.quad(color, ctx.rect());
                 ctx
             });
 
@@ -456,7 +456,7 @@ impl App {
                 if BTN.behavior(&ctx.sub_rect(r), &mut self.state, &mut ()) {
                     self.editor.change_color(i as u8);
                 }
-                ctx.quad(rgba(color), &r.pad(1.0));
+                ctx.quad(rgba(color), r.pad(1.0));
             }
         }
     }
@@ -492,7 +492,7 @@ impl App {
 
         //println!("{:?}", ctx.rect());
 
-        ctx.quad(rgba(0xFF0000_CC), &ctx.rect());
+        ctx.quad(rgba(0xFF0000_CC), ctx.rect());
 
         static mut TOGGLE_STATE: bool = false;
 
@@ -563,8 +563,8 @@ impl App {
                 self.editor.undo();
             }
 
-            ctx.draw().texture(&ICON_UNDO, &undo.rect());
-            ctx.draw().texture(&ICON_REDO, &redo.rect());
+            ctx.draw().texture(ICON_UNDO, undo.rect());
+            ctx.draw().texture(ICON_REDO, redo.rect());
         }
 
         flow.next().unwrap();
@@ -584,9 +584,9 @@ impl App {
                 }
                 let r = ctx.rect();
                 if self.current == tool {
-                    BTN.pressed.draw_frame(ctx.draw(), ctx.rect());
+                    BTN.pressed.paint(ctx.draw(), ctx.rect());
                 }
-                ctx.draw().texture(&icon, &r);
+                ctx.draw().texture(icon, r);
             }
         }
 

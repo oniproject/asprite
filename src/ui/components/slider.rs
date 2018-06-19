@@ -26,7 +26,7 @@ pub struct Slider<H> {
 impl<'a, D, H> Component<Context<'a, D>, UiState> for Slider<H>
     where
         D: ?Sized + Graphics + 'a,
-        H: FrameDrawer<D>,
+        H: Painter<D>,
 {
     type Event = ();
     type Model = SliderModel;
@@ -64,7 +64,7 @@ impl<'a, D, H> Component<Context<'a, D>, UiState> for Slider<H>
         };
 
         let percent = model.percent();
-        handle.draw_frame(ctx.draw(), match axis {
+        handle.paint(ctx.draw(), match axis {
             Axis::Vertical => {
                 let delta = rect.dx() / 2.0;
                 let p = Point2::new(

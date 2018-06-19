@@ -1,26 +1,20 @@
 pub mod layout;
 pub mod components;
 
-mod guard;
-
 mod id;
-mod transform;
 mod context;
-mod graphics;
 mod mouse;
-mod ninepatch;
-mod frame_drawer;
+mod painter;
 
-pub use self::transform::*;
+pub use self::mouse::{Mouse, Events};
+pub use self::painter::{
+    Graphics,
+    Painter,
+    NoDrawer, ColorDrawer, TextureDrawer,
+    NinePatch,
+};
 
-pub use self::guard::*;
-pub use self::ninepatch::*;
-
-pub use self::mouse::{Mouse, MouseEvent};
-pub use self::graphics::Graphics;
-pub use self::frame_drawer::{NoDrawer, FrameDrawer, ColorDrawer, TextureDrawer};
-
-pub use self::context::{Context, ContextBuilder, Events};
+pub use self::context::{Context, ContextBuilder};
 pub use self::id::{Id, IdGenerator, Generator};
 
 pub use self::layout::flow::{
@@ -30,10 +24,7 @@ pub use self::layout::flow::{
     measure,
 };
 
-pub use self::components::{
-    ActiveWidget,
-    UiState,
-};
+pub use self::components::{UiState, Component};
 
 pub use self::components::button::Button;
 pub use self::components::progress::Progress;
@@ -49,16 +40,9 @@ pub use self::components::menubar::{
     MenuBarModel,
 };
 
-
 pub type SimpleButton<D> = Button<D, D, D>;
 pub type ColorButton<D> = SimpleButton<ColorDrawer<D>>;
 pub type TextureButton<D> = SimpleButton<TextureDrawer<D>>;
 
 pub type SimpleToggle<D> = Toggle<D, D, D>;
 pub type ColorToggle<D> = SimpleToggle<ColorDrawer<D>>;
-
-pub trait Component<C, S> {
-    type Event;
-    type Model;
-    fn behavior(&self, ctx: &C, state: &mut S, model: &mut Self::Model) -> Self::Event;
-}

@@ -74,19 +74,14 @@ pub const LABEL_COLOR: u32 = 0xFFFFFF_FF;
 pub const FONT_HEIGHT: u16 = 12;
 
 pub const INSET_X: i16 = FONT_HEIGHT as i16 / 2;
-
-pub const GRID_COLOR: u32 = 0xFF0000_FF;
-pub const CORNER_COLOR: u32 = 0x00FF00_FF;
-
-pub const TRANSPARENT: u32 = 0x000000_00;
 */
 
-const background: ColorDrawer<Canvas> = ColorDrawer::new(rgba(0xFFFFFF_CC));
-const fill: ColorDrawer<Canvas> = ColorDrawer::new(rgba(0x000000_CC));
+const background: ColorDrawer<Canvas> = ColorDrawer(rgba(0xFFFFFF_CC));
+const fill: ColorDrawer<Canvas> = ColorDrawer(rgba(0x000000_CC));
 
-const normal: ColorDrawer<Canvas>  = ColorDrawer::new(rgba(0xFF00FF_FF));
-const hovered: ColorDrawer<Canvas> = ColorDrawer::new(rgba(0xFF00FF_CC));
-const pressed: ColorDrawer<Canvas> = ColorDrawer::new(rgba(0xFF0000_FF));
+const normal: ColorDrawer<Canvas>  = ColorDrawer(rgba(0xFF00FF_FF));
+const hovered: ColorDrawer<Canvas> = ColorDrawer(rgba(0xFF00FF_CC));
+const pressed: ColorDrawer<Canvas> = ColorDrawer(rgba(0xFF0000_FF));
 
 pub const HPROGRESS: Progress<ColorDrawer<Canvas>, ColorDrawer<Canvas>> = Progress { background, fill, axis: Axis::Horizontal };
 pub const VPROGRESS: Progress<ColorDrawer<Canvas>, ColorDrawer<Canvas>> = Progress { background, fill, axis: Axis::Vertical };
@@ -95,21 +90,21 @@ pub const HSLIDER: Slider<ColorDrawer<Canvas>> = Slider { normal, hovered, press
 pub const VSLIDER: Slider<ColorDrawer<Canvas>> = Slider { normal, hovered, pressed, axis: Axis::Vertical };
 
 pub const BTN: ColorButton<Canvas> = ColorButton {
-	normal:  ColorDrawer::new(BTN_NORMAL),
-	hovered: ColorDrawer::new(BTN_HOVERED),
-	pressed: ColorDrawer::new(BTN_PRESSED),
+	normal:  ColorDrawer(BTN_NORMAL),
+	hovered: ColorDrawer(BTN_HOVERED),
+	pressed: ColorDrawer(BTN_PRESSED),
 };
 
 pub const TOGGLE: ColorToggle<Canvas> = Toggle {
 	checked: ColorButton {
-		normal:   ColorDrawer::new(rgba(0xFF0000_CC)),
-		hovered:  ColorDrawer::new(rgba(0xFF0000_99)),
-		pressed:  ColorDrawer::new(rgba(0xFF0000_66)),
+		normal:   ColorDrawer(rgba(0xFF0000_CC)),
+		hovered:  ColorDrawer(rgba(0xFF0000_99)),
+		pressed:  ColorDrawer(rgba(0xFF0000_66)),
 	},
 	unchecked: ColorButton {
-		normal:   ColorDrawer::new(rgba(0xFFFFFF_CC)),
-		hovered:  ColorDrawer::new(rgba(0xFFFFFF_99)),
-		pressed:  ColorDrawer::new(rgba(0xFFFFFF_66)),
+		normal:   ColorDrawer(rgba(0xFFFFFF_CC)),
+		hovered:  ColorDrawer(rgba(0xFFFFFF_99)),
+		pressed:  ColorDrawer(rgba(0xFFFFFF_66)),
 	},
 };
 
