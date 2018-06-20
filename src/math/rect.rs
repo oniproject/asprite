@@ -27,13 +27,13 @@ impl<S> Rect<S> where S: BaseNum {
 
 impl<S> Rect<S> where S: BaseNum {
     pub fn contains(&self, p: Point2<S>) -> bool {
-        self.min.x <= p.x && p.x <= self.max.x &&
-        self.min.y <= p.y && p.y <= self.max.y
+        self.min.x <= p.x && p.x < self.max.x &&
+        self.min.y <= p.y && p.y < self.max.y
     }
 
     pub fn contains_xy(&self, x: S, y: S) -> bool {
-        self.min.x <= x && x <= self.max.x &&
-        self.min.y <= y && y <= self.max.y
+        self.min.x <= x && x < self.max.x &&
+        self.min.y <= y && y < self.max.y
     }
 
     pub fn contains_rect(&self, r: &Self) -> bool {

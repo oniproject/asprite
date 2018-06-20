@@ -16,9 +16,6 @@ pub static PAL_GAMEBOY: &[u32] = &[
     0x9BBC0F_FF,
 ];
 
-pub const EDITOR_SPRITE_ID: usize = 777;
-pub const EDITOR_PREVIEW_ID: usize = 888;
-
 pub const GRID_COLOR: u32 = 0xFF0000_AA;
 pub const CORNER_COLOR: u32 = 0x00FF00_AA;
 
@@ -31,6 +28,10 @@ pub const ICON_TOOL_PIP: usize = 1000_4;
 
 pub const ICON_UNDO: usize = 2000_0;
 pub const ICON_REDO: usize = 2000_1;
+
+
+pub const EDITOR_PREVIEW_ID: usize = 10_666;
+pub const EDITOR_SPRITE_ID: usize = 10_777;
 
 pub const fn rgba(c: u32) -> u32 {
     ((c >> 24) & 0xFF) <<  0 |
@@ -91,56 +92,56 @@ pub const HSLIDER: Slider<ColorDrawer<Canvas>> = Slider { normal, hovered, press
 pub const VSLIDER: Slider<ColorDrawer<Canvas>> = Slider { normal, hovered, pressed, axis: Axis::Vertical };
 
 pub const BTN: ColorButton<Canvas> = ColorButton {
-	normal:  ColorDrawer(BTN_NORMAL),
-	hovered: ColorDrawer(BTN_HOVERED),
-	pressed: ColorDrawer(BTN_PRESSED),
+    normal:  ColorDrawer(BTN_NORMAL),
+    hovered: ColorDrawer(BTN_HOVERED),
+    pressed: ColorDrawer(BTN_PRESSED),
 };
 
 pub const TOGGLE: ColorToggle<Canvas> = Toggle {
-	checked: ColorButton {
-		normal:   ColorDrawer(rgba(0xFF0000_CC)),
-		hovered:  ColorDrawer(rgba(0xFF0000_99)),
-		pressed:  ColorDrawer(rgba(0xFF0000_66)),
-	},
-	unchecked: ColorButton {
-		normal:   ColorDrawer(rgba(0xFFFFFF_CC)),
-		hovered:  ColorDrawer(rgba(0xFFFFFF_99)),
-		pressed:  ColorDrawer(rgba(0xFFFFFF_66)),
-	},
+    checked: ColorButton {
+        normal:   ColorDrawer(rgba(0xFF0000_CC)),
+        hovered:  ColorDrawer(rgba(0xFF0000_99)),
+        pressed:  ColorDrawer(rgba(0xFF0000_66)),
+    },
+    unchecked: ColorButton {
+        normal:   ColorDrawer(rgba(0xFFFFFF_CC)),
+        hovered:  ColorDrawer(rgba(0xFFFFFF_99)),
+        pressed:  ColorDrawer(rgba(0xFFFFFF_66)),
+    },
 };
 
 pub const MENUBAR: MenuBar<Canvas> = MenuBar {
-	normal_color: rgba(0xFFFFFF_FF),
-	hover_color:  rgba(0x000000_FF),
-	hover_bg:     rgba(0xCCCCCC_CC),
+    normal_color: rgba(0xFFFFFF_FF),
+    hover_color:  rgba(0x000000_FF),
+    hover_bg:     rgba(0xCCCCCC_CC),
 };
 
 #[derive(Clone, Debug)]
 pub enum Command {
-	New, Open, Recent,
-	Save, SaveAs,
-	Quit,
+    New, Open, Recent,
+    Save, SaveAs,
+    Quit,
 }
 
 pub const MENU: Menu<Canvas, Command> = Menu {
-	marker: ::std::marker::PhantomData,
-	normal: ItemStyle {
-		label:    rgba(0x000000_FF),
-		shortcut: rgba(0x000000_88),
-		bg:       rgba(0xFFFFFF_FF),
-	},
-	hovered: ItemStyle {
-		label:    rgba(0x000000_FF),
-		shortcut: rgba(0x000000_88),
-		bg:       rgba(0xAAAAAA_FF),
-	},
+    marker: ::std::marker::PhantomData,
+    normal: ItemStyle {
+        label:    rgba(0x000000_FF),
+        shortcut: rgba(0x000000_88),
+        bg:       rgba(0xFFFFFF_FF),
+    },
+    hovered: ItemStyle {
+        label:    rgba(0x000000_FF),
+        shortcut: rgba(0x000000_88),
+        bg:       rgba(0xAAAAAA_FF),
+    },
 
-	separator: rgba(0x000000_99),
+    separator: rgba(0x000000_99),
 
-	width: 150.0,
+    width: 150.0,
 
-	text_height: 20.0,
-	text_inset: 8.0,
-	sep_height: 5.0,
-	sep_inset: 2.0,
+    text_height: 20.0,
+    text_inset: 8.0,
+    sep_height: 5.0,
+    sep_inset: 2.0,
 };

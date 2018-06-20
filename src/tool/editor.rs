@@ -41,13 +41,8 @@ impl Command<Receiver> for DrawCommand {
     fn undo(&mut self, image: &mut Receiver) -> Result<(), Self::Error> { self.run(image) }
 }
 
-pub type ImageCell = Arc<Mutex<Record<Receiver, DrawCommand>>>;
-pub fn image_cell(sprite: Receiver) -> ImageCell {
-    Arc::new(Mutex::new(Record::new(sprite)))
-}
-
 pub struct Editor {
-    pub image: ImageCell,
+    pub image: Record<Receiver, DrawCommand>,
 
     canvas: Frame,
     start: usize,
@@ -55,92 +50,77 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(pos: Point2<i32>, image: ImageCell) -> Self {
-        let (w, h) = {
-            let m = image.lock().unwrap();
-            let m = m.as_receiver();
-            (m.width, m.height)
-        };
-        Self {
-            image,
+    pub fn new(pos: Point2<i32>, image: Receiver) -> Self {
+        let (w, h) = (image.width, image.height);
+        let canvas = image.page(image.layer, image.frame).clone();
 
-            canvas: Frame::new(w, h),
+        Self {
+            canvas,
+            stride: image.width,
             start: 0,
-            stride: w,
+            image: Record::new(image),
         }
     }
 
     pub fn zoom(&self) -> i32 {
-        self.sprite().as_receiver().zoom
+        self.image.as_receiver().zoom
     }
 
     pub fn pos(&self) -> Point2<i32> {
-        self.sprite().as_receiver().pos
+        self.image.as_receiver().pos
     }
 
     pub fn size(&self) -> Vector2<i32> {
-        let m = self.sprite();
-        let m = m.as_receiver();
+        let m = self.image.as_receiver();
         Vector2::new(m.width as i32, m.height as i32)
     }
 
     pub fn rect(&self) -> Rect<i32> {
-        self.sprite().as_receiver().rect()
+        self.image.as_receiver().rect()
     }
 
     pub fn take_created(&mut self) -> bool {
-        let mut m = self.sprite();
-        let m = m.as_mut_receiver();
-
+        let m = self.image.as_mut_receiver();
         let c = m.created;
         m.created = true;
         c
     }
 
     pub fn color(&self) -> u32 {
-        let m = self.sprite();
-        let m = m.as_receiver();
-        m.palette[m.color.get()]
+        let m = self.image.as_receiver();
+        m.palette[m.color]
     }
 
     pub fn pal(&self, color: u8) -> u32 {
-        let m = self.sprite();
-        m.as_receiver().palette[color]
+        self.image.as_receiver().palette[color]
     }
 
     pub fn color_index(&self) -> u8 {
-        let m = self.sprite();
-        m.as_receiver().color.get()
+        self.image.as_receiver().color
     }
 
     pub fn take_redraw(&mut self) -> Option<Rect<i32>> {
-        let mut m = self.sprite();
-        m.as_mut_receiver().take_update()
-    }
-
-    pub fn sprite(&self) -> MutexGuard<Record<Receiver, DrawCommand>> {
-        self.image.lock().unwrap()
+        self.image.as_mut_receiver().take_update()
     }
 
     pub fn redo(&mut self) {
         use super::Context;
-        self.image.lock().unwrap().redo();
+        self.image.redo();
         self.sync();
     }
 
     pub fn undo(&mut self) {
         use super::Context;
-        self.image.lock().unwrap().undo();
+        self.image.undo();
         self.sync();
     }
 
     pub fn draw_pages<F: FnMut(&Frame, &Palette<u32>)>(&self, mut f: F) {
-        let image = self.sprite();
-        let image = image.as_receiver();
-        let current_layer = image.layer.get();
-        let current_frame = image.frame.get();
+        let image = self.image.as_receiver();
+        let current_layer = image.layer;
+        let current_frame = image.frame;
         for (layer_id, layer) in image.data.iter().enumerate() {
-            if !layer.visible.get() {
+            if !layer.visible {
                 continue;
             }
             for (frame_id, _) in layer.frames.iter().enumerate() {
@@ -189,31 +169,26 @@ impl CanvasRead<u8, i32> for Editor {
 
 impl super::Context<i32, u8> for Editor {
     fn update(&mut self, r: Rect<i32>) {
-        self.sprite().as_mut_receiver().update(r)
+        self.image.as_mut_receiver().update(r)
     }
 
     fn sync(&mut self) {
-        let mut m = self.image.lock().unwrap();
-        let mut m = m.as_mut_receiver();
-        let (layer, frame) = {
-            (m.layer.get(), m.frame.get())
-        };
-        self.canvas.copy_from(&m.page(layer, frame));
-        m.update_all();
+        {
+            let mut m = self.image.as_receiver();
+            self.canvas.copy_from(&m.page(m.layer, m.frame));
+        }
+        self.image.as_mut_receiver().update_all();
     }
 
     fn start(&mut self) -> u8 {
         self.sync();
-        self.sprite().as_receiver().color.get()
+        self.image.as_receiver().color
     }
     fn commit(&mut self) {
         let page = self.canvas.clone();
-        let (layer, frame) = {
-            let m = self.sprite();
-            let m = m.as_receiver();
-            (m.layer.get(), m.frame.get())
-        };
-        let _ = self.image.lock().unwrap()
+        let layer = self.image.as_receiver().layer;
+        let frame = self.image.as_receiver().frame;
+        let _ = self.image
             .apply(DrawCommand::new(layer, frame, page.clone())).unwrap();
         self.sync();
     }
@@ -222,16 +197,22 @@ impl super::Context<i32, u8> for Editor {
     }
 
     fn change_color(&mut self, color: u8) {
-        self.sprite().as_receiver().color.set(color);
+        self.image.as_mut_receiver().color = color;
     }
 
     fn brush(&self) -> (Brush<u8>, Rect<i32>) {
+        /*
         static BRUSH: &[bool] = &[
             true,  false,  true,
             false,  true, false,
             true,  false,  true,
         ];
         let r = Rect::from_coords_and_size(-1, -1, 3, 3);
+        (Brush::Mask(BRUSH.into()), r)
+        */
+
+        static BRUSH: &[bool] = &[true];
+        let r = Rect::from_coords_and_size(0, 0, 1, 1);
         (Brush::Mask(BRUSH.into()), r)
     }
 }

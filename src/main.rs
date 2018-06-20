@@ -58,7 +58,6 @@ mod layout;
 mod prev;
 
 mod open;
-mod util;
 mod render;
 
 const SCREEN_TITLE: &str = "rust-sdl2_gfx: draw line & FPSManager";
@@ -70,7 +69,7 @@ fn main() {
 
     let mut world = World::new();
     world.add_bundle(render::Bundle);
-    world.add_resource(Some(app::App::new(new_sprite())));
+    world.add_resource(app::App::new(new_sprite()));
 
     let mut dispatcher = DispatcherBuilder::new()
         .with_thread_local(r)

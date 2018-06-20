@@ -1,3 +1,5 @@
+use math::*;
+
 // Iterator-based Bresenham's line drawing algorithm
 //
 // [Bresenham's line drawing algorithm]

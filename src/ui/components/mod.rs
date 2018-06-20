@@ -5,7 +5,7 @@ pub mod progress;
 pub mod menubar;
 pub mod menu;
 
-use super::{Context, Events, Id, Painter, ColorDrawer, TextureDrawer, Graphics};
+use super::{Context, Events, Id, Painter, Graphics};
 
 pub trait Component<C, S> {
     type Event;

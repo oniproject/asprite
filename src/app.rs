@@ -1,9 +1,12 @@
-use sdl2;
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
-use sdl2::mouse::MouseButton;
-use sdl2::gfx::primitives::DrawRenderer;
+use sdl2::{
+    event::Event,
+    keyboard::{self, Keycode},
+    mouse::MouseButton,
+    gfx::primitives::DrawRenderer,
+};
+use std::time::{Duration, Instant};
 
+use layout::{EditorLayout, edit_num};
 use prev::Prev;
 
 use math::{Rect, Point2, Vector2};
@@ -11,10 +14,10 @@ use ui;
 use ui::*;
 
 use tool::{
-    Input, Tool,
+    Tool,
     EyeDropper, Bucket, Primitive, PrimitiveMode, Freehand,
     Brush, PreviewContext,
-    ImageCell, image_cell, Editor,
+    Editor,
     Receiver,
 };
 
@@ -33,7 +36,31 @@ pub enum CurrentTool {
     Primitive(PrimitiveMode),
 }
 
-pub struct Tools {
+macro_rules! tools {
+    ($self: expr, $name: ident, $ev: expr) => {
+        match $self.current {
+            CurrentTool::Freehand => $self.freehand.$name($ev, &mut $self.editor),
+            CurrentTool::Bucket => $self.bucket.$name($ev, &mut $self.editor),
+            CurrentTool::EyeDropper => $self.dropper.$name($ev, &mut $self.editor),
+            CurrentTool::Primitive(mode) => {
+                $self.prim.mode = mode;
+                $self.prim.$name($ev, &mut $self.editor)
+            }
+        }
+    }
+}
+
+pub struct App {
+    pub init: bool,
+    pub quit: bool,
+
+    pub menubar: MenuBarModel,
+    pub state: UiState,
+    pub ui_mouse: ui::Mouse,
+
+    pub editor: Editor,
+    pub grid: Grid,
+
     pub current: CurrentTool,
 
     pub freehand: Freehand<i32, u8>,
@@ -43,21 +70,41 @@ pub struct Tools {
 
     pub mouse: Point2<i32>,
     pub drag: bool,
+
+    time: Instant,
 }
 
-impl Tools {
-    pub fn input(&mut self, editor: &mut Editor, ev: Input<i32>) {
-        if editor.sprite().as_receiver().is_lock() {
-            return
-        }
-        match self.current {
-            CurrentTool::Freehand => self.freehand.run(ev, editor),
-            CurrentTool::Bucket => self.bucket.run(ev, editor),
-            CurrentTool::EyeDropper => self.dropper.run(ev, editor),
-            CurrentTool::Primitive(mode) => {
-                self.prim.mode = mode;
-                self.prim.run(ev, editor)
-            }
+impl App {
+    pub fn new(sprite: Receiver) -> Self {
+        use tool::Context;
+
+        let mut editor = Editor::new(Point2::new(300, 200), sprite);
+        editor.sync();
+
+        Self {
+            init: false,
+
+            quit: false,
+            menubar: MenuBarModel { open_root: None },
+
+            ui_mouse: ui::Mouse::new(),
+            state: UiState::new(),
+
+            grid: Grid {
+                size: Vector2::new(16, 16),
+                offset: Vector2::new(-6, -6),
+            },
+            editor,
+            current: CurrentTool::Freehand,
+            prim: Primitive::new(),
+            bucket: Bucket::new(),
+            freehand: Freehand::new(),
+            dropper: EyeDropper::new(),
+
+            mouse: Point2::new(-100, -100),
+            drag: false,
+
+            time: Instant::now(),
         }
     }
 
@@ -71,121 +118,84 @@ impl Tools {
             CurrentTool::Primitive(_) => self.prim.preview(self.mouse, &mut prev),
         }
     }
-}
 
-pub struct App {
-    pub init: bool,
-    pub update: bool,
-    pub quit: bool,
-
-    pub files: Vec<ImageCell>,
-
-    pub menubar: MenuBarModel,
-    pub state: UiState,
-    pub ui_mouse: ui::Mouse,
-
-    pub editor: Editor,
-    pub grid: Grid,
-    pub tools: Tools,
-}
-
-impl App {
-    pub fn new(sprite: Receiver) -> Self {
-        use tool::Context;
-        let files = vec![image_cell(sprite)];
-
-        let sprite = files[0].clone();
-
-        let mut editor = Editor::new(Point2::new(300, 200), sprite);
-        editor.sync();
-
-        Self {
-            init: false,
-
-            update: true,
-            quit: false,
-            files,
-            menubar: MenuBarModel { open_root: None },
-
-            ui_mouse: ui::Mouse::new(),
-            state: UiState::new(),
-
-            grid: Grid {
-                size: Vector2::new(16, 16),
-                offset: Vector2::new(-6, -6),
-            },
-            tools: Tools {
-                current: CurrentTool::Freehand,
-                prim: Primitive::new(),
-                bucket: Bucket::new(),
-                freehand: Freehand::new(),
-                dropper: EyeDropper::new(),
-
-                mouse: Point2::new(-100, -100),
-                drag: false,
-            },
-            editor,
+    pub fn cancel(&mut self) {
+        match self.current {
+            CurrentTool::Freehand => self.freehand.cancel(&mut self.editor),
+            CurrentTool::Bucket => self.bucket.cancel(&mut self.editor),
+            CurrentTool::EyeDropper => self.dropper.cancel(&mut self.editor),
+            CurrentTool::Primitive(mode) => {
+                self.prim.mode = mode;
+                self.prim.cancel(&mut self.editor);
+            }
         }
+    }
+
+    pub fn special(&mut self, v: bool) {
+        if self.editor.image.as_receiver().is_lock() { return }
+        tools!(self, special, v)
     }
 
     pub fn mouse_press(&mut self, p: Point2<i32>) {
         let p = self.set_mouse(p);
-        if p.x >= 0 && p.y >= 0 {
-            self.tools.input(&mut self.editor, Input::Press(p));
+        if self.editor.image.as_receiver().is_lock() { return }
+        if self.editor.image.as_receiver().bounds().contains(p) {
+            tools!(self, press, p);
         }
     }
 
     pub fn mouse_release(&mut self, p: Point2<i32>) {
         let p = self.set_mouse(p);
-        if p.x >= 0 && p.y >= 0 {
-            self.tools.input(&mut self.editor, Input::Release(p));
+        if self.editor.image.as_receiver().is_lock() { return }
+        if self.editor.image.as_receiver().bounds().contains(p) {
+            tools!(self, release, p);
         }
     }
 
     pub fn mouse_move(&mut self, p: Point2<i32>, v: Vector2<i32>) {
         let p = self.set_mouse(p);
-        if self.tools.drag {
-            self.editor.sprite().as_mut_receiver().pos += v;
+        if self.drag {
+            self.editor.image.as_mut_receiver().pos += v;
         } else {
-            self.tools.input(&mut self.editor, Input::Move(p));
+            if self.editor.image.as_receiver().is_lock() { return }
+            if self.editor.image.as_receiver().bounds().contains(p) {
+                tools!(self, movement, p);
+            }
         }
     }
 
     fn set_mouse(&mut self, p: Point2<i32>) -> Point2<i32> {
         let v = (p - self.editor.pos()) / self.editor.zoom();
-        self.tools.mouse = Point2::new(0, 0) + v;
-        self.tools.mouse
+        self.mouse = Point2::new(0, 0) + v;
+        self.mouse
     }
 
     pub fn zoom_from_center(&mut self, y: i32) {
         let v = self.editor.size();
-        self.editor.sprite()
+        self.editor.image
              .as_mut_receiver()
              .zoom(y, |diff| v * diff / 2);
     }
 
     pub fn zoom_from_mouse(&mut self, y: i32) {
-        let p = self.tools.mouse;
+        let p = self.mouse;
         let v = Vector2::new(p.x, p.y);
-        self.editor.sprite()
-             .as_mut_receiver()
+        self.editor.image
+            .as_mut_receiver()
             .zoom(y, |diff| v * diff);
     }
 
     pub fn pal(&self, color: u8) -> u32 {
-        let m = self.editor.sprite();
-        m.as_receiver().palette[color]
+        self.editor.image.as_receiver().palette[color]
     }
 
     pub fn color_index(&self) -> u8 {
-        let m = self.editor.sprite();
-        m.as_receiver().color.get()
+        self.editor.image.as_receiver().color
     }
 
-    pub fn event(&mut self, event: sdl2::event::Event) {
+    pub fn event(&mut self, event: Event) {
         use tool::*;
 
-        self.update = true;
         match event {
         Event::MouseMotion {x, y, xrel, yrel, ..} => {
             let p = Point2::new(x as i32, y as i32);
@@ -199,32 +209,27 @@ impl App {
         Event::KeyUp { keycode: Some(keycode), .. } => {
             match keycode {
                 Keycode::LShift |
-                Keycode::RShift =>
-                    self.tools.input(&mut self.editor, Input::Special(false)),
+                Keycode::RShift => self.special(false),
                 Keycode::LCtrl |
-                Keycode::RCtrl =>
-                    self.tools.drag = false,
+                Keycode::RCtrl => self.drag = false,
                 _ => (),
             }
         }
 
         Event::KeyDown { keycode: Some(keycode), keymod, ..} => {
-            let shift = keymod.intersects(sdl2::keyboard::LSHIFTMOD | sdl2::keyboard::RSHIFTMOD);
-            let _alt = keymod.intersects(sdl2::keyboard::LALTMOD | sdl2::keyboard::RALTMOD);
-            let _ctrl = keymod.intersects(sdl2::keyboard::LCTRLMOD | sdl2::keyboard::RCTRLMOD);
+            let _shift = keymod.intersects(keyboard::LSHIFTMOD | keyboard::RSHIFTMOD);
+            let _alt = keymod.intersects(keyboard::LALTMOD | keyboard::RALTMOD);
+            let _ctrl = keymod.intersects(keyboard::LCTRLMOD | keyboard::RCTRLMOD);
             match keycode {
-                Keycode::Escape => self.tools.input(&mut self.editor, Input::Cancel),
+                Keycode::Escape => self.cancel(),
 
                 Keycode::Plus  | Keycode::KpPlus  => self.zoom_from_center(1),
                 Keycode::Minus | Keycode::KpMinus => self.zoom_from_center(-1),
 
                 Keycode::LShift |
-                Keycode::RShift =>
-                    self.tools.input(&mut self.editor, Input::Special(true)),
-
+                Keycode::RShift => self.special(true),
                 Keycode::LCtrl |
-                Keycode::RCtrl =>
-                    self.tools.drag = true,
+                Keycode::RCtrl => self.drag = true,
 
                 Keycode::U => self.editor.undo(),
                 Keycode::R => self.editor.redo(),
@@ -236,12 +241,8 @@ impl App {
             }
         }
 
-        Event::MouseButtonDown { mouse_btn: MouseButton::Middle, .. } => {
-            self.tools.drag = true;
-        }
-        Event::MouseButtonUp { mouse_btn: MouseButton::Middle, .. } => {
-            self.tools.drag = false;
-        }
+        Event::MouseButtonDown { mouse_btn: MouseButton::Middle, .. } => self.drag = true,
+        Event::MouseButtonUp   { mouse_btn: MouseButton::Middle, .. } => self.drag = false,
 
         Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
             let p = Point2::new(x as i32, y as i32);
@@ -263,10 +264,11 @@ impl App {
     }
 
     pub fn paint_sprites(&mut self, render: &mut render::Canvas) {
-        if let Some(r) = self.editor.take_redraw() {
+        //if let Some(r) = self.editor.take_redraw() {
             render.canvas(EDITOR_SPRITE_ID, |canvas: &mut TextureCanvas, _w, _h| {
-                let r = r.normalize();
-                let clear_rect = rect!(r.min.x, r.min.y, r.dx(), r.dy());
+                //let r = r.normalize();
+                //let clear_rect = rect!(r.min.x, r.min.y, r.dx(), r.dy());
+                let clear_rect = rect!(0, 0, _w, _h);
                 //canvas.set_clip_rect(r);
 
                 let clear_color = color!(TRANSPARENT);
@@ -290,17 +292,14 @@ impl App {
                     })
                 });
             });
-        }
+        //}
 
         render.canvas(EDITOR_PREVIEW_ID, |canvas: &mut TextureCanvas, w, h| {
             canvas.set_draw_color(color!(TRANSPARENT));
             canvas.clear();
-
-            let m = self.editor.sprite();
-            self.tools.preview(Prev {
+            self.preview(Prev {
                 canvas,
                 rect: Rect::from_coords_and_size(0, 0, w as i32, h as i32),
-                palette: &m.as_receiver().palette,
                 editor: &self.editor,
             });
         });
@@ -330,14 +329,6 @@ impl App {
                 }
             }
         }
-
-        let rect = self.editor.rect();
-        let pos = Point2::new(rect.min.x as i16, rect.min.y as i16);
-        let zoom = self.editor.zoom() as i16;
-        render.image_zoomed(EDITOR_SPRITE_ID, pos, zoom);
-        render.image_zoomed(EDITOR_PREVIEW_ID, pos, zoom);
-
-        self.grid.paint(render, zoom, rect);
     }
 
     pub fn paint(&mut self, canvas: &mut Canvas) {
@@ -356,17 +347,22 @@ impl App {
         }
 
         if !self.editor.take_created() {
-            let m = self.editor.sprite();
-            let m = m.as_receiver();
+            let m = self.editor.image.as_receiver();
             let (w, h) = (m.width as u32, m.height as u32);
             canvas.create_texture(EDITOR_SPRITE_ID, w, h);
             canvas.create_texture(EDITOR_PREVIEW_ID, w, h);
-            println!("created");
+        }
+        {
+            self.paint_sprites(canvas);
+            let rect = self.editor.rect();
+            let pos = Point2::new(rect.min.x as i16, rect.min.y as i16);
+            let zoom = self.editor.zoom() as i16;
+            canvas.image_zoomed(EDITOR_SPRITE_ID, pos, zoom);
+            canvas.image_zoomed(EDITOR_PREVIEW_ID, pos, zoom);
+            self.grid.paint(canvas, zoom, rect);
         }
 
-        self.paint_sprites(canvas);
-
-        let (w, h) = canvas.canvas.borrow().logical_size();
+        let (w, h) = canvas.size();
         let wh = Vector2::new(w as f32, h as f32);
 
         let rect = Rect::from_min_dim(Point2::new(0.0, 0.0), wh);
@@ -396,16 +392,16 @@ impl App {
                 ctx
             });
 
-        self.menubar(&iter.next().unwrap());
-        self.toolbar(&iter.next().unwrap());
-        self.content(&iter.next().unwrap());
-        iter.next().unwrap();
-        self.statusbar(&iter.next().unwrap());
-        if false { self.sample(&ctx) }
-        self.second_menubar(&ctx);
+        self.menubar(iter.next().unwrap());
+        self.toolbar(iter.next().unwrap());
+        self.content(iter.next().unwrap());
+        self.panel(iter.next().unwrap());
+        self.statusbar(iter.next().unwrap());
+        //if false { self.sample(ctx) }
+        self.second_menubar(ctx);
     }
 
-    fn content(&mut self, ctx: &ui::Context<Canvas>) {
+    fn content(&mut self, ctx: ui::Context<Canvas>) {
         use tool::Context;
         let mut r = ctx.rect();
         r.max.x = r.min.x + 250.0;
@@ -432,14 +428,35 @@ impl App {
         }
     }
 
-    fn statusbar(&mut self, ctx: &ui::Context<Canvas>) {
-        let text = format!("zoom: {}  #{:<3}", self.editor.zoom(), self.color_index());
-        ctx.label(0.01, 0.5, WHITE, &text);
-        let text = format!("[{:>+5} {:<+5}]", self.tools.mouse.x, self.tools.mouse.y);
-        ctx.label(0.2, 0.5, WHITE, &text);
+    fn panel(&mut self, ctx: ui::Context<Canvas>) {
+        let state = unsafe { &mut *(&self.state as *const UiState as *mut UiState) };
+        let mut lay = EditorLayout::new(ctx.split_x(0.3).0, state);
+        lay.tree("grid", |lay| {
+            lay.vector2_base("size", &mut self.grid.size, |is, v| {
+                if is { *v += 1 } else { *v -= 1 };
+                *v = (*v).min(0);
+            });
+            lay.vector2("offset", &mut self.grid.offset, 1);
+        });
     }
 
-    fn sample(&mut self, ctx: &ui::Context<Canvas>) {
+    fn statusbar(&mut self, ctx: ui::Context<Canvas>) {
+        let text = format!("zoom: {}  #{:<3}", self.editor.zoom(), self.color_index());
+        ctx.label(0.01, 0.5, WHITE, &text);
+        let text = format!("[{:>+5} {:<+5}]", self.mouse.x, self.mouse.y);
+        ctx.label(0.2, 0.5, WHITE, &text);
+
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.time);
+        self.time = now;
+
+        let elapsed = elapsed.as_secs() as f64 + elapsed.subsec_nanos() as f64 * 1e-9;
+
+        let text = format!("sec: {:.5}", elapsed);
+        ctx.label(0.7, 0.5, WHITE, &text);
+    }
+
+    fn sample(&mut self, ctx: ui::Context<Canvas>) {
         let widgets = &[
             Flow::with_wh(60.0, 40.0),
             Flow::with_wh(60.0, 40.0),
@@ -510,7 +527,7 @@ impl App {
         }
     }
 
-    fn toolbar(&mut self, ctx: &ui::Context<Canvas>) {
+    fn toolbar(&mut self, ctx: ui::Context<Canvas>) {
         let height = ctx.rect().dy();
         let btn = Flow::with_wh(height, height);
         let flow = [
@@ -551,10 +568,10 @@ impl App {
 
             for ((icon, tool), ctx) in MODES.iter().cloned().zip(flow.by_ref()) {
                 if BTN.behavior(&ctx, &mut self.state, &mut ()) {
-                    self.tools.current = tool;
+                    self.current = tool;
                 }
                 let r = ctx.rect();
-                if self.tools.current == tool {
+                if self.current == tool {
                     BTN.pressed.paint(ctx.draw(), ctx.rect());
                 }
                 ctx.draw().texture(icon, r);
@@ -564,14 +581,14 @@ impl App {
         let _ = flow.next().unwrap();
         let ctx = flow.next().unwrap();
 
-        match ::layout::edit_num(&ctx, &mut self.state, self.editor.zoom(), "zoom") {
+        match edit_num(&ctx, &mut self.state, self.editor.zoom(), "zoom") {
             Some(true) => self.zoom_from_center(1),
             Some(false) => self.zoom_from_center(-1),
             _ => (),
         }
     }
 
-    fn menubar(&mut self, ctx: &ui::Context<Canvas>) {
+    fn menubar(&mut self, ctx: ui::Context<Canvas>) {
         MENUBAR.run(&ctx, &mut self.state, &mut self.menubar, &[
             (ctx.reserve_widget_id(), "File"),
             (ctx.reserve_widget_id(), "Edit"),
@@ -581,7 +598,7 @@ impl App {
         ]);
     }
 
-    fn second_menubar(&mut self, ctx: &ui::Context<Canvas>) {
+    fn second_menubar(&mut self, ctx: ui::Context<Canvas>) {
         let items = [
             Item::Text(Command::New, "New", "Ctrl-N"),
             Item::Text(Command::Open, "Open", "Ctrl-O"),

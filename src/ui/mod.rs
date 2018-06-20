@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-pub mod layout;
-pub mod components;
+mod layout;
+mod components;
 
 mod id;
 mod context;
@@ -25,17 +25,20 @@ pub use self::layout::flow::{
     measure,
 };
 
-pub use self::components::{UiState, Component};
-pub use self::components::button::Button;
-pub use self::components::progress::Progress;
-pub use self::components::toggle::Toggle;
-pub use self::components::slider::{Slider, SliderModel};
-pub use self::components::menubar::{MenuBar,MenuBarModel};
-pub use self::components::menu::{
-    Item,
-    ItemStyle,
-    Menu,
-    MenuEvent,
+pub use self::components::{
+    UiState,
+    Component,
+    button::Button,
+    progress::Progress,
+    toggle::Toggle,
+    slider::{Slider, SliderModel},
+    menubar::{MenuBar,MenuBarModel},
+    menu::{
+        Item,
+        ItemStyle,
+        Menu,
+        MenuEvent,
+    },
 };
 
 pub type SimpleButton<D> = Button<D, D, D>;

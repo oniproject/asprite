@@ -35,16 +35,16 @@ impl Grid {
         let zx = self.size.x * zoom;
         let zy = self.size.y * zoom;
 
-        ctx.clip(Rect::from_min_dim(pos, size * zoom));
-        for x in 0..ex + 1 {
+        //ctx.clip(Rect::from_min_dim(pos, size * zoom));
+        for x in 1..ex + 1 {
             let x = ox + x * zx;
             ctx.vline(x - 1, y1, y2, grid_color);
         }
-        for y in 0..ey + 1 {
+        for y in 1..ey + 1 {
             let y = oy + y * zy;
             ctx.hline(x1, x2, y - 1, grid_color);
         }
-        ctx.unclip();
+        //ctx.unclip();
 
         // canvas border
         ctx.hline(x1-1, x2, y1-1, corner_color);

@@ -78,6 +78,9 @@ pub fn draw_line<N, F>(start: Point2<N>, end: Point2<N>, mut pixel: F)
         F: FnMut(Point2<N>),
         N: BaseIntExt
 {
+    super::Bresenham::new(start, end).for_each(pixel)
+
+    /*
     let one = N::one();
     let two = N::one() + N::one();
 
@@ -120,6 +123,7 @@ pub fn draw_line<N, F>(start: Point2<N>, end: Point2<N>, mut pixel: F)
     if start != end {
         pixel(end);
     }
+    */
 }
 
 pub fn draw_ellipse<N, F>(r: Rect<N>, mut seg: F)

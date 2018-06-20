@@ -26,57 +26,53 @@ impl Freehand<i32, u8> {
 }
 
 impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
-    fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
-        match input {
-            Input::Move(p) => {
-                if self.line {
-                    ctx.sync();
-                    draw_line(p, self.last, |p| ctx.paint_brush(p, self.color));
-                } else if self.active {
-                    let last = self.last;
-                    if self.perfect {
-                        self.update(p, last, ctx);
-                    } else {
-                        draw_line(p, last, |p| ctx.paint_brush(p, self.color));
-                    }
-                    self.last = p;
-                }
+    fn cancel<Ctx: Context<N, C>>(&mut self, ctx: &mut Ctx) {
+        self.active = false;
+        self.pts.clear();
+        ctx.rollback();
+    }
+    fn movement<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
+        if self.line {
+            ctx.sync();
+            draw_line(p, self.last, |p| ctx.paint_brush(p, self.color));
+        } else if self.active {
+            if self.perfect {
+                let last = self.last;
+                self.update(p, last, ctx);
+            } else {
+                draw_line(p, self.last, |p| ctx.paint_brush(p, self.color));
             }
-            Input::Special(on) => {
-                self.line = on && !self.active;
-                println!("special: {} line: {}", on, self.line);
-                if !self.active {
-                    ctx.sync();
-                }
+            self.last = p;
+        }
+    }
+    fn press<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
+        if self.line {
+            ctx.commit();
+        } else {
+            self.active = true;
+            self.color = ctx.start();
+            self.pts.push((p, true));
+            self.last = p;
+            ctx.paint_brush(p, self.color);
+        }
+    }
+    fn release<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
+        if self.active {
+            while self.pts.len() > 0 {
+                self.flatten_first_point(ctx);
             }
-            Input::Press(p) => {
-                if !self.line {
-                    self.active = true;
-                    self.color = ctx.start();
-                    ctx.paint_brush(p, self.color);
-                    self.pts.push((p, true));
-                    self.last = p;
-                }
-            }
-            Input::Release(p) => {
-                if self.active {
-                    self.active = false;
-                    while self.pts.len() > 0 {
-                        self.flatten_first_point(ctx);
-                    }
-                    // for just click
-                    if p == self.last {
-                        ctx.paint_brush(p, self.color);
-                    }
-                }
-                self.last = p;
-                ctx.commit();
-            }
-            Input::Cancel => {
-                self.active = false;
-                self.pts.clear();
-                ctx.rollback();
-            }
+            ctx.commit();
+        }
+        self.active = false;
+        self.last = p;
+    }
+
+    fn special<Ctx: Context<N, C>>(&mut self, on: bool, ctx: &mut Ctx) {
+        self.line = on; && !self.active;
+        println!("special: {} line: {}", on, self.line);
+        if !self.active {
+            ctx.sync();
+            self.color = ctx.start();
         }
     }
 

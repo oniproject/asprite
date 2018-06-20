@@ -31,51 +31,49 @@ impl Primitive<i32, u8> {
 }
 
 impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N, C> {
-    fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
-        match input {
-            Input::Move(p) => {
-                if self.active {
-                    ctx.sync();
 
-                    let min = if self.square {
-                        let delta = p - Vector2::new(self.start.x, self.start.y);
-                        let min = delta.x.abs().min(delta.y.abs());
-                        let signum = Vector2::new(delta.x.signum(), delta.y.signum());
-                        self.start - signum * min
-                    } else {
-                        p
-                    };
+    fn special<Ctx: Context<N, C>>(&mut self, on: bool, ctx: &mut Ctx) {
+        self.square = on;
+    }
+    fn press<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
+        self.active = true;
+        self.color = ctx.start();
+        self.start = p;
+        self.last = p;
+    }
+    fn release<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
+        self.active = false;
+        ctx.commit();
+    }
+    fn cancel<Ctx: Context<N, C>>(&mut self, ctx: &mut Ctx) {
+        self.active = false;
+        ctx.rollback();
+    }
+    fn movement<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
+        if self.active {
+            ctx.sync();
 
-                    let mut r = Rect::from_min_max(min, self.start).normalize();
-                    r.max += Vector2::new(N::one(), N::one());
+            let min = if self.square {
+                let delta = p - Vector2::new(self.start.x, self.start.y);
+                let min = delta.x.abs().min(delta.y.abs());
+                let signum = Vector2::new(delta.x.signum(), delta.y.signum());
+                self.start - signum * min
+            } else {
+                p
+            };
 
-                    match (self.fill, self.mode) {
-                        (true,  PrimitiveMode::Rect) => ctx.rect_fill(r, self.color),
-                        (false, PrimitiveMode::Rect) => ctx.rect(r, self.color),
-                        (false, PrimitiveMode::Ellipse) => ctx.ellipse(r, self.color),
-                        (true,  PrimitiveMode::Ellipse) => ctx.ellipse_fill(r, self.color),
-                    }
+            let mut r = Rect::from_min_max(min, self.start).normalize();
+            r.max += Vector2::new(N::one(), N::one());
 
-                    ctx.update(r.union_point(self.last));
-                }
-                self.last = p;
+            match (self.fill, self.mode) {
+                (true,  PrimitiveMode::Rect) => ctx.rect_fill(r, self.color),
+                (false, PrimitiveMode::Rect) => ctx.rect(r, self.color),
+                (false, PrimitiveMode::Ellipse) => ctx.ellipse(r, self.color),
+                (true,  PrimitiveMode::Ellipse) => ctx.ellipse_fill(r, self.color),
             }
 
-            Input::Special(on) => self.square = on,
-            Input::Press(p) => {
-                self.active = true;
-                self.color = ctx.start();
-                self.start = p;
-                self.last = p;
-            }
-            Input::Release(_) => {
-                self.active = false;
-                ctx.commit();
-            }
-            Input::Cancel => {
-                self.active = false;
-                ctx.rollback();
-            }
+            ctx.update(r.union_point(self.last));
         }
+        self.last = p;
     }
 }

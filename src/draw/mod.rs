@@ -1,9 +1,12 @@
 pub mod gradient;
+mod bresenham;
 
 mod common;
 mod canvas;
 mod palette;
 mod frame;
+
+pub use self::bresenham::Bresenham;
 
 pub use self::common::{
     blit,

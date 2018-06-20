@@ -1,26 +1,30 @@
 #![allow(dead_code)]
 
-use sdl2::event::{Event, WindowEvent};
-use sdl2::pixels::{Color, PixelFormatEnum};
-use sdl2::keyboard::Keycode;
-use sdl2::render::{self, BlendMode, Texture, TextureCreator, TextureQuery, WindowCanvas};
-use sdl2::{init, Sdl, VideoSubsystem, EventPump};
-use sdl2::surface::SurfaceContext;
-use sdl2::video::WindowContext;
-use sdl2::ttf::{self, Sdl2TtfContext};
-use sdl2::gfx::primitives::{DrawRenderer, ToColor};
-use sdl2::rect;
-use sdl2::image::LoadTexture;
+use sdl2::{
+    rect, init, Sdl, VideoSubsystem, EventPump,
+    event::{Event, WindowEvent},
+    pixels::{Color, PixelFormatEnum},
+    keyboard::Keycode,
+    render::{self, BlendMode, Texture, TextureCreator, TextureQuery, WindowCanvas},
+    surface::SurfaceContext,
+    video::WindowContext,
+    ttf::{self, Sdl2TtfContext},
+    gfx::primitives::{DrawRenderer, ToColor},
+    image::LoadTexture,
+};
 
-use std::path::Path;
-use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
-use std::cell::RefCell;
+use std::{
+    path::Path,
+    sync::atomic::{AtomicUsize, AtomicBool, Ordering},
+    cell::RefCell,
+};
 
-use specs::prelude::*;
-use specs::world;
-use specs::shred::MetaTable;
+use specs::{
+    prelude::*,
+    world,
+    shred::MetaTable,
+};
 
-use draw;
 use ui;
 use math::*;
 
@@ -70,13 +74,12 @@ impl world::Bundle for Bundle {
 pub struct Canvas {
     sdl: Sdl,
     video: VideoSubsystem,
-    pub canvas: RefCell<WindowCanvas>,
+    canvas: RefCell<WindowCanvas>,
     events: EventPump,
-    //font: ttf::Font<'static, 'static>,
     texture_creator: TextureCreator<WindowContext>,
     textures: HashMap<usize, (Texture, u32, u32)>,
 
-    pub hovered: AtomicBool,
+    hovered: AtomicBool,
     last_texture_id: AtomicUsize,
 
     cursors: Cursors,
@@ -187,28 +190,28 @@ impl Canvas {
 impl<'a> System<'a> for Canvas {
     type SystemData = (
         Write<'a, bool>,
-        Write<'a, Option<::app::App>>,
+        WriteExpect<'a, ::app::App>,
         Entities<'a>,
     );
 
     fn run(&mut self, (mut quit, mut app, entities): Self::SystemData) {
         {
-            use std::iter;
-            let poll = self.events.wait_event_timeout(60)
-                .into_iter()
-                .chain(self.events.poll_iter());
+            let poll = self.events.poll_iter();
 
             for event in poll {
-                if let Some(ref mut app) = &mut *app {
-                    app.event(event.clone());
-                }
+                app.event(event.clone());
                 match event {
                     Event::Quit {..} => {
                         *quit = true;
                         return;
                     }
-                    Event::Window { win_event: WindowEvent::Resized(w, h), .. } => {
-                        self.canvas.get_mut().set_logical_size(w as u32, h as u32).unwrap();
+                    Event::Window { win_event, .. } => {
+                        match win_event {
+                            WindowEvent::Resized(w, h) => {
+                                self.canvas.get_mut().set_logical_size(w as u32, h as u32).unwrap();
+                            }
+                            _ => (),
+                        }
                     }
                     Event::KeyDown { keycode: Some(keycode), ..} => {
                         if keycode == Keycode::Escape {
@@ -216,10 +219,13 @@ impl<'a> System<'a> for Canvas {
                             return;
                         }
                     }
-                    _ => {}
+                    _ => (),
                 }
             }
         }
+
+        app.paint(self);
+        self.canvas.get_mut().present();
 
         let cur = if self.hovered.load(Ordering::Relaxed) {
             SystemCursor::Hand
@@ -228,11 +234,6 @@ impl<'a> System<'a> for Canvas {
         };
         self.cursors[&cur].set();
         self.hovered.store(false, Ordering::Relaxed);
-
-        if let Some(ref mut app) = &mut *app {
-            app.paint(self);
-        }
-        self.canvas.get_mut().present();
     }
 }
 
@@ -274,13 +275,12 @@ impl ui::Graphics for Canvas {
     }
 
     fn measure_text(&self, text: &str) -> Vector2<f32> {
-        //let (w, h) = self.font.size_of(text).expect("measure");
-        let (w, h) = ::util::measure_text(text);
+        let (w, h) = measure_text(text);
         Vector2::new(w as f32, h as f32)
     }
 
     fn text(&self, base: Point2<f32>, color: Self::Color, text: &str) {
-        ::util::draw_text(&mut *self.canvas.borrow_mut(), base.x as i16, base.y as i16, text, color).unwrap();
+        draw_text(&mut *self.canvas.borrow_mut(), base.x as i16, base.y as i16, text, color).unwrap();
     }
 
     fn clip(&self, r: Rect<i16>) {
@@ -295,3 +295,22 @@ impl ui::Graphics for Canvas {
         self.hovered.store(true, Ordering::Relaxed);
     }
 }
+
+fn measure_text(text: &str) -> (i16, i16) {
+    let w = text.len() as i16 * 8 + 0;
+    let h = 8;
+    (w, h)
+}
+
+fn draw_text<C: ToColor + Copy>(canvas: &mut WindowCanvas, x: i16, y: i16, label: &str, color: C) -> Result<(), String> {
+    //let mut x = x + 1;
+    //let y = y + 1;
+    let mut x = x;
+    let y = y;
+    for c in label.chars() {
+        canvas.character(x, y, c, color)?;
+        x += 8;
+    }
+    Ok(())
+}
+

@@ -17,16 +17,9 @@ impl Bucket<i32, u8> {
 }
 
 impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Bucket<N, C> {
-    fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
-        match input {
-            Input::Press(p) => {
-                let color = ctx.start();
-                ctx.scanline_fill(p, color);
-                ctx.commit();
-                let r = ctx.bounds();
-                ctx.update(r);
-            }
-            _ => (),
-        }
+    fn press<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
+        let color = ctx.start();
+        ctx.scanline_fill(p, color);
+        ctx.commit();
     }
 }

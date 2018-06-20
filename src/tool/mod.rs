@@ -12,21 +12,12 @@ mod bucket;
 mod eye_dropper;
 
 pub use self::receiver::{Receiver, Layer};
-pub use self::editor::{Editor, ImageCell, image_cell};
+pub use self::editor::Editor;
 
 pub use self::freehand::Freehand;
 pub use self::primitive::{Primitive, PrimitiveMode};
 pub use self::bucket::Bucket;
 pub use self::eye_dropper::EyeDropper;
-
-#[derive(Clone, Debug)]
-pub enum Input<N: BaseNum> {
-    Press(Point2<N>),
-    Release(Point2<N>),
-    Move(Point2<N>),
-    Special(bool),
-    Cancel, // press ESC
-}
 
 pub enum BrushOwner<C> {
     Mask(Vec<bool>),
@@ -85,7 +76,7 @@ pub trait Context<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw
             };
             r
         };
-        self.update(r.pad(-N::one()));
+        self.update(r.pad(-N::one()-N::one()-N::one()));
     }
 
     fn update(&mut self, r: Rect<N>);
@@ -99,6 +90,25 @@ pub trait Context<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw
 pub trait Tool<N, C>
     where N: BaseIntExt, C: Copy + Clone + Eq
 {
-    fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx);
+    /*
+    fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
+        match input {
+            Input::Move(p) => self.movement(p, ctx),
+            Input::Special(on) => self.special(on, ctx),
+            Input::Press(p) => self.press(p, ctx),
+            Input::Release(p) => self.release(p, ctx),
+            Input::Cancel => self.cancel(ctx),
+        }
+    }
+    */
+
+    fn press<Ctx: Context<N, C>>(&mut self, _p: Point2<N>, ctx: &mut Ctx) {}
+    fn release<Ctx: Context<N, C>>(&mut self, _p: Point2<N>, ctx: &mut Ctx) {}
+    fn movement<Ctx: Context<N, C>>(&mut self, _p: Point2<N>, ctx: &mut Ctx) {}
+    // shift ?
+    fn special<Ctx: Context<N, C>>(&mut self, _on: bool, ctx: &mut Ctx) {}
+    // press ESC
+    fn cancel<Ctx: Context<N, C>>(&mut self, ctx: &mut Ctx) {}
+
     fn preview<Ctx: PreviewContext<N, C>>(&self, mouse: Point2<N>, ctx: &mut Ctx) {}
 }
