@@ -3,6 +3,8 @@ use draw;
 
 use std::ptr::NonNull;
 
+mod brush;
+
 mod editor;
 mod receiver;
 
@@ -19,63 +21,46 @@ pub use self::primitive::{Primitive, PrimitiveMode};
 pub use self::bucket::Bucket;
 pub use self::eye_dropper::EyeDropper;
 
-pub enum BrushOwner<C> {
-    Mask(Vec<bool>),
-    Blit(Vec<C>),
+pub type BrushOwned = Vec<bool>;
+pub type Brush<'a> = &'a [bool];
+
+unsafe fn get_brush(data: Brush) -> NonNull<[bool]> {
+    data.as_ref().into()
 }
 
-impl<C> BrushOwner<C> {
-    pub fn get(&self) -> Brush<C> {
-        match self {
-            BrushOwner::Mask(data) => Brush::Mask(data.as_slice().into()),
-            BrushOwner::Blit(data) => Brush::Blit(data.as_slice().into()),
-        }
-    }
-}
-
-pub enum Brush<C> {
-    Mask(NonNull<[bool]>),
-    Blit(NonNull<[C]>),
-}
-
-pub trait PreviewContext<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw::Bounded<N>
+pub trait PreviewContext<N, C>: Sized + draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw::Bounded<N>
     where N: BaseIntExt, C: Copy + Clone + Eq
 {
-    fn brush(&self) -> (Brush<C>, Rect<N>);
+    fn color(&self) -> C;
+    fn brush(&self) -> (Brush, Rect<N>);
     fn paint_brush(&mut self, p: Point2<N>, color: C) {
-        let r = {
+        let (brush, r) = unsafe {
             let (brush, r) = self.brush();
-            let r = r.shift_x_y(p.x, p.y);
-            match brush {
-                Brush::Mask(brush) => self.mask(r, unsafe { brush.as_ref() }, color),
-                Brush::Blit(brush) => self.blit(r, unsafe { brush.as_ref() }),
-            };
-            r
+            (get_brush(brush), r.shift_x_y(p.x, p.y))
         };
+        unsafe { self.mask(r, brush.as_ref(), color); }
     }
 }
 
-pub trait Context<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw::Bounded<N>
+pub trait Context<N, C>: Sized + draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw::Bounded<N>
     where N: BaseIntExt, C: Copy + Clone + Eq
 {
-    fn start(&mut self) -> C;
+    fn start(&mut self);
     fn commit(&mut self);
     fn rollback(&mut self);
     fn sync(&mut self);
+
+    fn color(&self) -> C;
     fn change_color(&mut self, color: C);
 
-    fn brush(&self) -> (Brush<C>, Rect<N>);
+    fn brush(&self) -> (Brush, Rect<N>);
 
     fn paint_brush(&mut self, p: Point2<N>, color: C) {
-        let r = {
+        let (brush, r) = unsafe {
             let (brush, r) = self.brush();
-            let r = r.shift_x_y(p.x, p.y);
-            match brush {
-                Brush::Mask(brush) => self.mask(r, unsafe { brush.as_ref() }, color),
-                Brush::Blit(brush) => self.blit(r, unsafe { brush.as_ref() }),
-            };
-            r
+            (get_brush(brush), r.shift_x_y(p.x, p.y))
         };
+        unsafe { self.mask(r, brush.as_ref(), color); }
         self.update(r.pad(-N::one()-N::one()-N::one()));
     }
 
@@ -90,21 +75,10 @@ pub trait Context<N, C>: draw::CanvasRead<C, N> + draw::CanvasWrite<C, N> + draw
 pub trait Tool<N, C>
     where N: BaseIntExt, C: Copy + Clone + Eq
 {
-    /*
-    fn run<Ctx: Context<N, C>>(&mut self, input: Input<N>, ctx: &mut Ctx) {
-        match input {
-            Input::Move(p) => self.movement(p, ctx),
-            Input::Special(on) => self.special(on, ctx),
-            Input::Press(p) => self.press(p, ctx),
-            Input::Release(p) => self.release(p, ctx),
-            Input::Cancel => self.cancel(ctx),
-        }
-    }
-    */
-
-    fn press<Ctx: Context<N, C>>(&mut self, _p: Point2<N>, ctx: &mut Ctx) {}
-    fn release<Ctx: Context<N, C>>(&mut self, _p: Point2<N>, ctx: &mut Ctx) {}
+    fn press   <Ctx: Context<N, C>>(&mut self, _p: Point2<N>, ctx: &mut Ctx) {}
+    fn release <Ctx: Context<N, C>>(&mut self, _p: Point2<N>, ctx: &mut Ctx) {}
     fn movement<Ctx: Context<N, C>>(&mut self, _p: Point2<N>, ctx: &mut Ctx) {}
+
     // shift ?
     fn special<Ctx: Context<N, C>>(&mut self, _on: bool, ctx: &mut Ctx) {}
     // press ESC

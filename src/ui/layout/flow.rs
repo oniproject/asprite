@@ -1,6 +1,11 @@
 use math::*;
-
 use std::ops::{Generator, GeneratorState};
+
+#[derive(Copy, Clone, Debug)]
+pub enum Axis {
+    Horizontal,
+    Vertical,
+}
 
 #[derive(Copy, Clone, Debug)]
 pub struct Flow {
@@ -39,7 +44,6 @@ impl Flow {
     pub const fn auto(along_weight: f32) -> Self {
         Self {
             along_weight,
-
             measured_size: Vector2 {
                 x: 0.0,
                 y: 0.0,

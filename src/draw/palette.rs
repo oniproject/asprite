@@ -1,5 +1,9 @@
-use std::ops::Index;
-use std::ops::IndexMut;
+use std::ops::{
+    Index,
+    IndexMut,
+    Deref,
+    DerefMut,
+};
 
 pub struct Palette<T> {
     pub map: [T; 256],
@@ -36,6 +40,19 @@ impl<T> Index<u8> for Palette<T> {
 impl<T> IndexMut<u8> for Palette<T> {
     fn index_mut<'a>(&'a mut self, idx: u8) -> &'a mut T {
         &mut self.map[idx as usize]
+    }
+}
+
+impl<T> Deref for Palette<T> {
+    type Target = [T];
+    fn deref(&self) -> &Self::Target {
+        &self.map[..]
+    }
+}
+
+impl<T> DerefMut for Palette<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.map[..]
     }
 }
 

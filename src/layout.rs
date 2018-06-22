@@ -12,12 +12,13 @@ use std::mem::replace;
 const INDENT: f32 = 10.0;
 const LINE_HEIGHT: f32 = 20.0;
 
+const LINE_PAD_X: f32 = 8.0;
+
 pub struct EditorLayout<'a, 'state> {
-    state: &'state mut UiState,
-    ctx: Context<'a, Canvas>,
+    pub state: &'state mut UiState,
+    pub ctx: Context<'a, Canvas>,
     cursor: Vector2<f32>,
     indent: usize,
-
     update: bool,
 }
 
@@ -47,7 +48,7 @@ impl<'a, 'state> EditorLayout<'a, 'state> {
     }
 
     fn one_line(&mut self) -> Context<'a, Canvas> {
-        let rect = self.ctx.rect().pad_x(8.0);
+        let rect = self.ctx.rect().pad_x(LINE_PAD_X);
 
         let min = rect.min + self.cursor;
         let max = Point2::new(rect.max.x, min.y + LINE_HEIGHT);
@@ -72,7 +73,7 @@ impl<'a, 'state> EditorLayout<'a, 'state> {
         ctx.label(0.0, 0.5, WHITE, label);
     }
 
-    fn one_line_prop(&mut self, label: &str) -> Context<'a, Canvas> {
+    pub fn one_line_prop(&mut self, label: &str) -> Context<'a, Canvas> {
         let (label_ctx, ret) = self.one_line().split_x(0.3);
         label_ctx.label(0.0, 0.5, WHITE, label);
         ret
@@ -101,26 +102,68 @@ impl<'a, 'state> EditorLayout<'a, 'state> {
         self.update |= *angle == start;
     }
 
+    pub fn num_base<T, F>(&mut self, label: &str, sub: &str, v: &mut T, filter: F) -> bool
+        where T: BaseNumExt + ToString, F: FnOnce(bool, &mut T) + Copy
+    {
+        let ctx = self.one_line_prop(label);
+        let update = edit_base(ctx, &mut self.state, v, sub, filter);
+        self.update |= update;
+        update
+    }
+
+    pub fn toggle_prop(&mut self, label: &str, v: &mut bool) -> bool {
+        let ctx = self.one_line_prop(label);
+        let update = TOGGLE.behavior(&ctx, &mut self.state, v);
+        self.update |= update;
+        update
+    }
+
+    pub fn num<T, A, B>(&mut self, label: &str, sub: &str, v: &mut T, scale: T, min: A, max: B) -> bool
+        where T: BaseNumExt + ToString,
+              A: Into<Option<T>> + Copy,
+              B: Into<Option<T>> + Copy,
+    {
+        self.num_base(label, sub, v, |is, v| {
+            if is { *v += scale } else { *v -= scale }
+            if let Some(min) = min.into() {
+                *v = v.max(min);
+            }
+            if let Some(max) = max.into() {
+                *v = v.min(max);
+            }
+        })
+    }
+
     pub fn vector2_base<T, F>(&mut self, label: &str, v: &mut Vector2<T>, filter: F) -> bool
         where T: BaseNumExt + ToString, F: FnOnce(bool, &mut T) + Copy
     {
         let ctx = self.one_line_prop(label);
         let (x, y) = ctx.split_x(0.5);
         let mut update = false;
-        update |= edit_base(&x, &mut self.state, &mut v.x, "X", filter);
-        update |= edit_base(&y, &mut self.state, &mut v.y, "Y", filter);
+        update |= edit_base(x, &mut self.state, &mut v.x, "X", filter);
+        update |= edit_base(y, &mut self.state, &mut v.y, "Y", filter);
         self.update |= update;
         update
     }
 
-    pub fn vector2<T>(&mut self, label: &str, v: &mut Vector2<T>, scale: T) -> bool
-        where T: BaseNumExt + ToString
+    pub fn vector2<T, A, B>(&mut self, label: &str, v: &mut Vector2<T>, scale: T, min: A, max: B) -> bool
+        where T: BaseNumExt + ToString,
+              A: Into<Option<T>> + Copy,
+              B: Into<Option<T>> + Copy,
     {
-        self.vector2_base(label, v, |is, v| if is { *v += scale } else { *v -= scale })
+        self.vector2_base(label, v, |is, v| {
+            if is { *v += scale } else { *v -= scale }
+            if let Some(min) = min.into() {
+                *v = v.max(min);
+            }
+            if let Some(max) = max.into() {
+                *v = v.min(max);
+            }
+        })
     }
 }
 
-pub fn edit_base<T, F>(ctx: &Context<Canvas>, state: &mut UiState, v: &mut T, label: &str, filter: F) -> bool
+pub fn edit_base<T, F>(ctx: Context<Canvas>, state: &mut UiState, v: &mut T, label: &str, filter: F) -> bool
     where T: BaseNumExt + ToString, F: FnOnce(bool, &mut T)
 {
     match edit_num(ctx, state, *v, label) {
@@ -129,13 +172,13 @@ pub fn edit_base<T, F>(ctx: &Context<Canvas>, state: &mut UiState, v: &mut T, la
     }
 }
 
-pub fn edit_f<T>(ctx: &Context<Canvas>, state: &mut UiState, v: &mut T, label: &str, scale: T) -> bool
+pub fn edit_f<T>(ctx: Context<Canvas>, state: &mut UiState, v: &mut T, label: &str, scale: T) -> bool
     where T: BaseNumExt + ToString
 {
     edit_base(ctx, state, v, label, |is, v| if is { *v += scale } else { *v -= scale })
 }
 
-pub fn edit_num<T>(ctx: &Context<Canvas>, state: &mut UiState, v: T, label: &str) -> Option<bool>
+pub fn edit_num<T>(ctx: Context<Canvas>, state: &mut UiState, v: T, label: &str) -> Option<bool>
     where T: ToString
 {
     let wh = ctx.rect().dy();

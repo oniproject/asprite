@@ -98,6 +98,7 @@ impl Canvas {
 
         let mut canvas = window.into_canvas()
             //.software()
+            //.present_vsync()
             .build().unwrap();
 
         let texture_creator = canvas.texture_creator();
@@ -165,6 +166,12 @@ impl Canvas {
         id
     }
 
+    pub fn get_texture(&mut self, id: usize) -> (&mut Texture, u32, u32) {
+        self.textures.get_mut(&id)
+            .map(|(ref mut v, w, h)| (v, *w, *h))
+            .unwrap()
+    }
+
     pub fn canvas<F>(&mut self, id: usize, f: F)
         where F: FnOnce(&mut TextureCanvas, u32, u32)
     {
@@ -200,26 +207,12 @@ impl<'a> System<'a> for Canvas {
 
             for event in poll {
                 app.event(event.clone());
-                match event {
-                    Event::Quit {..} => {
-                        *quit = true;
-                        return;
-                    }
-                    Event::Window { win_event, .. } => {
-                        match win_event {
-                            WindowEvent::Resized(w, h) => {
-                                self.canvas.get_mut().set_logical_size(w as u32, h as u32).unwrap();
-                            }
-                            _ => (),
-                        }
-                    }
-                    Event::KeyDown { keycode: Some(keycode), ..} => {
-                        if keycode == Keycode::Escape {
-                            *quit = true;
-                            return;
-                        }
-                    }
-                    _ => (),
+                if app.quit {
+                    *quit = true;
+                    return;
+                }
+                if let Event::Window { win_event: WindowEvent::Resized(w, h), .. } = event {
+                    self.canvas.get_mut().set_logical_size(w as u32, h as u32).unwrap();
                 }
             }
         }
@@ -280,7 +273,9 @@ impl ui::Graphics for Canvas {
     }
 
     fn text(&self, base: Point2<f32>, color: Self::Color, text: &str) {
-        draw_text(&mut *self.canvas.borrow_mut(), base.x as i16, base.y as i16, text, color).unwrap();
+        if let Err(err) = draw_text(&mut *self.canvas.borrow_mut(), base.x as i16, base.y as i16, text, color) {
+            println!("error: {}", err);
+        }
     }
 
     fn clip(&self, r: Rect<i16>) {

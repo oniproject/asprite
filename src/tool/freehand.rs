@@ -1,46 +1,44 @@
 use super::*;
 use draw::*;
 
-pub struct Freehand<N: BaseNum, C: Copy + PartialEq> {
+pub struct Freehand<N: BaseNum> {
     pub perfect: bool,
     pub line: bool,
 
     pub last: Point2<N>,
     pub pts: Vec<(Point2<N>, bool)>,
-    pub color: C,
     pub active: bool,
 }
 
-impl Freehand<i32, u8> {
+impl<N: BaseNum> Freehand<N> {
     pub fn new() -> Self {
         Self {
-            last: Point2::new(0, 0),
+            last: Point2::new(N::zero(), N::zero()),
             pts: Vec::new(),
-            color: 0,
             active: false,
-
             perfect: true,
             line: false,
         }
     }
 }
 
-impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
+impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N> {
     fn cancel<Ctx: Context<N, C>>(&mut self, ctx: &mut Ctx) {
         self.active = false;
         self.pts.clear();
         ctx.rollback();
     }
     fn movement<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
+        let color = ctx.color();
         if self.line {
             ctx.sync();
-            draw_line(p, self.last, |p| ctx.paint_brush(p, self.color));
+            draw_line(p, self.last, |p| ctx.paint_brush(p, color));
         } else if self.active {
             if self.perfect {
                 let last = self.last;
                 self.update(p, last, ctx);
             } else {
-                draw_line(p, self.last, |p| ctx.paint_brush(p, self.color));
+                draw_line(p, self.last, |p| ctx.paint_brush(p, color));
             }
             self.last = p;
         }
@@ -49,17 +47,19 @@ impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
         if self.line {
             ctx.commit();
         } else {
+            ctx.start();
             self.active = true;
-            self.color = ctx.start();
             self.pts.push((p, true));
             self.last = p;
-            ctx.paint_brush(p, self.color);
+            let color = ctx.color();
+            ctx.paint_brush(p, color);
         }
     }
     fn release<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
+        let color = ctx.color();
         if self.active {
             while self.pts.len() > 0 {
-                self.flatten_first_point(ctx);
+                self.flatten_first_point(ctx, color);
             }
             ctx.commit();
         }
@@ -71,24 +71,25 @@ impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N, C> {
         self.line = on; && !self.active;
         println!("special: {} line: {}", on, self.line);
         if !self.active {
-            ctx.sync();
-            self.color = ctx.start();
+            ctx.start();
         }
     }
 
     fn preview<Ctx: PreviewContext<N, C>>(&self, mouse: Point2<N>, ctx: &mut Ctx) {
+        let color = ctx.color();
         if self.active {
             self.pts.iter()
                 .filter_map(|(p, active)| if *active { Some(p) } else { None })
-                .for_each(|p| ctx.paint_brush(*p, self.color));
-        } else {
-            ctx.paint_brush(mouse, self.color);
+                .for_each(|p| ctx.paint_brush(*p, color));
         }
+        ctx.paint_brush(mouse, color);
     }
 }
 
-impl<N: BaseIntExt, C: Copy + Clone + Eq> Freehand<N, C> {
-    pub fn update<Ctx: Context<N, C>>(&mut self, m: Point2<N>, last: Point2<N>, ctx: &mut Ctx) {
+impl<N: BaseIntExt> Freehand<N> {
+    pub fn update<C, Ctx>(&mut self, m: Point2<N>, last: Point2<N>, ctx: &mut Ctx)
+        where Ctx: Context<N, C>, C: Copy + Clone + Eq
+    {
         if self.point_exists(m.x, m.y) {
             return;
         }
@@ -99,16 +100,19 @@ impl<N: BaseIntExt, C: Copy + Clone + Eq> Freehand<N, C> {
             }
         });
 
+        let color = ctx.color();
         self.cleanup_points();
         while self.pts.len() > 4 {
-            self.flatten_first_point(ctx);
+            self.flatten_first_point(ctx, color);
         }
     }
 
-    fn flatten_first_point<Ctx: Context<N, C>>(&mut self, ctx: &mut Ctx) {
+    fn flatten_first_point<C, Ctx>(&mut self, ctx: &mut Ctx, color: C)
+        where Ctx: Context<N, C>, C: Copy + Clone + Eq
+    {
         let p = self.pts.remove(0);
         if p.1 {
-            ctx.paint_brush(p.0, self.color);
+            ctx.paint_brush(p.0, color);
         }
         while !self.pts.is_empty() && !self.pts[0].1 {
             self.pts.remove(0);

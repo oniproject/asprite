@@ -28,6 +28,30 @@ use theme::*;
 use grid::Grid;
 
 
+#[macro_export]
+macro_rules! flow {
+    (h $ctx:expr => { $($flow:expr => |$i:ident| $block:expr)+ }) => {
+        let widgets = [
+            $($flow),+
+        ];
+        let mut iter = $ctx.horizontal_flow(0.0, 0.0, &widgets);
+        $({
+            (|$i: ::ui::Context<Canvas>| $block)(iter.next().unwrap())
+        });+
+    };
+
+    (v $ctx:expr => { $($flow:expr => |$i:ident| $block:expr)+ }) => {
+        let widgets = [
+            $($flow),+
+        ];
+        let mut iter = $ctx.vertical_flow(0.0, 0.0, &widgets);
+        $({
+            (|$i: ::ui::Context<Canvas>| $block)(iter.next().unwrap())
+        });+
+    }
+}
+
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CurrentTool {
     Freehand,
@@ -63,15 +87,19 @@ pub struct App {
 
     pub current: CurrentTool,
 
-    pub freehand: Freehand<i32, u8>,
-    pub prim: Primitive<i32, u8>,
-    pub bucket: Bucket<i32, u8>,
-    pub dropper: EyeDropper<i32, u8>,
+    pub freehand: Freehand<i32>,
+    pub prim: Primitive<i32>,
+    pub bucket: Bucket,
+    pub dropper: EyeDropper,
 
     pub mouse: Point2<i32>,
     pub drag: bool,
 
+    rect: Rect<i32>,
+    in_widget: bool,
+
     time: Instant,
+    data: Vec<u8>,
 }
 
 impl App {
@@ -80,12 +108,16 @@ impl App {
 
         let mut editor = Editor::new(Point2::new(300, 200), sprite);
         editor.sync();
+        editor.image.as_mut_receiver().pos = Point2::new(300, 200);
 
         Self {
             init: false,
 
             quit: false,
             menubar: MenuBarModel { open_root: None },
+
+            rect: Rect::default(),
+            in_widget: false,
 
             ui_mouse: ui::Mouse::new(),
             state: UiState::new(),
@@ -105,6 +137,7 @@ impl App {
             drag: false,
 
             time: Instant::now(),
+            data: Vec::new(),
         }
     }
 
@@ -137,37 +170,39 @@ impl App {
     }
 
     pub fn mouse_press(&mut self, p: Point2<i32>) {
-        let p = self.set_mouse(p);
-        if self.editor.image.as_receiver().is_lock() { return }
-        if self.editor.image.as_receiver().bounds().contains(p) {
+        if let Some(p) = self.set_mouse(p) {
             tools!(self, press, p);
         }
     }
 
     pub fn mouse_release(&mut self, p: Point2<i32>) {
-        let p = self.set_mouse(p);
-        if self.editor.image.as_receiver().is_lock() { return }
-        if self.editor.image.as_receiver().bounds().contains(p) {
+        if let Some(p) = self.set_mouse(p) {
             tools!(self, release, p);
         }
     }
 
     pub fn mouse_move(&mut self, p: Point2<i32>, v: Vector2<i32>) {
-        let p = self.set_mouse(p);
         if self.drag {
             self.editor.image.as_mut_receiver().pos += v;
-        } else {
-            if self.editor.image.as_receiver().is_lock() { return }
-            if self.editor.image.as_receiver().bounds().contains(p) {
-                tools!(self, movement, p);
-            }
+        } else if let Some(p) = self.set_mouse(p) {
+            tools!(self, movement, p);
         }
     }
 
-    fn set_mouse(&mut self, p: Point2<i32>) -> Point2<i32> {
-        let v = (p - self.editor.pos()) / self.editor.zoom();
-        self.mouse = Point2::new(0, 0) + v;
-        self.mouse
+    fn set_mouse(&mut self, p: Point2<i32>) -> Option<Point2<i32>> {
+        let m = self.editor.image.as_receiver();
+        if !m.is_lock() && self.rect.contains(p) {
+            let v = (p - self.editor.pos()) / self.editor.zoom();
+            let p = Point2::new(0, 0) + v;
+            self.mouse = p;
+            self.in_widget = true;
+            if m.bounds().contains(p) {
+                return Some(self.mouse)
+            }
+        } else {
+            self.in_widget = false;
+        }
+        None
     }
 
     pub fn zoom_from_center(&mut self, y: i32) {
@@ -178,8 +213,7 @@ impl App {
     }
 
     pub fn zoom_from_mouse(&mut self, y: i32) {
-        let p = self.mouse;
-        let v = Vector2::new(p.x, p.y);
+        let v = Vector2::new(self.mouse.x, self.mouse.y);
         self.editor.image
             .as_mut_receiver()
             .zoom(y, |diff| v * diff);
@@ -194,8 +228,6 @@ impl App {
     }
 
     pub fn event(&mut self, event: Event) {
-        use tool::*;
-
         match event {
         Event::MouseMotion {x, y, xrel, yrel, ..} => {
             let p = Point2::new(x as i32, y as i32);
@@ -264,71 +296,40 @@ impl App {
     }
 
     pub fn paint_sprites(&mut self, render: &mut render::Canvas) {
-        //if let Some(r) = self.editor.take_redraw() {
-            render.canvas(EDITOR_SPRITE_ID, |canvas: &mut TextureCanvas, _w, _h| {
-                //let r = r.normalize();
-                //let clear_rect = rect!(r.min.x, r.min.y, r.dx(), r.dy());
-                let clear_rect = rect!(0, 0, _w, _h);
-                //canvas.set_clip_rect(r);
+        let (t, w, h) = render.get_texture(EDITOR_SPRITE_ID);
 
-                let clear_color = color!(TRANSPARENT);
-                // XXX let clear_color = color!(self.pal(0));
-                canvas.set_draw_color(clear_color);
-                canvas.draw_rect(clear_rect).unwrap();
+        self.data.clear();
+        let size = w * h * 4;
+        self.data.resize(size as usize, 0u8);
 
-                canvas.clear();
+        let ptr = self.data.as_mut_ptr();
+        self.editor.draw_pages(|page, palette| {
+            let transparent = page.transparent;
+            let r = Rect::from_coords_and_size(0, 0, page.width as i32, page.height as i32);
+            let mut ptr = ptr;
+            for &c in &page.page {
+                unsafe {
+                    if Some(c) != transparent {
+                        let c = palette[c].to_le();
+                        *ptr.add(0) = ( c        & 0xFF) as u8;
+                        *ptr.add(1) = ((c >>  8) & 0xFF) as u8;
+                        *ptr.add(2) = ((c >> 16) & 0xFF) as u8;
+                        *ptr.add(3) = ((c >> 24) & 0xFF) as u8;
+                    }
+                    ptr = ptr.add(4);
+                }
+            }
+        });
 
-                self.editor.draw_pages(|page, palette| {
-                    let transparent = page.transparent;
-                    let br = Rect::from_coords_and_size(0, 0, page.width as i32, page.height as i32);
-                    let r = br;
-                    blit(r, br, &page.page, |x, y, color| {
-                        let c = if Some(color) != transparent {
-                            palette[color].to_be()
-                        } else {
-                            TRANSPARENT
-                        };
-                        canvas.pixel(x as i16, y as i16, c).unwrap();
-                    })
-                });
-            });
-        //}
-
-        render.canvas(EDITOR_PREVIEW_ID, |canvas: &mut TextureCanvas, w, h| {
-            canvas.set_draw_color(color!(TRANSPARENT));
-            canvas.clear();
+        let ptr = self.data.as_mut_ptr();
+        if self.in_widget {
             self.preview(Prev {
-                canvas,
+                ptr,
                 rect: Rect::from_coords_and_size(0, 0, w as i32, h as i32),
                 editor: &self.editor,
             });
-        });
-
-        {
-            use ui::Graphics;
-
-            const SIZE: u32 = 10;
-            let (w, h) = render.size();
-            let max_x = w / SIZE + 1;
-            let max_y = h / SIZE + 1;
-
-            // draw back grid
-            for y in 0..max_y {
-                for x in 0..max_x {
-                    let is = x % 2 == y % 2;
-                    let x = SIZE * x;
-                    let y = SIZE * y;
-                    let min = Point2::new(x as f32, y as f32);
-                    let dim = Vector2::new(SIZE as f32, SIZE as f32);
-                    let r = Rect::from_min_dim(min, dim);
-                    if is {
-                        render.quad(0x333333_FFu32.to_be(), r);
-                    } else {
-                        render.quad(0x000000_FFu32.to_be(), r);
-                    }
-                }
-            }
         }
+        t.update(None, &self.data, self.editor.size().x as usize * 4).unwrap();
     }
 
     pub fn paint(&mut self, canvas: &mut Canvas) {
@@ -350,17 +351,46 @@ impl App {
             let m = self.editor.image.as_receiver();
             let (w, h) = (m.width as u32, m.height as u32);
             canvas.create_texture(EDITOR_SPRITE_ID, w, h);
-            canvas.create_texture(EDITOR_PREVIEW_ID, w, h);
         }
+
+        canvas.clip(self.rect.cast().unwrap());
+        {
+            use ui::Graphics;
+
+            const SIZE: u32 = 10;
+            let (w, h) = canvas.size();
+            let max_x = w / SIZE + 1;
+            let max_y = h / SIZE + 1;
+
+            // draw back grid
+            for y in 0..max_y {
+                for x in 0..max_x {
+                    let is = x % 2 == y % 2;
+                    let x = SIZE * x;
+                    let y = SIZE * y;
+                    let min = Point2::new(x as f32, y as f32);
+                    let dim = Vector2::new(SIZE as f32, SIZE as f32);
+                    let r = Rect::from_min_dim(min, dim);
+                    if is {
+                        canvas.quad(0x333333_FFu32.to_be(), r);
+                    } else {
+                        canvas.quad(0x000000_FFu32.to_be(), r);
+                    }
+                }
+            }
+        }
+
         {
             self.paint_sprites(canvas);
             let rect = self.editor.rect();
             let pos = Point2::new(rect.min.x as i16, rect.min.y as i16);
             let zoom = self.editor.zoom() as i16;
             canvas.image_zoomed(EDITOR_SPRITE_ID, pos, zoom);
-            canvas.image_zoomed(EDITOR_PREVIEW_ID, pos, zoom);
-            self.grid.paint(canvas, zoom, rect);
+            {
+                self.grid.paint(canvas, zoom, rect);
+            }
         }
+        canvas.unclip();
 
         let (w, h) = canvas.size();
         let wh = Vector2::new(w as f32, h as f32);
@@ -369,82 +399,123 @@ impl App {
         let ctx = Context::new(canvas, rect, self.ui_mouse);
         self.ui_mouse.cleanup();
 
-        let widgets = [
-            Flow::with_height(MENUBAR_HEIGHT).expand_across(),
-            Flow::with_height(TOOLBAR_HEIGHT).expand_across(),
-            Flow::auto(1.0),
-            Flow::with_height(200.0).expand_across(),
-            Flow::with_height(STATUSBAR_HEIGHT).expand_across(),
-        ];
-
-        let colors = [
-            MENUBAR_BG,
-            TOOLBAR_BG,
-            rgba(0),
-            rgba(0x3a4351_FF),
-            STATUSBAR_BG,
-        ];
-
-        let mut iter = ctx.vertical_flow(0.0, 0.0, &widgets)
-            .zip(colors.iter().cloned())
-            .map(|(ctx, color)| {
-                ctx.quad(color, ctx.rect());
-                ctx
-            });
-
-        self.menubar(iter.next().unwrap());
-        self.toolbar(iter.next().unwrap());
-        self.content(iter.next().unwrap());
-        self.panel(iter.next().unwrap());
-        self.statusbar(iter.next().unwrap());
-        //if false { self.sample(ctx) }
+        flow!(v ctx => {
+            Flow::with_height(MENUBAR_HEIGHT).expand_across() => |ctx| {
+                ctx.quad(MENUBAR_BG, ctx.rect());
+                self.menubar(ctx);
+            }
+            Flow::with_height(TOOLBAR_HEIGHT).expand_across() => |ctx| {
+                ctx.quad(TOOLBAR_BG, ctx.rect());
+                self.toolbar(ctx);
+            }
+            Flow::auto(1.0) => |ctx| { self.content(ctx) }
+            Flow::with_height(200.0).expand_across() => |ctx| {
+                ctx.quad(TIMELINE_BG, ctx.rect());
+                self.panel(ctx);
+            }
+            Flow::with_height(STATUSBAR_HEIGHT).expand_across() => |ctx| {
+                ctx.quad(STATUSBAR_BG, ctx.rect());
+                self.statusbar(ctx);
+            }
+        });
         self.second_menubar(ctx);
     }
 
     fn content(&mut self, ctx: ui::Context<Canvas>) {
         use tool::Context;
-        let mut r = ctx.rect();
-        r.max.x = r.min.x + 250.0;
 
-        let ctx = ctx.sub_rect(r);
-        {
-            let r = ctx.rect();
-            let start = r.min;
-
-            const WH: usize = 15;
-            let w = (r.dx() as usize - 5 * 2) / WH;
-            for i in 0..256 {
-                let r = Rect::from_min_dim(start + Vector2::new(
-                    ( 5 + (i % w) * WH) as f32,
-                    (40 + (i / w) * WH) as f32,
-                ), Vector2::new(WH as f32, WH as f32));
-                let color = self.pal(i as u8);
-
-                if BTN.behavior(&ctx.sub_rect(r), &mut self.state, &mut ()) {
-                    self.editor.change_color(i as u8);
-                }
-                ctx.quad(rgba(color), r.pad(1.0));
-            }
+        const WH: usize = 12;
+        flow!(h ctx => {
+        Flow::auto(1.0) => |ctx| {
+            self.rect = ctx.rect().cast().unwrap();
         }
+        Flow::with_width(6.0 * WH as f32).expand_across() => |ctx| {
+            flow!(v ctx => {
+            Flow::with_height(20.0).expand_across() => |ctx| {
+                let r = ctx.rect();
+                ctx.quad(BAR_TITLE_BG, r);
+                //ctx.sub_rect(r.pad_x(8.0)).label(0.0, 0.5, WHITE, "Palette");
+                ctx.label(0.5, 0.5, WHITE, "Palette");
+            }
+            Flow::auto(1.0) => |ctx| {
+                ctx.quad(BAR_BG, ctx.rect());
+                let r = ctx.rect();
+                let start = r.min;
+
+                let transparent = self.editor.transparent();
+
+                let w = (r.dx() as usize) / WH;
+                for i in 0..256 {
+                    let min = Vector2::new(
+                        (i % w) * WH,
+                        (i / w) * WH,
+                    );
+                    let dim = Vector2::new(WH as f32, WH as f32);
+                    let r = Rect::from_min_dim(start + min.cast().unwrap(), dim);
+                    let color = self.pal(i as u8);
+
+                    if BTN.behavior(&ctx.sub_rect(r), &mut self.state, &mut ()) {
+                        self.editor.change_color(i as u8);
+                    }
+                    if self.editor.color() == i as u8 {
+                        BTN.pressed.paint(ctx.draw(), r);
+                    }
+                    let r = r.pad(0.0);
+                    if Some(i as u8) == transparent {
+                        let (r1, r2) = r.split_x(0.5);
+                        let (a, b) = r1.split_y(0.5);
+                        let (c, d) = r2.split_y(0.5);
+                        ctx.quad(0x333333_FFu32.to_be(), a);
+                        ctx.quad(0x000000_FFu32.to_be(), b);
+                        ctx.quad(0x000000_FFu32.to_be(), c);
+                        ctx.quad(0x333333_FFu32.to_be(), d);
+                    } else {
+                        ctx.quad(rgba(color), r);
+                    }
+                }
+            }
+            });
+        }
+        });
     }
 
     fn panel(&mut self, ctx: ui::Context<Canvas>) {
         let state = unsafe { &mut *(&self.state as *const UiState as *mut UiState) };
-        let mut lay = EditorLayout::new(ctx.split_x(0.3).0, state);
+        let (ctx, grid) = ctx.split_x(0.7);
+        {
+            let mut lay = EditorLayout::new(ctx, state);
+            let m = self.editor.image.as_mut_receiver();
+            for layer in &mut m.data {
+                let ctx = lay.one_line_prop(&layer.name);
+                let w = ctx.rect().dy();
+                flow!(h ctx => {
+                    Flow::with_width(w).expand_across() => |ctx| {
+                        TOGGLE.behavior(&ctx, &mut lay.state, &mut layer.visible);
+                    }
+                    Flow::with_width(w).expand_across() => |ctx| {
+                        TOGGLE.behavior(&ctx, &mut lay.state, &mut layer.lock);
+                    }
+                });
+            }
+        }
+
+        let mut lay = EditorLayout::new(grid, state);
         lay.tree("grid", |lay| {
-            lay.vector2_base("size", &mut self.grid.size, |is, v| {
-                if is { *v += 1 } else { *v -= 1 };
-                *v = (*v).min(0);
-            });
-            lay.vector2("offset", &mut self.grid.offset, 1);
+            lay.num("size", "x", &mut self.grid.size.x, 1, 0, None);
+            lay.num("size", "y", &mut self.grid.size.y, 1, 0, None);
+            lay.num("offset", "x", &mut self.grid.offset.x, 1, None, None);
+            lay.num("offset", "y", &mut self.grid.offset.y, 1, None, None);
         });
     }
 
     fn statusbar(&mut self, ctx: ui::Context<Canvas>) {
         let text = format!("zoom: {}  #{:<3}", self.editor.zoom(), self.color_index());
         ctx.label(0.01, 0.5, WHITE, &text);
-        let text = format!("[{:>+5} {:<+5}]", self.mouse.x, self.mouse.y);
-        ctx.label(0.2, 0.5, WHITE, &text);
+
+        if self.in_widget {
+            let text = format!("[{:>+5} {:<+5}]", self.mouse.x, self.mouse.y);
+            ctx.label(0.2, 0.5, WHITE, &text);
+        }
 
         let now = Instant::now();
         let elapsed = now.duration_since(self.time);
@@ -453,78 +524,7 @@ impl App {
         let elapsed = elapsed.as_secs() as f64 + elapsed.subsec_nanos() as f64 * 1e-9;
 
         let text = format!("sec: {:.5}", elapsed);
-        ctx.label(0.7, 0.5, WHITE, &text);
-    }
-
-    fn sample(&mut self, ctx: ui::Context<Canvas>) {
-        let widgets = &[
-            Flow::with_wh(60.0, 40.0),
-            Flow::with_wh(60.0, 40.0),
-            Flow::with_wh(60.0, 40.0).along_weight(1.0).expand_along(),
-            Flow::with_wh(40.0, 40.0),
-            Flow::with_wh(40.0, 40.0).expand_across(),
-        ];
-
-        let ctx = {
-            let anchor = Rect {
-                min: Point2::new(0.25, 0.25),
-                max: Point2::new(0.75, 0.75),
-            };
-            let offset = Rect {
-                min: Point2::new(0.0, 0.0),
-                max: Point2::new(0.0, 0.0),
-            };
-
-            ctx.sub().transform(anchor, offset).build()
-        };
-
-        //println!("{:?}", ctx.rect());
-
-        ctx.quad(rgba(0xFF0000_CC), ctx.rect());
-
-        static mut TOGGLE_STATE: bool = false;
-
-        static mut SLIDER_H: SliderModel = SliderModel {
-            min: 1.0,
-            current: 2.7,
-            max: 3.0,
-        };
-
-        static mut SLIDER_V: SliderModel = SliderModel {
-            min: 1.0,
-            current: 2.7,
-            max: 3.0,
-        };
-
-        let toggle_state = unsafe { &mut TOGGLE_STATE };
-        let slider_state_h = unsafe { &mut SLIDER_H };
-        let slider_state_v = unsafe { &mut SLIDER_V };
-
-        let mut i = 0;
-        for ctx in ctx.horizontal_flow(0.0, 0.0, widgets) {
-            match i {
-            1 => {
-                TOGGLE.behavior(&ctx, &mut self.state, toggle_state);
-                ctx.label(0.5, 0.5, WHITE, &format!("tgl{}", i));
-            }
-            2 => {
-                HSLIDER.behavior(&ctx, &mut self.state, slider_state_h);
-                ctx.label(0.5, 0.5, WHITE, &format!("val{}: {}", i, slider_state_h.current));
-            }
-            4 => {
-                VSLIDER.behavior(&ctx, &mut self.state, slider_state_v);
-                ctx.label(0.5, 0.5, WHITE, &format!("val{}: {}", i, slider_state_v.current));
-            }
-            _ => {
-                if BTN.behavior(&ctx, &mut self.state, &mut ()) {
-                    println!("{} click", i);
-                }
-                ctx.label(0.5, 0.5, WHITE, &format!("btn{}", i));
-            }
-            }
-
-            i += 1;
-        }
+        ctx.label(0.9, 0.5, WHITE, &text);
     }
 
     fn toolbar(&mut self, ctx: ui::Context<Canvas>) {
@@ -534,7 +534,7 @@ impl App {
             btn, btn,
             Flow::auto(1.0),
             btn, btn, btn, btn, btn,
-            Flow::auto(1.0),
+            Flow::auto(1.0).skip(),
             Flow::with_width(130.0).expand_across(),
             Flow::auto(1.0),
         ];
@@ -578,10 +578,8 @@ impl App {
             }
         }
 
-        let _ = flow.next().unwrap();
         let ctx = flow.next().unwrap();
-
-        match edit_num(&ctx, &mut self.state, self.editor.zoom(), "zoom") {
+        match edit_num(ctx, &mut self.state, self.editor.zoom(), "zoom") {
             Some(true) => self.zoom_from_center(1),
             Some(false) => self.zoom_from_center(-1),
             _ => (),
@@ -610,21 +608,28 @@ impl App {
             Item::Text(Command::Quit, "Quit", "Ctrl-Q"),
         ];
 
+        let mut exit = true;
+
         if let Some((id, base_rect)) = self.menubar.open_root {
-            let mut exit = true;
             match MENU.run(&ctx, &mut self.state, id, base_rect, &items) {
                 MenuEvent::Nothing => exit = false,
                 MenuEvent::Exit => (),
                 MenuEvent::Clicked(Command::Open) => {
-                    println!("open_file: {:?}", ::open::open_file());
+                    if let Some(name) = ::open::open_file() {
+                        println!("open_file: {}", name);
+                        if let Some(image) = ::open::load_sprite(name) {
+                            self.editor.recreate(image);
+                        }
+                    }
                 }
+                MenuEvent::Clicked(Command::Quit) => self.quit = true,
                 MenuEvent::Clicked(id) => {
                     println!("click: {:?}", id);
                 }
             }
-            if exit {
-                self.menubar.open_root = None;
-            }
+        }
+        if exit {
+            self.menubar.open_root = None;
         }
     }
 }

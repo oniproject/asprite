@@ -29,9 +29,7 @@ pub const ICON_TOOL_PIP: usize = 1000_4;
 pub const ICON_UNDO: usize = 2000_0;
 pub const ICON_REDO: usize = 2000_1;
 
-
-pub const EDITOR_PREVIEW_ID: usize = 10_666;
-pub const EDITOR_SPRITE_ID: usize = 10_777;
+pub const EDITOR_SPRITE_ID: usize = 4000;
 
 pub const fn rgba(c: u32) -> u32 {
     ((c >> 24) & 0xFF) <<  0 |
@@ -68,13 +66,13 @@ pub const MENUBAR_BG: u32 = 0x222833_FF;
 pub const BAR_BG: u32 = 0x3f4957_FF;
 
 pub const BTN_BORDER: u32 = ;
+*/
 
-pub const TIMELINE_BG: u32 = 0x3a4351_FF;
-pub const HEADER_BG: u32 = 0x525b68_FF;
+pub const TIMELINE_BG: u32 = rgba(0x3A4351_FF);
+pub const HEADER_BG: u32 = rgba(0x525b68_FF);
 
+/*
 pub const LABEL_COLOR: u32 = 0xFFFFFF_FF;
-pub const FONT_HEIGHT: u16 = 12;
-
 pub const INSET_X: i16 = FONT_HEIGHT as i16 / 2;
 */
 
@@ -138,7 +136,7 @@ pub const MENU: Menu<Canvas, Command> = Menu {
 
     separator: rgba(0x000000_99),
 
-    width: 150.0,
+    width: 200.0,
 
     text_height: 20.0,
     text_inset: 8.0,

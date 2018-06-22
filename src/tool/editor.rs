@@ -15,7 +15,9 @@ use draw::{
 
 use super::{
     Brush,
+    BrushOwned,
     Receiver,
+    brush::Shape,
 };
 
 #[derive(Debug)]
@@ -43,6 +45,8 @@ impl Command<Receiver> for DrawCommand {
 
 pub struct Editor {
     pub image: Record<Receiver, DrawCommand>,
+    pub brush: Vec<bool>,
+    pub brush_rect: Rect<i32>,
 
     canvas: Frame,
     start: usize,
@@ -59,7 +63,16 @@ impl Editor {
             stride: image.width,
             start: 0,
             image: Record::new(image),
+            brush: Shape::Round.gen(5, 5),
+            brush_rect: Rect::from_coords_and_size(-2, -2, 5, 5),
         }
+    }
+
+    pub fn recreate(&mut self, image: Receiver) {
+        let (w, h) = (image.width, image.height);
+        self.canvas = image.page(image.layer, image.frame).clone();
+        self.image = Record::new(image);
+        self.stride = w;
     }
 
     pub fn zoom(&self) -> i32 {
@@ -86,9 +99,13 @@ impl Editor {
         c
     }
 
-    pub fn color(&self) -> u32 {
+    pub fn pal_color(&self) -> u32 {
         let m = self.image.as_receiver();
         m.palette[m.color]
+    }
+
+    pub fn transparent(&self) -> Option<u8> {
+        self.image.as_receiver().current().transparent
     }
 
     pub fn pal(&self, color: u8) -> u32 {
@@ -180,10 +197,10 @@ impl super::Context<i32, u8> for Editor {
         self.image.as_mut_receiver().update_all();
     }
 
-    fn start(&mut self) -> u8 {
+    fn start(&mut self) {
         self.sync();
-        self.image.as_receiver().color
     }
+
     fn commit(&mut self) {
         let page = self.canvas.clone();
         let layer = self.image.as_receiver().layer;
@@ -192,27 +209,20 @@ impl super::Context<i32, u8> for Editor {
             .apply(DrawCommand::new(layer, frame, page.clone())).unwrap();
         self.sync();
     }
+
     fn rollback(&mut self) {
         self.sync();
+    }
+
+    fn color(&self) -> u8 {
+        self.image.as_receiver().color
     }
 
     fn change_color(&mut self, color: u8) {
         self.image.as_mut_receiver().color = color;
     }
 
-    fn brush(&self) -> (Brush<u8>, Rect<i32>) {
-        /*
-        static BRUSH: &[bool] = &[
-            true,  false,  true,
-            false,  true, false,
-            true,  false,  true,
-        ];
-        let r = Rect::from_coords_and_size(-1, -1, 3, 3);
-        (Brush::Mask(BRUSH.into()), r)
-        */
-
-        static BRUSH: &[bool] = &[true];
-        let r = Rect::from_coords_and_size(0, 0, 1, 1);
-        (Brush::Mask(BRUSH.into()), r)
+    fn brush(&self) -> (Brush, Rect<i32>) {
+        (&self.brush, self.brush_rect)
     }
 }

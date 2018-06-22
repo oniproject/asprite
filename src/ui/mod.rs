@@ -20,6 +20,7 @@ pub use self::context::{Context, ContextBuilder};
 pub use self::id::{Id, IdGenerator, Generator};
 
 pub use self::layout::flow::{
+    Axis,
     Flow,
     layout,
     measure,

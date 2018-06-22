@@ -20,6 +20,15 @@ impl<S> Default for Rect<S>
 }
 
 impl<S> Rect<S> where S: BaseNum {
+    pub fn cast<T>(&self) -> Option<Rect<T>> where T: BaseNum {
+        Some(Rect {
+            min: self.min.cast()?,
+            max: self.max.cast()?,
+        })
+    }
+}
+
+impl<S> Rect<S> where S: BaseNum {
     pub fn dx(&self) -> S { self.max.x - self.min.x }
     pub fn dy(&self) -> S { self.max.y - self.min.y }
     pub fn dim(&self) -> Vector2<S> { Vector2::new(self.dx(), self.dy()) }

@@ -37,7 +37,8 @@ impl Receiver {
             name: name.to_string(),
             data: Vec::new(),
             palette: Palette::new(0, None),
-            width, height,
+            width,
+            height,
             frame: 0,
             layer: 0,
             color: 1,
@@ -87,6 +88,14 @@ impl Receiver {
 
     pub fn is_lock(&self) -> bool {
         self.data[self.layer].lock
+    }
+
+    pub fn current(&self) -> &Frame {
+        self.data[self.layer].get(self.frame)
+    }
+
+    pub fn current_mut(&mut self) -> &mut Frame {
+        self.data[self.layer].get_mut(self.frame)
     }
 
     pub fn page(&self, layer: usize, frame: usize) -> &Frame {

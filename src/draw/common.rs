@@ -16,16 +16,16 @@ pub fn blit<N, F, C>(r: Rect<N>, br: Rect<N>, brush: &[C], mut f: F)
 {
     let w = br.dx();
     let start = r.min - br.min;
-    let start = (start.x + start.y * w).to_isize().unwrap();
-    let stride = (w - r.dx()).to_isize().unwrap();
+    let start = (start.x + start.y * w).to_usize().unwrap();
+    let stride = (w - r.dx()).to_usize().unwrap();
     unsafe {
-        let mut pix = brush.as_ptr().offset(start);
+        let mut pix = brush.as_ptr().add(start);
         for y in r.min.y..r.max.y {
             for x in r.min.x..r.max.x {
                 f(x, y, *pix);
-                pix = pix.offset(1);
+                pix = pix.add(::std::mem::size_of::<C>());
             }
-            pix = pix.offset(stride);
+            pix = pix.add(stride);
         }
     }
 }

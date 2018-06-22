@@ -5,10 +5,6 @@
 #![feature(generators, generator_trait)]
 #![feature(const_cell_new)]
 
-//#![allow(dead_code)]
-//#![allow(unused_imports)]
-
-
 extern crate rand;
 extern crate redo;
 extern crate image;
@@ -41,7 +37,6 @@ macro_rules! color(
         }
     )
 );
-
 
 mod math;
 mod draw;
@@ -86,7 +81,7 @@ fn new_sprite() -> tool::Receiver {
     use math::*;
     use draw::*;
 
-    const TRANSPARENT: u32 = 0x000000_00;
+    const _TRANSPARENT: u32 = 0x000000_00;
 
     const BLACK: u32    = 0x18140C_FF;
     const WHITE: u32    = 0xF4F0E8_FF;
@@ -98,7 +93,6 @@ fn new_sprite() -> tool::Receiver {
     const BLUE: u32     = 0x2874C4_FF;
 
     static PAL: &[u32] = &[
-        TRANSPARENT,
         BLACK,
         WHITE,
         RED,
@@ -109,9 +103,51 @@ fn new_sprite() -> tool::Receiver {
         BLUE,
     ];
 
+    static WARM: &[u32] = &[
+        0xC40909_FF,
+        0xD8D508_FF,
+        0xED6E00_FF,
+        0xE80032_FF,
+        0x8C0B0B_FF,
+        0xE4AA04_FF,
+        0x750000_FF,
+    ];
+
+    static COOL: &[u32] = &[
+        0x112AC6_FF,
+        0x539BE2_FF,
+        0x161066_FF,
+        0x40234C_FF,
+        0x073F93_FF,
+        0x2C6CCC_FF,
+        0x265121_FF,
+        0x04422C_FF,
+    ];
+
     fn create_pal(pal: &mut Palette<u32>) {
+        for c in pal.iter_mut() {
+            *c = 0x000000_FF;
+        }
+        for (i, &c) in WARM.iter().enumerate() {
+            pal[i as u8 + 1] = c;
+        }
+        for (i, &c) in COOL.iter().enumerate() {
+            pal[i as u8 + 8] = c;
+        }
+
         for (i, &c) in PAL.iter().enumerate() {
-            pal[i as u8] = c;
+            pal[i as u8 + 24] = c;
+        }
+
+        let arr = [0xFFu32, 0xCC, 0x99, 0x66, 0x33, 0x00];
+        let mut idx = 36u8;
+        for b in &arr[..] {
+            for g in &arr[..] {
+                for r in &arr[..] {
+                    pal[idx] = (r << 24) | (g << 16) | (b << 8) | 0xFFu32;
+                    idx += 1;
+                }
+            }
         }
     }
 

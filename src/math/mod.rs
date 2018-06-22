@@ -27,13 +27,6 @@ pub use self::time::{Time, TimePair};
 pub use self::stopwatch::Stopwatch;
 pub use self::d8::D8;
 
-#[derive(Copy, Clone, Debug)]
-pub enum Axis {
-    Horizontal,
-    Vertical,
-}
-
-
 pub fn lerp<S: BaseFloat>(min: S, max: S, t: S) -> S {
     (S::one() - t) * min + t * max
 }
