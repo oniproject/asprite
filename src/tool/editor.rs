@@ -9,12 +9,12 @@ use draw::{
     CanvasWrite,
     Frame,
     Palette,
+    Shape,
 };
 
 use super::{
     Brush,
     Receiver,
-    brush::Shape,
 };
 
 #[derive(Debug)]
@@ -47,16 +47,12 @@ pub struct Editor {
     pub color: u8,
 
     canvas: Frame,
-    start: usize,
-    stride: usize,
 }
 
 impl Editor {
     pub fn new(image: Receiver) -> Self {
         Self {
             canvas: image.page(image.layer, image.frame).clone(),
-            stride: image.width,
-            start: 0,
             image: Record::new(image),
             brush: Shape::Round.gen(5, 5),
             brush_rect: Rect::from_coords_and_size(-2, -2, 5, 5),
@@ -65,10 +61,8 @@ impl Editor {
     }
 
     pub fn recreate(&mut self, image: Receiver) {
-        let w = image.width;
-        self.canvas = image.page(image.layer, image.frame).clone();
+        self.canvas = image.current().clone();
         self.image = Record::new(image);
-        self.stride = w;
     }
 
     pub fn zoom(&self) -> i32 {
@@ -95,20 +89,12 @@ impl Editor {
         c
     }
 
-    pub fn pal_color(&self) -> u32 {
-        self.image.as_receiver().palette[self.color]
-    }
-
     pub fn transparent(&self) -> Option<u8> {
         self.image.as_receiver().current().transparent
     }
 
     pub fn pal(&self, color: u8) -> u32 {
         self.image.as_receiver().palette[color]
-    }
-
-    pub fn color_index(&self) -> u8 {
-        self.color
     }
 
     pub fn redo(&mut self) {

@@ -1,5 +1,4 @@
 use super::*;
-
 use draw::ScanlineFill;
 
 pub struct Bucket;

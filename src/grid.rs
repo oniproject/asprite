@@ -4,12 +4,17 @@ use render::*;
 
 #[derive(Clone, Copy)]
 pub struct Grid {
+    pub visible: bool,
     pub size: Vector2<i16>,
     pub offset: Vector2<i16>,
 }
 
 impl Grid {
     pub fn paint(&self, ctx: &mut Canvas, zoom: i16, rect: Rect<i32>) {
+        if !self.visible {
+            return;
+        }
+
         let (pos, size) = {
             let min = rect.min;
             let pos = Point2::new(min.x as i16, min.y as i16);

@@ -26,6 +26,13 @@ impl<'a, 'b, D: ?Sized + Graphics + 'a> ContextBuilder<'a, 'b, D> {
         self
     }
 
+    pub fn align(mut self, align: Vector2<f32>, size: Vector2<f32>) -> Self {
+        let rect = self.root.rect;
+        let p = rect_align(rect, align, size);
+        self.rect = Rect::from_min_dim(p, size);
+        self
+    }
+
     pub fn transform(mut self, anchor: Rect<f32>, offset: Rect<f32>) -> Self {
         let rect = self.root.rect;
         self.rect = rect_transform(rect, anchor, offset);
@@ -74,6 +81,14 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 
     pub fn sub_range(&self, range: usize) -> Self {
         self.sub().with_range(range).build()
+    }
+
+    pub fn align(&self, align: Vector2<f32>, size: Vector2<f32>) -> Self {
+        self.sub().align(align, size).build()
+    }
+
+    pub fn transform(&self, anchor: Rect<f32>, offset: Rect<f32>) -> Self {
+        self.sub().transform(anchor, offset).build()
     }
 
     pub fn sub_rect(&self, rect: Rect<f32>) -> Self {

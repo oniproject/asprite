@@ -51,24 +51,32 @@ fn circle_squared_diameter<T>(d: T) -> T
     }
 }
 
-pub fn round(w: i32, h: i32) -> impl Iterator<Item=bool> {
+pub fn round<T>(w: T, h: T) -> impl Iterator<Item=bool>
+    where T: BaseIntExt
+{
+    let two = T::from_i8(2).unwrap();
     let r2 = circle_squared_diameter(w);
     SizeIter::new(w, h).map(move |(x, y)| {
-        let x = 1 - w + x * 2;
-        let y = 1 - h + y * 2;
+        let x = T::one() - w + x * two;
+        let y = T::one() - h + y * two;
         (x * x + y * y) <= r2
     })
 }
-pub fn square(w: i32, h: i32) -> impl Iterator<Item=bool> {
+pub fn square<T>(w: T, h: T) -> impl Iterator<Item=bool>
+    where T: BaseIntExt
+{
     SizeIter::new(w, h).map(move |(_, _)| true)
 }
-pub fn sieve_round(w: i32, h: i32) -> impl Iterator<Item=bool> {
-    let reminder = if w == 1 { 1 } else { 0 };
+pub fn sieve_round<T>(w: T, h: T) -> impl Iterator<Item=bool>
+    where T: BaseIntExt
+{
+    let two = T::from_i8(2).unwrap();
+    let reminder = if w == T::one() { T::one() } else { T::zero() };
     let r2 = circle_squared_diameter(w);
     SizeIter::new(w, h).map(move |(xp, yp)| {
-        let x = 1 - w + xp * 2;
-        let y = 1 - h + yp * 2;
-        ((xp + yp + reminder) & 1) != 0 && ((x * x + y * y) < r2)
+        let x = T::one() - w + xp * two;
+        let y = T::one() - h + yp * two;
+        ((xp + yp + reminder) & T::one()) != T::zero() && ((x * x + y * y) < r2)
     })
 }
 pub fn sieve_square(w: i32, h: i32) -> impl Iterator<Item=bool> {
@@ -130,46 +138,3 @@ fn random(w: i32, h: i32) {
     }
 }
 */
-
-struct SizeIter<T> where T: BaseIntExt {
-    size: (T, T),
-    pos: (T, T),
-}
-
-impl<T> SizeIter<T> where T: BaseIntExt {
-    fn new(w: T, h: T) -> Self {
-        Self {
-            size: (w, h),
-            pos: (T::zero(), T::zero()),
-        }
-    }
-}
-
-impl<T> Iterator for SizeIter<T> where T: BaseIntExt {
-    type Item = (T, T);
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.pos.1 >= self.size.1 {
-            return None;
-        }
-        let p = self.pos;
-        self.pos.0 = self.pos.0 + T::one();
-        if self.pos.0 >= self.size.0 {
-            self.pos.0 = T::zero();
-            self.pos.1 += T::one();
-        }
-        Some(p)
-    }
-}
-
-#[test]
-fn point_wh() {
-    let v: Vec<_> = SizeIter::new(2, 3).collect();
-    assert_eq!(v, &[
-        (0, 0),
-        (1, 0),
-        (0, 1),
-        (1, 1),
-        (0, 2),
-        (1, 2),
-    ]);
-}

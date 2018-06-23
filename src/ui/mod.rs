@@ -42,9 +42,15 @@ pub use self::components::{
     },
 };
 
+pub type SimpleTransparentButton<D> = Button<D, D, NoDrawer>;
+pub type ColorTransparentButton<D> = Button<ColorDrawer<D>, ColorDrawer<D>, NoDrawer>;
+
 pub type SimpleButton<D> = Button<D, D, D>;
 pub type ColorButton<D> = SimpleButton<ColorDrawer<D>>;
 pub type TextureButton<D> = SimpleButton<TextureDrawer<D>>;
+
+pub type SimpleTransparentToggle<D> = Toggle<D, D, NoDrawer>;
+pub type ColorTransparentToggle<D> = Toggle<ColorDrawer<D>, ColorDrawer<D>, NoDrawer>;
 
 pub type SimpleToggle<D> = Toggle<D, D, D>;
 pub type ColorToggle<D> = SimpleToggle<ColorDrawer<D>>;

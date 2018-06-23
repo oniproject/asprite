@@ -3,8 +3,6 @@ use draw;
 
 use std::ptr::NonNull;
 
-mod brush;
-
 mod editor;
 mod receiver;
 

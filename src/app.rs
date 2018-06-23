@@ -122,8 +122,9 @@ impl App {
             state: UiState::new(),
 
             grid: Grid {
+                visible: true,
                 size: Vector2::new(16, 16),
-                offset: Vector2::new(-6, -6),
+                offset: Vector2::new(0, 0),
             },
             editor,
             current: CurrentTool::Freehand,
@@ -335,6 +336,9 @@ impl App {
 
             canvas.load_texture(ICON_UNDO, "res/undo.png");
             canvas.load_texture(ICON_REDO, "res/redo.png");
+
+            canvas.load_texture(ICON_CHECK_ON, "res/check_on.png");
+            canvas.load_texture(ICON_CHECK_OFF, "res/check_off.png");
         }
 
         if !self.editor.take_created() {
@@ -390,23 +394,11 @@ impl App {
         self.ui_mouse.cleanup();
 
         flow!(v ctx => {
-            Flow::with_height(MENUBAR_HEIGHT).expand_across() => |ctx| {
-                ctx.quad(MENUBAR_BG, ctx.rect());
-                self.menubar(ctx);
-            }
-            Flow::with_height(TOOLBAR_HEIGHT).expand_across() => |ctx| {
-                ctx.quad(TOOLBAR_BG, ctx.rect());
-                self.toolbar(ctx);
-            }
-            Flow::auto(1.0) => |ctx| { self.content(ctx) }
-            Flow::with_height(200.0).expand_across() => |ctx| {
-                ctx.quad(TIMELINE_BG, ctx.rect());
-                self.panel(ctx);
-            }
-            Flow::with_height(STATUSBAR_HEIGHT).expand_across() => |ctx| {
-                ctx.quad(STATUSBAR_BG, ctx.rect());
-                self.statusbar(ctx);
-            }
+            Flow::with_height(MENUBAR_HEIGHT).expand_across()   => |ctx| { self.menubar(ctx) }
+            Flow::with_height(TOOLBAR_HEIGHT).expand_across()   => |ctx| { self.toolbar(ctx) }
+            Flow::auto(1.0)                                     => |ctx| { self.content(ctx) }
+            Flow::with_height(200.0).expand_across()            => |ctx| { self.panel(ctx) }
+            Flow::with_height(STATUSBAR_HEIGHT).expand_across() => |ctx| { self.statusbar(ctx) }
         });
         self.second_menubar(ctx);
     }
@@ -418,45 +410,20 @@ impl App {
 
         const WH: usize = 12;
         flow!(h ctx => {
-        Flow::with_width(200.0).expand_across() => |ctx| {
-            flow!(v ctx => {
-            Flow::with_height(20.0).expand_across() => |ctx| {
-                let r = ctx.rect();
-                ctx.quad(BAR_TITLE_BG, r);
-                ctx.label(0.5, 0.5, WHITE, "Tool");
-            }
-            Flow::auto(1.0) => |ctx| {
-                ctx.quad(BAR_BG, ctx.rect());
+        Flow::with_width(32.0 * 5.0).expand_across() => |ctx| {
+            ctx.quad(BAR_BG, ctx.rect());
 
-                let mut lay = EditorLayout::new(ctx, state);
-                match self.current {
-                    CurrentTool::Freehand => {
-                        //
-                        lay.toggle_prop("perfect", &mut self.freehand.perfect);
-                    }
-                    CurrentTool::Primitive(_) => {
-                        lay.toggle_prop("fill", &mut self.prim.fill);
-                    }
-                    _ => (),
-                    /*
-                    CurrentTool::Bucket => {
-                        self.bucket
-                    }
-                    CurrentTool::EyeDropper => {
-                        self.dropper
-                    }
-                    */
-                }
+            let mut lay = EditorLayout::new(ctx, state);
+            lay.skip_line();
+            lay.skip_line();
+            lay.skip_line();
+            lay.header_checkbox("Grid", &mut self.grid.visible);
+            if self.grid.visible {
+                lay.num("size", "x", &mut self.grid.size.x, 1, 0, None);
+                lay.num("size", "y", &mut self.grid.size.y, 1, 0, None);
+                lay.num("offset", "x", &mut self.grid.offset.x, 1, None, None);
+                lay.num("offset", "y", &mut self.grid.offset.y, 1, None, None);
             }
-            Flow::with_height(20.0).expand_across() => |ctx| {
-                let r = ctx.rect();
-                ctx.quad(BAR_TITLE_BG, r);
-                ctx.label(0.5, 0.5, WHITE, "Grid");
-            }
-            Flow::auto(1.0) => |ctx| {
-                ctx.quad(BAR_BG, ctx.rect());
-            }
-            });
         }
         Flow::auto(1.0) => |ctx| {
             self.rect = ctx.rect().cast().unwrap();
@@ -512,6 +479,8 @@ impl App {
     }
 
     fn panel(&mut self, ctx: ui::Context<Canvas>) {
+        ctx.quad(TIMELINE_BG, ctx.rect());
+
         let state = unsafe { &mut *(&self.state as *const UiState as *mut UiState) };
         let (ctx, grid) = ctx.split_x(0.7);
         {
@@ -522,25 +491,18 @@ impl App {
                 let w = ctx.rect().dy();
                 flow!(h ctx => {
                     Flow::with_width(w).expand_across() => |ctx| {
-                        TOGGLE.behavior(&ctx, &mut lay.state, &mut layer.visible);
+                        ::layout::checkbox_inner(ctx, &mut lay.state, &mut layer.visible);
                     }
                     Flow::with_width(w).expand_across() => |ctx| {
-                        TOGGLE.behavior(&ctx, &mut lay.state, &mut layer.lock);
+                        ::layout::checkbox_inner(ctx, &mut lay.state, &mut layer.lock);
                     }
                 });
             }
         }
-
-        let mut lay = EditorLayout::new(grid, state);
-        lay.tree("grid", |lay| {
-            lay.num("size", "x", &mut self.grid.size.x, 1, 0, None);
-            lay.num("size", "y", &mut self.grid.size.y, 1, 0, None);
-            lay.num("offset", "x", &mut self.grid.offset.x, 1, None, None);
-            lay.num("offset", "y", &mut self.grid.offset.y, 1, None, None);
-        });
     }
 
     fn statusbar(&mut self, ctx: ui::Context<Canvas>) {
+        ctx.quad(STATUSBAR_BG, ctx.rect());
         let text = format!("zoom: {}  #{:<3}", self.editor.zoom(), self.editor.color);
         ctx.label(0.01, 0.5, WHITE, &text);
 
@@ -560,34 +522,21 @@ impl App {
     }
 
     fn toolbar(&mut self, ctx: ui::Context<Canvas>) {
+        ctx.quad(TOOLBAR_BG, ctx.rect());
+
+        let state = unsafe { &mut *(&self.state as *const UiState as *mut UiState) };
+
         let height = ctx.rect().dy();
         let btn = Flow::with_wh(height, height);
         let flow = [
-            btn, btn,
-            Flow::auto(1.0),
             btn, btn, btn, btn, btn,
-            Flow::auto(1.0).skip(),
-            Flow::with_width(130.0).expand_across(),
             Flow::auto(1.0),
+            btn, btn,
+            Flow::auto(1.0).skip(),
+            Flow::with_width(200.0).expand_across(),
+            //Flow::auto(1.0),
         ];
         let mut flow = ctx.horizontal_flow(0.0, 0.5, &flow);
-
-        {
-            let undo = flow.next().unwrap();
-            let redo = flow.next().unwrap();
-
-            if BTN.behavior(&redo, &mut self.state, &mut ()) {
-                self.editor.redo();
-            }
-            if BTN.behavior(&undo, &mut self.state, &mut ()) {
-                self.editor.undo();
-            }
-
-            ctx.draw().texture(ICON_UNDO, undo.rect());
-            ctx.draw().texture(ICON_REDO, redo.rect());
-        }
-
-        flow.next().unwrap();
 
         {
             static MODES: &[(usize, CurrentTool)] = &[
@@ -610,6 +559,38 @@ impl App {
             }
         }
 
+        {
+            let align = Vector2::new(0.0, 0.5);
+            let size = Vector2::new(200.0, 20.0);
+            let ctx = flow.next().unwrap().align(align, size);
+            let mut lay = EditorLayout::new(ctx, state);
+            match self.current {
+                CurrentTool::Freehand => {
+                    lay.checkbox("perfect", &mut self.freehand.perfect);
+                }
+                CurrentTool::Primitive(_) => {
+                    lay.checkbox("fill", &mut self.prim.fill);
+                }
+                _ => (),
+            }
+        }
+
+
+        {
+            let undo = flow.next().unwrap();
+            let redo = flow.next().unwrap();
+
+            if BTN.behavior(&redo, &mut self.state, &mut ()) {
+                self.editor.redo();
+            }
+            if BTN.behavior(&undo, &mut self.state, &mut ()) {
+                self.editor.undo();
+            }
+
+            ctx.draw().texture(ICON_UNDO, undo.rect());
+            ctx.draw().texture(ICON_REDO, redo.rect());
+        }
+
         let ctx = flow.next().unwrap();
         match edit_num(ctx, &mut self.state, self.editor.zoom(), "zoom") {
             Some(true) => self.zoom_from_center(1),
@@ -619,6 +600,7 @@ impl App {
     }
 
     fn menubar(&mut self, ctx: ui::Context<Canvas>) {
+        ctx.quad(MENUBAR_BG, ctx.rect());
         MENUBAR.run(&ctx, &mut self.state, &mut self.menubar, &[
             (ctx.reserve_widget_id(), "File"),
             (ctx.reserve_widget_id(), "Edit"),

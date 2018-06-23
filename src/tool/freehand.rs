@@ -1,5 +1,5 @@
 use super::*;
-use draw::*;
+use draw::draw_line;
 
 pub struct Freehand<N: BaseNum> {
     pub perfect: bool,

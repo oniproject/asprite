@@ -18,6 +18,7 @@ mod rect;
 mod d8;
 mod time;
 mod stopwatch;
+mod size_iter;
 mod util;
 
 pub use self::ext::{BaseNumExt, BaseFloatExt, BaseIntExt};
@@ -27,12 +28,37 @@ pub use self::affine::Affine;
 pub use self::time::{Time, TimePair};
 pub use self::stopwatch::Stopwatch;
 pub use self::d8::D8;
+pub use self::size_iter::SizeIter;
 pub use self::util::SliceExt;
 
+#[inline(always)]
+pub fn partial_min<N>(a: N, b: N) -> N
+    where N: PartialOrd
+{
+    if b > a {
+        a
+    } else {
+        b
+    }
+}
+
+#[inline(always)]
+pub fn partial_max<N>(a: N, b: N) -> N
+    where N: PartialOrd
+{
+    if b < a {
+        a
+    } else {
+        b
+    }
+}
+
+#[inline(always)]
 pub fn lerp<S: BaseFloat>(min: S, max: S, t: S) -> S {
     (S::one() - t) * min + t * max
 }
 
+#[inline(always)]
 pub fn clamp01<S: BaseFloat>(v: S) -> S {
     if v < S::zero() {
         S::zero()

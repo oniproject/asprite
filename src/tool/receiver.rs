@@ -1,6 +1,5 @@
-use draw::{Frame, Palette, Bounded};
-
 use math::{Rect, Vector2, Point2};
+use draw::{Frame, Palette, Bounded};
 
 pub struct Receiver {
     pub data: Vec<Layer>,

@@ -28,6 +28,9 @@ pub const ICON_TOOL_PIP: usize = 1000_4;
 pub const ICON_UNDO: usize = 2000_0;
 pub const ICON_REDO: usize = 2000_1;
 
+pub const ICON_CHECK_ON: usize = 2000_2;
+pub const ICON_CHECK_OFF: usize = 2000_3;
+
 pub const EDITOR_SPRITE_ID: usize = 4000;
 
 pub const fn rgba(c: u32) -> u32 {
@@ -88,23 +91,24 @@ pub const VPROGRESS: Progress<ColorDrawer<Canvas>, ColorDrawer<Canvas>> = Progre
 pub const HSLIDER: Slider<ColorDrawer<Canvas>> = Slider { normal, hovered, pressed, axis: Axis::Horizontal };
 pub const VSLIDER: Slider<ColorDrawer<Canvas>> = Slider { normal, hovered, pressed, axis: Axis::Vertical };
 
+pub const CHECK_ON: TextureDrawer<Canvas> = TextureDrawer(ICON_CHECK_ON);
+pub const CHECK_OFF: TextureDrawer<Canvas> = TextureDrawer(ICON_CHECK_OFF);
+
 pub const BTN: ColorButton<Canvas> = ColorButton {
     normal:  ColorDrawer(BTN_NORMAL),
     hovered: ColorDrawer(BTN_HOVERED),
     pressed: ColorDrawer(BTN_PRESSED),
 };
 
-pub const TOGGLE: ColorToggle<Canvas> = Toggle {
-    checked: ColorButton {
-        normal:   ColorDrawer(rgba(0xFF0000_CC)),
-        hovered:  ColorDrawer(rgba(0xFF0000_99)),
-        pressed:  ColorDrawer(rgba(0xFF0000_66)),
-    },
-    unchecked: ColorButton {
-        normal:   ColorDrawer(rgba(0xFFFFFF_CC)),
-        hovered:  ColorDrawer(rgba(0xFFFFFF_99)),
-        pressed:  ColorDrawer(rgba(0xFFFFFF_66)),
-    },
+pub const TOGGLE_BTN: ColorTransparentButton<Canvas> = ColorTransparentButton {
+    normal:  NoDrawer,
+    hovered: ColorDrawer(BTN_HOVERED),
+    pressed: ColorDrawer(BTN_PRESSED),
+};
+
+pub const TOGGLE: ColorTransparentToggle<Canvas> = ColorTransparentToggle {
+    checked: TOGGLE_BTN,
+    unchecked: TOGGLE_BTN,
 };
 
 pub const MENUBAR: MenuBar<Canvas> = MenuBar {

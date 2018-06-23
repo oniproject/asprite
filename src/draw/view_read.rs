@@ -65,7 +65,7 @@ impl<'a, N> CanvasRead<(u8, u8), N> for ViewRead<'a, (u8, u8), N> where N: BaseI
         let offset = self.pix_offset(x, y);
         (
             *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
+            *self.pix.get_unchecked(offset + 1),
         )
     }
 }
@@ -76,8 +76,8 @@ impl<'a, N> CanvasRead<(u8, u8, u8), N> for ViewRead<'a, (u8, u8, u8), N> where 
         let offset = self.pix_offset(x, y);
         (
             *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
+            *self.pix.get_unchecked(offset + 1),
+            *self.pix.get_unchecked(offset + 2),
         )
     }
 }
@@ -88,9 +88,9 @@ impl<'a, N> CanvasRead<(u8, u8, u8, u8), N> for ViewRead<'a, (u8, u8, u8, u8), N
         let offset = self.pix_offset(x, y);
         (
             *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
+            *self.pix.get_unchecked(offset + 1),
+            *self.pix.get_unchecked(offset + 2),
+            *self.pix.get_unchecked(offset + 3),
         )
     }
 }

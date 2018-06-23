@@ -71,8 +71,8 @@ impl<'a, N> CanvasRead<(u8, u8), N> for ViewWrite<'a, (u8, u8), N> where N: Base
     unsafe fn at_unchecked(&self, x: N, y: N) -> (u8, u8) {
         let offset = self.pix_offset(x, y);
         (
-            *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
+            *self.pix.get_unchecked(offset + 0),
+            *self.pix.get_unchecked(offset + 1),
         )
     }
 }
@@ -80,8 +80,8 @@ impl<'a, N> CanvasWrite<(u8, u8), N> for ViewWrite<'a, (u8, u8), N> where N: Bas
     #[inline(always)]
     unsafe fn set_unchecked(&mut self, x: N, y: N, c: (u8, u8)) {
         let offset = self.pix_offset(x, y);
-        *self.pix.get_unchecked_mut(offset) = c.0;
-        *self.pix.get_unchecked_mut(offset) = c.1;
+        *self.pix.get_unchecked_mut(offset + 0) = c.0;
+        *self.pix.get_unchecked_mut(offset + 1) = c.1;
     }
 }
 
@@ -90,9 +90,9 @@ impl<'a, N> CanvasRead<(u8, u8, u8), N> for ViewWrite<'a, (u8, u8, u8), N> where
     unsafe fn at_unchecked(&self, x: N, y: N) -> (u8, u8, u8) {
         let offset = self.pix_offset(x, y);
         (
-            *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
+            *self.pix.get_unchecked(offset + 0),
+            *self.pix.get_unchecked(offset + 1),
+            *self.pix.get_unchecked(offset + 2),
         )
     }
 }
@@ -100,9 +100,9 @@ impl<'a, N> CanvasWrite<(u8, u8, u8), N> for ViewWrite<'a, (u8, u8, u8), N> wher
     #[inline(always)]
     unsafe fn set_unchecked(&mut self, x: N, y: N, c: (u8, u8, u8)) {
         let offset = self.pix_offset(x, y);
-        *self.pix.get_unchecked_mut(offset) = c.0;
-        *self.pix.get_unchecked_mut(offset) = c.1;
-        *self.pix.get_unchecked_mut(offset) = c.2;
+        *self.pix.get_unchecked_mut(offset + 0) = c.0;
+        *self.pix.get_unchecked_mut(offset + 1) = c.1;
+        *self.pix.get_unchecked_mut(offset + 2) = c.2;
     }
 }
 
@@ -111,10 +111,10 @@ impl<'a, N> CanvasRead<(u8, u8, u8, u8), N> for ViewWrite<'a, (u8, u8, u8, u8), 
     unsafe fn at_unchecked(&self, x: N, y: N) -> (u8, u8, u8, u8) {
         let offset = self.pix_offset(x, y);
         (
-            *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
-            *self.pix.get_unchecked(offset),
+            *self.pix.get_unchecked(offset + 0),
+            *self.pix.get_unchecked(offset + 1),
+            *self.pix.get_unchecked(offset + 2),
+            *self.pix.get_unchecked(offset + 3),
         )
     }
 }
@@ -122,9 +122,9 @@ impl<'a, N> CanvasWrite<(u8, u8, u8, u8), N> for ViewWrite<'a, (u8, u8, u8, u8),
     #[inline(always)]
     unsafe fn set_unchecked(&mut self, x: N, y: N, c: (u8, u8, u8, u8)) {
         let offset = self.pix_offset(x, y);
-        *self.pix.get_unchecked_mut(offset) = c.0;
-        *self.pix.get_unchecked_mut(offset) = c.1;
-        *self.pix.get_unchecked_mut(offset) = c.2;
-        *self.pix.get_unchecked_mut(offset) = c.3;
+        *self.pix.get_unchecked_mut(offset + 0) = c.0;
+        *self.pix.get_unchecked_mut(offset + 1) = c.1;
+        *self.pix.get_unchecked_mut(offset + 2) = c.2;
+        *self.pix.get_unchecked_mut(offset + 3) = c.3;
     }
 }

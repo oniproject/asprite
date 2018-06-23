@@ -1,7 +1,5 @@
 use math::{Rect, BaseIntExt};
 
-use super::common::*;
-
 pub trait Bounded<N> where N: BaseIntExt {
     fn bounds(&self) -> Rect<N>;
 
@@ -38,60 +36,4 @@ pub trait CanvasWrite<C, N>: Bounded<N>
             unsafe { self.set_unchecked(x, y, color) }
         }
     }
-}
-
-impl<T, C, N> CanvasWriteExt<C, N> for T
-    where
-        T: CanvasWrite<C, N>,
-        C: Copy + Eq,
-        N: BaseIntExt,
-{}
-
-pub trait CanvasWriteExt<C, N>: CanvasWrite<C, N>
-    where
-        C: Copy + Eq,
-        N: BaseIntExt,
-{
-    /*
-    fn rect(&mut self, r: Rect<N>, color: C) {
-        if let Some(r) = self.intersect(r) {
-            draw_rect(r, |p| unsafe {
-                self.set_unchecked(p.x, p.y, color)
-            });
-        }
-    }
-
-    fn clear(&mut self, color: C) {
-        let r = self.bounds();
-        self.fill(r, color);
-    }
-
-    fn fill(&mut self, r: Rect<N>, color: C) {
-        if let Some(r) = self.intersect(r) {
-            fill_rect(r, |p| unsafe {
-                self.set_unchecked(p.x, p.y, color)
-            });
-        }
-    }
-
-    fn line(&mut self, r: Rect<N>, color: C) {
-        if let Some(r) = self.intersect(r) {
-            draw_line(r.min, r.max, |p| unsafe {
-                self.set_unchecked(p.x, p.y, color)
-            });
-        }
-    }
-
-    fn mask(&mut self, br: Rect<N>, brush: &[bool], color: C) {
-        if let Some(r) = self.intersect(br) {
-            mask(r, br, brush, |x, y| unsafe { self.set_unchecked(x, y, color) })
-        }
-    }
-
-    fn blit(&mut self, br: Rect<N>, brush: &[C]) {
-        if let Some(r) = self.intersect(br) {
-            blit(r, br, brush, |x, y, color| unsafe { self.set_unchecked(x, y, color) })
-        }
-    }
-    */
 }

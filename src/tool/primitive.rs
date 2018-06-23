@@ -31,7 +31,6 @@ impl<N: BaseNum> Primitive<N> {
 }
 
 impl<N: BaseIntExt, C: Copy + Eq> Tool<N, C> for Primitive<N> {
-
     fn special<Ctx: Context<N, C>>(&mut self, on: bool, _ctx: &mut Ctx) {
         self.square = on;
     }
@@ -62,8 +61,7 @@ impl<N: BaseIntExt, C: Copy + Eq> Tool<N, C> for Primitive<N> {
                 p
             };
 
-            let mut r = Rect::from_min_max(min, self.start).normalize();
-
+            let r = Rect::from_min_max(min, self.start).normalize();
             let color = ctx.color();
             match (self.fill, self.mode) {
                 (true,  PrimitiveMode::Rect) => {

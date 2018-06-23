@@ -6,6 +6,7 @@ use std::f32::consts::PI as PI_32;
 use cgmath::{
     BaseNum, BaseFloat,
     num_traits::{FromPrimitive, ToPrimitive},
+    num_traits::int::PrimInt,
     prelude::*,
 };
 
@@ -75,28 +76,10 @@ pub trait BaseNumExt: BaseNum + Neg<Output=Self> + FromPrimitive + Bounded {
             -Self::one()
         }
     }
-
-    #[inline(always)]
-    fn min(self, other: Self) -> Self {
-        if other > self {
-            self
-        } else {
-            other
-        }
-    }
-
-    #[inline(always)]
-    fn max(self, other: Self) -> Self {
-        if other < self {
-            self
-        } else {
-            other
-        }
-    }
 }
 
 impl<T> BaseNumExt for T where T: BaseNum + Neg<Output=Self> + FromPrimitive + Bounded {}
 
-pub trait BaseIntExt: BaseNumExt + Step {}
+pub trait BaseIntExt: BaseNumExt + Step + PrimInt {}
 
-impl<T> BaseIntExt for T where T: BaseNumExt + Step {}
+impl<T> BaseIntExt for T where T: BaseNumExt + Step + PrimInt {}
