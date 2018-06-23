@@ -2,9 +2,8 @@ use sdl2::{
     event::Event,
     keyboard::{self, Keycode},
     mouse::MouseButton,
-    gfx::primitives::DrawRenderer,
 };
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use layout::{EditorLayout, edit_num};
 use prev::Prev;
@@ -16,13 +15,13 @@ use ui::*;
 use tool::{
     Tool,
     EyeDropper, Bucket, Primitive, PrimitiveMode, Freehand,
-    Brush, PreviewContext,
+    PreviewContext,
     Editor,
     Receiver,
 };
 
-use render::{self, Canvas, TextureCanvas};
-use draw::{blit, CanvasRead, CanvasWrite, Bounded, Palette};
+use render::{self, Canvas};
+use draw::Bounded;
 
 use theme::*;
 use grid::Grid;
@@ -106,7 +105,7 @@ impl App {
     pub fn new(sprite: Receiver) -> Self {
         use tool::Context;
 
-        let mut editor = Editor::new(Point2::new(300, 200), sprite);
+        let mut editor = Editor::new(sprite);
         editor.sync();
         editor.image.as_mut_receiver().pos = Point2::new(300, 200);
 
@@ -219,14 +218,6 @@ impl App {
             .zoom(y, |diff| v * diff);
     }
 
-    pub fn pal(&self, color: u8) -> u32 {
-        self.editor.image.as_receiver().palette[color]
-    }
-
-    pub fn color_index(&self) -> u8 {
-        self.editor.image.as_receiver().color
-    }
-
     pub fn event(&mut self, event: Event) {
         match event {
         Event::MouseMotion {x, y, xrel, yrel, ..} => {
@@ -305,7 +296,6 @@ impl App {
         let ptr = self.data.as_mut_ptr();
         self.editor.draw_pages(|page, palette| {
             let transparent = page.transparent;
-            let r = Rect::from_coords_and_size(0, 0, page.width as i32, page.height as i32);
             let mut ptr = ptr;
             for &c in &page.page {
                 unsafe {
@@ -424,8 +414,50 @@ impl App {
     fn content(&mut self, ctx: ui::Context<Canvas>) {
         use tool::Context;
 
+        let state = unsafe { &mut *(&self.state as *const UiState as *mut UiState) };
+
         const WH: usize = 12;
         flow!(h ctx => {
+        Flow::with_width(200.0).expand_across() => |ctx| {
+            flow!(v ctx => {
+            Flow::with_height(20.0).expand_across() => |ctx| {
+                let r = ctx.rect();
+                ctx.quad(BAR_TITLE_BG, r);
+                ctx.label(0.5, 0.5, WHITE, "Tool");
+            }
+            Flow::auto(1.0) => |ctx| {
+                ctx.quad(BAR_BG, ctx.rect());
+
+                let mut lay = EditorLayout::new(ctx, state);
+                match self.current {
+                    CurrentTool::Freehand => {
+                        //
+                        lay.toggle_prop("perfect", &mut self.freehand.perfect);
+                    }
+                    CurrentTool::Primitive(_) => {
+                        lay.toggle_prop("fill", &mut self.prim.fill);
+                    }
+                    _ => (),
+                    /*
+                    CurrentTool::Bucket => {
+                        self.bucket
+                    }
+                    CurrentTool::EyeDropper => {
+                        self.dropper
+                    }
+                    */
+                }
+            }
+            Flow::with_height(20.0).expand_across() => |ctx| {
+                let r = ctx.rect();
+                ctx.quad(BAR_TITLE_BG, r);
+                ctx.label(0.5, 0.5, WHITE, "Grid");
+            }
+            Flow::auto(1.0) => |ctx| {
+                ctx.quad(BAR_BG, ctx.rect());
+            }
+            });
+        }
         Flow::auto(1.0) => |ctx| {
             self.rect = ctx.rect().cast().unwrap();
         }
@@ -452,12 +484,12 @@ impl App {
                     );
                     let dim = Vector2::new(WH as f32, WH as f32);
                     let r = Rect::from_min_dim(start + min.cast().unwrap(), dim);
-                    let color = self.pal(i as u8);
+                    let color = self.editor.pal(i as u8);
 
                     if BTN.behavior(&ctx.sub_rect(r), &mut self.state, &mut ()) {
-                        self.editor.change_color(i as u8);
+                        self.editor.color = i as u8;
                     }
-                    if self.editor.color() == i as u8 {
+                    if self.editor.color == i as u8 {
                         BTN.pressed.paint(ctx.draw(), r);
                     }
                     let r = r.pad(0.0);
@@ -509,7 +541,7 @@ impl App {
     }
 
     fn statusbar(&mut self, ctx: ui::Context<Canvas>) {
-        let text = format!("zoom: {}  #{:<3}", self.editor.zoom(), self.color_index());
+        let text = format!("zoom: {}  #{:<3}", self.editor.zoom(), self.editor.color);
         ctx.label(0.01, 0.5, WHITE, &text);
 
         if self.in_widget {

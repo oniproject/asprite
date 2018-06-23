@@ -1,7 +1,6 @@
 #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
 
-use math::*;
 use ui::*;
 use render::Canvas;
 

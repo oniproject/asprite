@@ -1,5 +1,7 @@
 use super::*;
 
+use draw::draw_ellipse;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrimitiveMode {
     Rect,
@@ -28,9 +30,9 @@ impl<N: BaseNum> Primitive<N> {
     }
 }
 
-impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N> {
+impl<N: BaseIntExt, C: Copy + Eq> Tool<N, C> for Primitive<N> {
 
-    fn special<Ctx: Context<N, C>>(&mut self, on: bool, ctx: &mut Ctx) {
+    fn special<Ctx: Context<N, C>>(&mut self, on: bool, _ctx: &mut Ctx) {
         self.square = on;
     }
     fn press<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
@@ -39,7 +41,7 @@ impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N> {
         self.start = p;
         self.last = p;
     }
-    fn release<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
+    fn release<Ctx: Context<N, C>>(&mut self, _p: Point2<N>, ctx: &mut Ctx) {
         self.active = false;
         ctx.commit();
     }
@@ -61,17 +63,40 @@ impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Primitive<N> {
             };
 
             let mut r = Rect::from_min_max(min, self.start).normalize();
-            r.max += Vector2::new(N::one(), N::one());
 
             let color = ctx.color();
             match (self.fill, self.mode) {
-                (true,  PrimitiveMode::Rect) => ctx.rect_fill(r, color),
-                (false, PrimitiveMode::Rect) => ctx.rect(r, color),
-                (false, PrimitiveMode::Ellipse) => ctx.ellipse(r, color),
-                (true,  PrimitiveMode::Ellipse) => ctx.ellipse_fill(r, color),
+                (true,  PrimitiveMode::Rect) => {
+                    for y in r.min.y..=r.max.y {
+                        for x in r.min.x..=r.max.x {
+                            ctx.set(x, y, color);
+                        }
+                    }
+                }
+                (false, PrimitiveMode::Rect) => {
+                    for x in r.min.x..=r.max.x {
+                        ctx.set(x, r.min.y, color);
+                        ctx.set(x, r.max.y, color);
+                    }
+                    for y in r.min.y+N::one()..r.max.y {
+                        ctx.set(r.min.x, y, color);
+                        ctx.set(r.max.x, y, color);
+                    }
+                }
+                (false, PrimitiveMode::Ellipse) => {
+                    draw_ellipse(r, |a, b| {
+                        ctx.set(a.x, a.y, color);
+                        ctx.set(b.x, b.y, color);
+                    });
+                }
+                (true,  PrimitiveMode::Ellipse) => {
+                    draw_ellipse(r, |a, b| {
+                        for x in a.x..=b.x {
+                            ctx.set(x, a.y, color)
+                        }
+                    });
+                }
             }
-
-            ctx.update(r.union_point(self.last));
         }
         self.last = p;
     }

@@ -13,26 +13,6 @@ pub enum Shape {
     Diamond,
     SieveRound,
     SieveSquare,
-
-    //Random, // Random pixels in a circle shape, like an airbrush.
-
-    /*
-    Reserved1, // Reserved for future use
-    Reserved2, // Reserved for future use
-    Reserved3, // Reserved for future use
-    Reserved4, // Reserved for future use
-    Reserved5, // Reserved for future use
-    Reserved6, // Reserved for future use
-    Reserved7, // Reserved for future use
-    Reserved8, // Reserved for future use
-
-    Misc, // A raw monochrome bitmap, can't be resized. This must be the last of the preset paintbrush types.
-    Point, // Used to reduce the paintbrush to a single pixel, during operations like floodfill.
-    No, // Used to display no cursor at all (colorpicker)
-    ColorBrush, // User's brush, in color mode
-    MonoBrush, // User's brush, in mono mode
-    Max, // Upper limit.
-    */
 }
 
 impl Shape {
@@ -50,28 +30,24 @@ impl Shape {
             VerticalBar     => vertical_bar(w, h).collect(),
             Cross           => cross(w, h).collect(),
             Diamond         => diamond(w, h).collect(),
-            //Random          => random(w, h),
-            _ => unreachable!(),
         }
     }
 }
 
-/*
-struct Mask<'a> {
-    size: Point<i32>,
-    data: &'a mut [bool],
-}
-*/
-
-fn circle_squared_diameter(d: i32) -> i32 {
+fn circle_squared_diameter<T>(d: T) -> T
+    where T: BaseIntExt
+{
     let d2 = d * d;
     // Trick to make some circles rounder,
     // even though mathematically incorrect.
-    match d {
-        3 | 9 => d2 - 2,
-        11 => d2 - 6,
-        14 => d2 - 4,
-        _ => d2,
+    if d == T::from_i8(3).unwrap() || d == T::from_i8(9).unwrap() {
+        d2 - T::from_i8(2).unwrap()
+    } else if d == T::from_i8(11).unwrap() {
+        d2 - T::from_i8(6).unwrap()
+    } else if d == T::from_i8(14).unwrap() {
+        d2 - T::from_i8(4).unwrap()
+    } else {
+        d2
     }
 }
 
@@ -109,10 +85,10 @@ pub fn antislash(w: i32, h: i32) -> impl Iterator<Item=bool> {
     SizeIter::new(w, h).map(move |(xp, yp)| xp == yp)
 }
 pub fn horizontal_bar(w: i32, h: i32) -> impl Iterator<Item=bool> {
-    SizeIter::new(w, h).map(move |(xp, yp)| yp == 0)
+    SizeIter::new(w, h).map(move |(_, y)| y == 0)
 }
 pub fn vertical_bar(w: i32, h: i32) -> impl Iterator<Item=bool> {
-    SizeIter::new(w, h).map(move |(xp, yp)| xp == 0)
+    SizeIter::new(w, h).map(move |(x, _)| x == 0)
 }
 pub fn cross(w: i32, h: i32) -> impl Iterator<Item=bool> {
     SizeIter::new(w, h).map(move |(xp, yp)| xp == yp || xp == (h - (yp + 1)))
@@ -184,7 +160,6 @@ impl<T> Iterator for SizeIter<T> where T: BaseIntExt {
         Some(p)
     }
 }
-
 
 #[test]
 fn point_wh() {

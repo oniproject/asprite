@@ -1,6 +1,6 @@
 use super::*;
 
-use draw::CanvasFill;
+use draw::ScanlineFill;
 
 pub struct Bucket;
 
@@ -10,7 +10,7 @@ impl Bucket {
     }
 }
 
-impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Bucket {
+impl<N: BaseIntExt, C: Copy + Eq> Tool<N, C> for Bucket {
     fn press<Ctx: Context<N, C>>(&mut self, p: Point2<N>, ctx: &mut Ctx) {
         ctx.start();
         let color = ctx.color();

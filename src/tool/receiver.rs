@@ -13,13 +13,10 @@ pub struct Receiver {
     pub frame: usize,
     pub layer: usize,
 
-    pub color: u8,
-
     pub zoom: i32,
     pub pos: Point2<i32>,
 
     pub created: bool,
-    pub redraw: Option<Rect<i32>>,
 }
 
 impl Bounded<i32> for Receiver {
@@ -32,7 +29,6 @@ impl Bounded<i32> for Receiver {
 
 impl Receiver {
     pub fn new(name: &str, width: usize, height: usize) -> Self {
-        let rect = Rect::from_coords_and_size(0, 0, width as i32, height as i32);
         Self {
             name: name.to_string(),
             data: Vec::new(),
@@ -41,31 +37,12 @@ impl Receiver {
             height,
             frame: 0,
             layer: 0,
-            color: 1,
 
             zoom: 1,
             pos: Point2::new(0, 0),
 
             created: false,
-            redraw: Some(rect),
         }
-    }
-
-    pub fn take_update(&mut self) -> Option<Rect<i32>> {
-        self.redraw.take()
-    }
-
-    pub fn update_all(&mut self) {
-        let w = self.width as i32;
-        let h = self.height as i32;
-        self.redraw = Some(Rect::from_coords_and_size(0, 0, w, h));
-    }
-
-    pub fn update(&mut self, r: Rect<i32>) {
-        self.redraw = match self.redraw {
-            Some(r) => r.union(r),
-            None => Some(r),
-        };
     }
 
     pub fn rect(&self) -> Rect<i32> {

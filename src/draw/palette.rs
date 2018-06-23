@@ -21,16 +21,6 @@ impl<T: Copy> Palette<T> {
     }
 }
 
-impl<T: Default + Copy> Palette<T> {
-    pub fn empty<C: Into<Option<u8>>>(c: C) -> Self {
-        Self {
-            map: [Default::default(); 256],
-            size: 256,
-            transparent: c.into(),
-        }
-    }
-}
-
 impl<T> Index<u8> for Palette<T> {
     type Output = T;
     fn index(&self, idx: u8) -> &Self::Output {
@@ -56,6 +46,7 @@ impl<T> DerefMut for Palette<T> {
     }
 }
 
+/*
 pub struct XOR([u8; 256]);
 
 impl Index<u8> for XOR {
@@ -111,3 +102,4 @@ impl XOR {
         }
     }
 }
+*/

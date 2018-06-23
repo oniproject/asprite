@@ -18,6 +18,7 @@ mod rect;
 mod d8;
 mod time;
 mod stopwatch;
+mod util;
 
 pub use self::ext::{BaseNumExt, BaseFloatExt, BaseIntExt};
 
@@ -26,6 +27,7 @@ pub use self::affine::Affine;
 pub use self::time::{Time, TimePair};
 pub use self::stopwatch::Stopwatch;
 pub use self::d8::D8;
+pub use self::util::SliceExt;
 
 pub fn lerp<S: BaseFloat>(min: S, max: S, t: S) -> S {
     (S::one() - t) * min + t * max
@@ -86,4 +88,3 @@ fn transform_base() {
     });
     assert_eq!(r, Rect { min: Point2::new(15.0, 15.0), max: Point2::new(85.0, 85.0) });
 }
-

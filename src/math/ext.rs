@@ -3,7 +3,11 @@ use std::ops::Neg;
 use std::f64::consts::PI as PI_64;
 use std::f32::consts::PI as PI_32;
 
-use cgmath::{BaseNum, BaseFloat};
+use cgmath::{
+    BaseNum, BaseFloat,
+    num_traits::{FromPrimitive, ToPrimitive},
+    prelude::*,
+};
 
 impl BaseFloatExt for f32 {
     const PI: Self = PI_32;
@@ -17,7 +21,7 @@ impl BaseFloatExt for f64 {
     const TWO_PI: Self = PI_64 * 2.0;
 }
 
-pub trait BaseFloatExt: BaseFloat {
+pub trait BaseFloatExt: BaseFloat + FromPrimitive + ToPrimitive {
     const PI: Self;
     const TWO: Self;
     const TWO_PI: Self;
@@ -51,7 +55,7 @@ pub trait BaseFloatExt: BaseFloat {
     }
 }
 
-pub trait BaseNumExt: BaseNum + Neg<Output=Self> {
+pub trait BaseNumExt: BaseNum + Neg<Output=Self> + FromPrimitive + Bounded {
     #[inline(always)]
     fn abs(self) -> Self {
         if Self::zero() >= self {
@@ -91,7 +95,7 @@ pub trait BaseNumExt: BaseNum + Neg<Output=Self> {
     }
 }
 
-impl<T> BaseNumExt for T where T: BaseNum + Neg<Output=Self> {}
+impl<T> BaseNumExt for T where T: BaseNum + Neg<Output=Self> + FromPrimitive + Bounded {}
 
 pub trait BaseIntExt: BaseNumExt + Step {}
 

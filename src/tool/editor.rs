@@ -1,6 +1,4 @@
-use std::mem::{replace, swap};
-use std::sync::Arc;
-use std::sync::{Mutex, MutexGuard};
+use std::mem::swap;
 
 use redo::{Record, Command};
 
@@ -15,7 +13,6 @@ use draw::{
 
 use super::{
     Brush,
-    BrushOwned,
     Receiver,
     brush::Shape,
 };
@@ -47,6 +44,7 @@ pub struct Editor {
     pub image: Record<Receiver, DrawCommand>,
     pub brush: Vec<bool>,
     pub brush_rect: Rect<i32>,
+    pub color: u8,
 
     canvas: Frame,
     start: usize,
@@ -54,22 +52,20 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(pos: Point2<i32>, image: Receiver) -> Self {
-        let (w, h) = (image.width, image.height);
-        let canvas = image.page(image.layer, image.frame).clone();
-
+    pub fn new(image: Receiver) -> Self {
         Self {
-            canvas,
+            canvas: image.page(image.layer, image.frame).clone(),
             stride: image.width,
             start: 0,
             image: Record::new(image),
             brush: Shape::Round.gen(5, 5),
             brush_rect: Rect::from_coords_and_size(-2, -2, 5, 5),
+            color: 1,
         }
     }
 
     pub fn recreate(&mut self, image: Receiver) {
-        let (w, h) = (image.width, image.height);
+        let w = image.width;
         self.canvas = image.page(image.layer, image.frame).clone();
         self.image = Record::new(image);
         self.stride = w;
@@ -100,8 +96,7 @@ impl Editor {
     }
 
     pub fn pal_color(&self) -> u32 {
-        let m = self.image.as_receiver();
-        m.palette[m.color]
+        self.image.as_receiver().palette[self.color]
     }
 
     pub fn transparent(&self) -> Option<u8> {
@@ -113,11 +108,7 @@ impl Editor {
     }
 
     pub fn color_index(&self) -> u8 {
-        self.image.as_receiver().color
-    }
-
-    pub fn take_redraw(&mut self) -> Option<Rect<i32>> {
-        self.image.as_mut_receiver().take_update()
+        self.color
     }
 
     pub fn redo(&mut self) {
@@ -166,35 +157,22 @@ impl Bounded<i32> for Editor {
 
 impl CanvasWrite<u8, i32> for Editor {
     #[inline(always)]
-    unsafe fn set_pixel_unchecked(&mut self, x: i32, y: i32, color: u8) {
-        let x = x as usize;
-        let y = y as usize;
-        let idx = self.start + x + y * self.stride;
-        *self.canvas.page.get_unchecked_mut(idx) = color;
+    unsafe fn set_unchecked(&mut self, x: i32, y: i32, color: u8) {
+        self.canvas.view_mut().set_unchecked(x, y, color)
     }
 }
 
 impl CanvasRead<u8, i32> for Editor {
     #[inline(always)]
-    unsafe fn get_pixel_unchecked(&self, x: i32, y: i32) -> u8 {
-        let x = x as usize;
-        let y = y as usize;
-        let idx = self.start + x + y * self.stride;
-        *self.canvas.page.get_unchecked(idx)
+    unsafe fn at_unchecked(&self, x: i32, y: i32) -> u8 {
+        self.canvas.view().at_unchecked(x, y)
     }
 }
 
 impl super::Context<i32, u8> for Editor {
-    fn update(&mut self, r: Rect<i32>) {
-        self.image.as_mut_receiver().update(r)
-    }
-
     fn sync(&mut self) {
-        {
-            let mut m = self.image.as_receiver();
-            self.canvas.copy_from(&m.page(m.layer, m.frame));
-        }
-        self.image.as_mut_receiver().update_all();
+        let m = self.image.as_receiver();
+        self.canvas.copy_from(m.current());
     }
 
     fn start(&mut self) {
@@ -214,15 +192,16 @@ impl super::Context<i32, u8> for Editor {
         self.sync();
     }
 
-    fn color(&self) -> u8 {
-        self.image.as_receiver().color
-    }
-
     fn change_color(&mut self, color: u8) {
-        self.image.as_mut_receiver().color = color;
+        self.color = color;
     }
+}
 
+impl super::PreviewContext<i32, u8> for Editor {
     fn brush(&self) -> (Brush, Rect<i32>) {
         (&self.brush, self.brush_rect)
+    }
+    fn color(&self) -> u8 {
+        self.color
     }
 }

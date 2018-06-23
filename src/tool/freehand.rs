@@ -22,7 +22,7 @@ impl<N: BaseNum> Freehand<N> {
     }
 }
 
-impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N> {
+impl<N: BaseIntExt, C: Copy + Eq> Tool<N, C> for Freehand<N> {
     fn cancel<Ctx: Context<N, C>>(&mut self, ctx: &mut Ctx) {
         self.active = false;
         self.pts.clear();
@@ -88,7 +88,7 @@ impl<N: BaseIntExt, C: Copy + Clone + Eq> Tool<N, C> for Freehand<N> {
 
 impl<N: BaseIntExt> Freehand<N> {
     pub fn update<C, Ctx>(&mut self, m: Point2<N>, last: Point2<N>, ctx: &mut Ctx)
-        where Ctx: Context<N, C>, C: Copy + Clone + Eq
+        where Ctx: Context<N, C>, C: Copy + Eq
     {
         if self.point_exists(m.x, m.y) {
             return;
@@ -108,7 +108,7 @@ impl<N: BaseIntExt> Freehand<N> {
     }
 
     fn flatten_first_point<C, Ctx>(&mut self, ctx: &mut Ctx, color: C)
-        where Ctx: Context<N, C>, C: Copy + Clone + Eq
+        where Ctx: Context<N, C>, C: Copy + Eq
     {
         let p = self.pts.remove(0);
         if p.1 {

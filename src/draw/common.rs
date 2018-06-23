@@ -35,7 +35,7 @@ fn _hline<N, F>(x1: N, x2: N, y: N, pixel: &mut F)
         F: FnMut(Point2<N>),
         N: BaseIntExt
 {
-    for x in x1..x2 {
+    for x in x1..=x2 {
         pixel(Point2::new(x, y))
     }
 }
@@ -45,7 +45,7 @@ fn _vline<N, F>(x: N, y1: N, y2: N, pixel: &mut F)
         F: FnMut(Point2<N>),
         N: BaseIntExt
 {
-    for y in y1..y2 {
+    for y in y1..=y2 {
         pixel(Point2::new(x, y))
     }
 }
@@ -73,7 +73,7 @@ pub fn fill_rect<N, F>(r: Rect<N>, mut pixel: F)
     }
 }
 
-pub fn draw_line<N, F>(start: Point2<N>, end: Point2<N>, mut pixel: F)
+pub fn draw_line<N, F>(start: Point2<N>, end: Point2<N>, pixel: F)
     where
         F: FnMut(Point2<N>),
         N: BaseIntExt
@@ -138,49 +138,52 @@ pub fn draw_ellipse<N, F>(r: Rect<N>, mut seg: F)
         r.max.y.to_i64().unwrap(),
     ); 
 
-    let mut a = (x1-x0).abs();
-    let b = (y1-y0).abs();
+    let a = (x1 - x0).abs();
+    let b = (y1 - y0).abs();
+
     // values of diameter
     let mut b1 = b & 1;
 
     // error increment
-    let mut dx = 4*(1-a)*b*b;
-    let mut dy = 4*(b1+1)*a*a;
-    let mut err = dx+dy+b1*a*a;
-    let mut e2; // error of 1.step
+    let mut dx = 4 * ( 1 - a) * b * b;
+    let mut dy = 4 * (b1 + 1) * a * a;
+    let mut err = dx + dy + b1 * a * a;
 
     // if called with swapped points
     if x0 > x1 {
         x0 = x1;
         x1 += a;
     }
+
     // .. exchange them
     if y0 > y1 {
         y0 = y1;
     }
-    // starting pixel 
-    y0 += (b+1)/2;
-    y1 = y0-b1;
-    a *= 8*a;
-    b1 = 8*b*b;
+
+    // starting pixel
+    y0 += (b + 1) / 2;
+    y1 = y0 - b1;
+    let a = 8 * a * a;
+    b1 = 8 * b * b;
 
     while {
-        let q1 = Point2::new(N::from(x1).unwrap(), N::from(y0).unwrap());
-        let q2 = Point2::new(N::from(x0).unwrap(), N::from(y0).unwrap());
-        let q3 = Point2::new(N::from(x0).unwrap(), N::from(y1).unwrap());
-        let q4 = Point2::new(N::from(x1).unwrap(), N::from(y1).unwrap());
+        let q1 = Point2::new(x1, y0).cast().unwrap();
+        let q2 = Point2::new(x0, y0).cast().unwrap();
+        let q3 = Point2::new(x0, y1).cast().unwrap();
+        let q4 = Point2::new(x1, y1).cast().unwrap();
         seg(q2, q1);
         seg(q3, q4);
-        e2 = 2*err;
-        // y step 
+        let e2 = 2 * err; // error of 1.step
+        // y step
         if e2 <= dy {
             y0 += 1;
             y1 -= 1;
             dy += a;
             err += dy;
         }
+
         // x step
-        if e2 >= dx || 2*err > dy {
+        if e2 >= dx || 2 * err > dy {
             x0 += 1;
             x1 -= 1;
             dx += b1;
@@ -191,15 +194,15 @@ pub fn draw_ellipse<N, F>(r: Rect<N>, mut seg: F)
     } {}
 
     // too early stop of flat ellipses a=1
-    while y0-y1 < b {
+    while y0 - y1 < b {
         // -> finish tip of ellipse 
-        let a = Point2::new(N::from(x0-1).unwrap(), N::from(y0).unwrap());
-        let b = Point2::new(N::from(x1+1).unwrap(), N::from(y0).unwrap());
+        let a = Point2::new(x0-1, y0).cast().unwrap();
+        let b = Point2::new(x1+1, y0).cast().unwrap();
         seg(a, b);
         y0 += 1;
 
-        let a = Point2::new(N::from(x0-1).unwrap(), N::from(y1).unwrap());
-        let b = Point2::new(N::from(x1+1).unwrap(), N::from(y1).unwrap());
+        let a = Point2::new(x0-1, y1).cast().unwrap();
+        let b = Point2::new(x1+1, y1).cast().unwrap();
         seg(a, b);
         y1 -= 1;
     }

@@ -4,11 +4,9 @@ use sdl2::{
     rect, init, Sdl, VideoSubsystem, EventPump,
     event::{Event, WindowEvent},
     pixels::{Color, PixelFormatEnum},
-    keyboard::Keycode,
-    render::{self, BlendMode, Texture, TextureCreator, TextureQuery, WindowCanvas},
-    surface::SurfaceContext,
+    render::{BlendMode, Texture, TextureCreator, TextureQuery, WindowCanvas},
     video::WindowContext,
-    ttf::{self, Sdl2TtfContext},
+    //ttf::{self, Sdl2TtfContext},
     gfx::primitives::{DrawRenderer, ToColor},
     image::LoadTexture,
 };
@@ -22,7 +20,6 @@ use std::{
 use specs::{
     prelude::*,
     world,
-    shred::MetaTable,
 };
 
 use ui;
@@ -198,10 +195,9 @@ impl<'a> System<'a> for Canvas {
     type SystemData = (
         Write<'a, bool>,
         WriteExpect<'a, ::app::App>,
-        Entities<'a>,
     );
 
-    fn run(&mut self, (mut quit, mut app, entities): Self::SystemData) {
+    fn run(&mut self, (mut quit, mut app): Self::SystemData) {
         {
             let poll = self.events.poll_iter();
 
