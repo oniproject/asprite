@@ -1,6 +1,6 @@
 use math::{Rect, BaseIntExt};
 
-pub trait Bounded<N> where N: BaseIntExt {
+pub trait Bounded<N: BaseIntExt> {
     fn bounds(&self) -> Rect<N>;
 
     fn intersect(&self, r: Rect<N>) -> Option<Rect<N>> {
@@ -8,11 +8,7 @@ pub trait Bounded<N> where N: BaseIntExt {
     }
 }
 
-pub trait CanvasRead<C, N>: Bounded<N>
-    where
-        C: Copy + Eq,
-        N: BaseIntExt,
-{
+pub trait CanvasRead<C, N: BaseIntExt>: Bounded<N> {
     unsafe fn at_unchecked(&self, x: N, y: N) -> C;
 
     fn at(&self, x: N, y: N) -> Option<C> {
@@ -24,11 +20,7 @@ pub trait CanvasRead<C, N>: Bounded<N>
     }
 }
 
-pub trait CanvasWrite<C, N>: Bounded<N>
-    where
-        C: Copy + Eq,
-        N: BaseIntExt,
-{
+pub trait CanvasWrite<C, N: BaseIntExt>: Bounded<N> {
     unsafe fn set_unchecked(&mut self, x: N, y: N, color: C);
 
     fn set(&mut self, x: N, y: N, color: C) {

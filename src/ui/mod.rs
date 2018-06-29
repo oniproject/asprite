@@ -38,6 +38,7 @@ pub use self::components::{
         Item,
         ItemStyle,
         Menu,
+        MenuStyle,
         MenuEvent,
     },
 };

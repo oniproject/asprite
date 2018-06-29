@@ -13,25 +13,8 @@ pub enum Shape {
     Diamond,
     SieveRound,
     SieveSquare,
-}
 
-impl Shape {
-    pub fn gen(self, w: i32, h: i32) -> Vec<bool> {
-        use self::Shape::*;
-        match self {
-            Round           => round(w, h).collect(),
-            Square          => square(w, h).collect(),
-            SieveRound      => sieve_round(w, h).collect(),
-            SieveSquare     => sieve_square(w, h).collect(),
-            Plus            => plus(w, h).collect(),
-            Slash           => slash(w, h).collect(),
-            Antislash       => antislash(w, h).collect(),
-            HorizontalBar   => horizontal_bar(w, h).collect(),
-            VerticalBar     => vertical_bar(w, h).collect(),
-            Cross           => cross(w, h).collect(),
-            Diamond         => diamond(w, h).collect(),
-        }
-    }
+    Custom,
 }
 
 fn circle_squared_diameter<T>(d: T) -> T

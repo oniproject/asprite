@@ -4,6 +4,7 @@
 #![feature(step_trait)]
 #![feature(generators, generator_trait)]
 #![feature(const_cell_new)]
+#![feature(decl_macro)]
 
 extern crate rand;
 extern crate redo;
@@ -20,23 +21,24 @@ extern crate specs_derive;
 
 use specs::prelude::*;
 
+/*
 #[macro_export]
 macro_rules! rect(
     ($x:expr, $y:expr, $w:expr, $h:expr) => (
         $crate::sdl2::rect::Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
     )
 );
+*/
 
-#[macro_export]
-macro_rules! color(
-    ($c:expr) => (
-        {
-            use $crate::sdl2::gfx::primitives::ToColor;
-            let (r, g, b, a) = $c.to_be().as_rgba();
-            $crate::sdl2::pixels::Color::RGBA(r, g, b, a)
-        }
-    )
-);
+pub macro rect($x:expr, $y:expr, $w:expr, $h:expr) {
+    $crate::sdl2::rect::Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
+}
+
+pub macro color($c:expr) {
+    use $crate::sdl2::gfx::primitives::ToColor;
+    let (r, g, b, a) = $c.to_be().as_rgba();
+    $crate::sdl2::pixels::Color::RGBA(r, g, b, a)
+}
 
 mod math;
 mod draw;

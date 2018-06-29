@@ -15,16 +15,9 @@ pub struct ItemStyle<D: ?Sized + Graphics> {
     pub bg: D::Color,
 }
 
-pub enum MenuEvent<T> {
-    Clicked(T),
-    Nothing,
-    Exit,
-}
-
-pub struct Menu<D: ?Sized + Graphics, T = usize> {
+pub struct MenuStyle<D: ?Sized + Graphics> {
     pub normal: ItemStyle<D>,
     pub hovered: ItemStyle<D>,
-
     pub separator: D::Color,
 
     pub width: f32,
@@ -32,6 +25,16 @@ pub struct Menu<D: ?Sized + Graphics, T = usize> {
     pub text_inset: f32,
     pub sep_height: f32,
     pub sep_inset: f32,
+}
+
+pub enum MenuEvent<T> {
+    Clicked(T),
+    Nothing,
+    Exit,
+}
+
+pub struct Menu<D: ?Sized + Graphics, T = usize> {
+    pub style: MenuStyle<D>,
 
     pub marker: PhantomData<T>,
 }
@@ -52,25 +55,25 @@ impl<T: Clone, D: ?Sized + Graphics> Menu<D, T> {
         for item in items.iter() {
             let rect = match item {
                 &Item::Text(ref id, name, shortcut) => {
-                    let rect = Rect { min, max: Point2::new(min.x + self.width, min.y + self.text_height) };
+                    let rect = Rect { min, max: Point2::new(min.x + self.style.width, min.y + self.style.text_height) };
                     let style = if ctx.is_cursor_in_rect(rect) {
                         if ctx.was_released() {
                             event = Some(id.clone());
                         }
-                        &self.hovered
+                        &self.style.hovered
                     } else {
-                        &self.normal
+                        &self.style.normal
                     };
                     ctx.quad(style.bg, rect);
-                    let inset = rect.pad_x(self.text_inset);
+                    let inset = rect.pad_x(self.style.text_inset);
                     ctx.label_rect(inset, label_align, style.label, name);
                     ctx.label_rect(inset, shortcut_align, style.shortcut, shortcut);
                     rect
                 }
                 &Item::Separator => {
-                    let rect = Rect { min, max: Point2::new(min.x + self.width, min.y + self.sep_height) };
-                    ctx.quad(self.normal.bg, rect);
-                    ctx.quad(self.separator, rect.pad_y(self.sep_inset));
+                    let rect = Rect { min, max: Point2::new(min.x + self.style.width, min.y + self.style.sep_height) };
+                    ctx.quad(self.style.normal.bg, rect);
+                    ctx.quad(self.style.separator, rect.pad_y(self.style.sep_inset));
                     rect
                 }
                 &Item::Menu(_) => unimplemented!(),

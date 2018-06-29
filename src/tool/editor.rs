@@ -4,6 +4,7 @@ use redo::{Record, Command};
 
 use math::{Rect, Point2, Vector2};
 use draw::{
+    self,
     Bounded,
     CanvasRead,
     CanvasWrite,
@@ -43,7 +44,9 @@ impl Command<Receiver> for DrawCommand {
 pub struct Editor {
     pub image: Record<Receiver, DrawCommand>,
     pub brush: Vec<bool>,
-    pub brush_rect: Rect<i32>,
+    pub brush_shape: Shape,
+    pub brush_offset: Point2<i32>,
+    pub brush_size: Vector2<i32>,
     pub color: u8,
 
     canvas: Frame,
@@ -51,13 +54,37 @@ pub struct Editor {
 
 impl Editor {
     pub fn new(image: Receiver) -> Self {
+        let brush_size = Vector2::new(11, 11);
         Self {
             canvas: image.page(image.layer, image.frame).clone(),
             image: Record::new(image),
-            brush: Shape::Round.gen(5, 5),
-            brush_rect: Rect::from_coords_and_size(-2, -2, 5, 5),
+            brush: draw::shape::round(brush_size.x, brush_size.y).collect(),
+            brush_shape: Shape::Round,
+            brush_size,
+            brush_offset: Point2::new(-5, -5),
             color: 1,
         }
+    }
+
+    pub fn resize_brush(&mut self) {
+        use draw::shape::*;
+        use self::Shape::*;
+        let s = self.brush_size;
+        let (w, h) = (s.x, s.y);
+        self.brush = match self.brush_shape {
+            Round           => round(w, h).collect(),
+            Square          => square(w, h).collect(),
+            SieveRound      => sieve_round(w, h).collect(),
+            SieveSquare     => sieve_square(w, h).collect(),
+            Plus            => plus(w, h).collect(),
+            Slash           => slash(w, h).collect(),
+            Antislash       => antislash(w, h).collect(),
+            HorizontalBar   => horizontal_bar(w, h).collect(),
+            VerticalBar     => vertical_bar(w, h).collect(),
+            Cross           => cross(w, h).collect(),
+            Diamond         => diamond(w, h).collect(),
+            _ => unreachable!(),
+        };
     }
 
     pub fn recreate(&mut self, image: Receiver) {
@@ -185,7 +212,7 @@ impl super::Context<i32, u8> for Editor {
 
 impl super::PreviewContext<i32, u8> for Editor {
     fn brush(&self) -> (Brush, Rect<i32>) {
-        (&self.brush, self.brush_rect)
+        (&self.brush, Rect::from_min_dim(self.brush_offset, self.brush_size))
     }
     fn color(&self) -> u8 {
         self.color

@@ -33,6 +33,20 @@ impl<'a, 'b, D: ?Sized + Graphics + 'a> ContextBuilder<'a, 'b, D> {
         self
     }
 
+    pub fn align_x(self, align: f32, size: f32) -> Self {
+        let mut dim = self.root.rect.dim();
+        dim.x = size;
+        let align = Vector2::new(align, 0.0);
+        self.align(align, dim)
+    }
+
+    pub fn align_y(self, align: f32, size: f32) -> Self {
+        let mut dim = self.root.rect.dim();
+        dim.y = size;
+        let align = Vector2::new(0.0, align);
+        self.align(align, dim)
+    }
+
     pub fn transform(mut self, anchor: Rect<f32>, offset: Rect<f32>) -> Self {
         let rect = self.root.rect;
         self.rect = rect_transform(rect, anchor, offset);
@@ -61,6 +75,12 @@ pub struct Context<'a, D: ?Sized + Graphics + 'a> {
     mouse: Mouse,
 }
 
+impl<'a, D: ?Sized + Graphics + 'a> Clone for Context<'a, D> {
+    fn clone(&self) -> Self {
+        ContextBuilder::new(self).build()
+    }
+}
+
 impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
     pub fn new(draw: &'a D, rect: Rect<f32>, mouse: Mouse) -> Self {
         Self {
@@ -85,6 +105,12 @@ impl<'a, D: ?Sized + Graphics + 'a> Context<'a, D> {
 
     pub fn align(&self, align: Vector2<f32>, size: Vector2<f32>) -> Self {
         self.sub().align(align, size).build()
+    }
+    pub fn align_x(&self, align: f32, size: f32) -> Self {
+        self.sub().align_x(align, size).build()
+    }
+    pub fn align_y(&self, align: f32, size: f32) -> Self {
+        self.sub().align_y(align, size).build()
     }
 
     pub fn transform(&self, anchor: Rect<f32>, offset: Rect<f32>) -> Self {

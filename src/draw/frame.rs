@@ -1,4 +1,4 @@
-use super::{ViewRead, ViewWrite};
+use super::{View, ViewMut};
 
 #[derive(Clone, Debug)]
 pub struct Frame {
@@ -24,11 +24,11 @@ impl Frame {
         self.page.copy_from_slice(&other.page);
     }
 
-    pub fn view<C>(&self) -> ViewRead<C, i32> where C: Copy + Eq {
-        ViewRead::new(&self.page, self.width as i32, self.height as i32)
+    pub fn view<C>(&self) -> View<C, i32> where C: Copy + Eq {
+        View::new(&self.page, self.width as i32, self.height as i32)
     }
 
-    pub fn view_mut<C>(&mut self) -> ViewWrite<C, i32> where C: Copy + Eq {
-        ViewWrite::new(&mut self.page, self.width as i32, self.height as i32)
+    pub fn view_mut<C>(&mut self) -> ViewMut<C, i32> where C: Copy + Eq {
+        ViewMut::new(&mut self.page, self.width as i32, self.height as i32)
     }
 }

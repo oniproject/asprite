@@ -21,7 +21,7 @@ use tool::{
 };
 
 use render::{self, Canvas};
-use draw::Bounded;
+use draw::{Shape, Bounded};
 
 use theme::*;
 use grid::Grid;
@@ -94,6 +94,9 @@ pub struct App {
     pub mouse: Point2<i32>,
     pub drag: bool,
 
+    file_menu_id: ui::Id,
+    brush_menu_id: ui::Id,
+
     rect: Rect<i32>,
     in_widget: bool,
 
@@ -132,6 +135,9 @@ impl App {
             bucket: Bucket::new(),
             freehand: Freehand::new(),
             dropper: EyeDropper::new(),
+
+            file_menu_id: ui::Id::from(0xDEAD_BEED),
+            brush_menu_id: ui::Id::from(0xDEAD_BEED),
 
             mouse: Point2::new(-100, -100),
             drag: false,
@@ -337,6 +343,12 @@ impl App {
             canvas.load_texture(ICON_UNDO, "res/undo.png");
             canvas.load_texture(ICON_REDO, "res/redo.png");
 
+            canvas.load_texture(ICON_EYE, "res/eye.png");
+            canvas.load_texture(ICON_EYE_OFF, "res/eye_off.png");
+
+            canvas.load_texture(ICON_LOCK, "res/lock.png");
+            canvas.load_texture(ICON_LOCK_OFF, "res/lock_off.png");
+
             canvas.load_texture(ICON_CHECK_ON, "res/check_on.png");
             canvas.load_texture(ICON_CHECK_OFF, "res/check_off.png");
         }
@@ -404,8 +416,6 @@ impl App {
     }
 
     fn content(&mut self, ctx: ui::Context<Canvas>) {
-        use tool::Context;
-
         let state = unsafe { &mut *(&self.state as *const UiState as *mut UiState) };
 
         const WH: usize = 12;
@@ -414,9 +424,49 @@ impl App {
             ctx.quad(BAR_BG, ctx.rect());
 
             let mut lay = EditorLayout::new(ctx, state);
-            lay.skip_line();
-            lay.skip_line();
-            lay.skip_line();
+
+            let mut update_brush = false;
+            {
+                const WH: f32 = 12.0;
+                let dx = self.editor.brush_size.x as usize;
+                let dy = self.editor.brush_size.y as usize;
+                let size = Vector2::new(WH * dx as f32, WH * dy as f32);
+                let dim = Vector2::new(WH, WH);
+                let ctx = lay.reserve(WH * 12 as f32, 0.0)
+                    .align(Vector2::new(0.5, 0.5), size);
+                let start = ctx.rect().min;
+                for y in 0..dy {
+                    for x in 0..dx {
+                        let min = start + Vector2::new(x, y).cast().unwrap() * WH;
+                        let r = Rect::from_min_dim(min, dim);
+
+                        let c = &mut self.editor.brush[x + y * dx];
+                        if BTN.behavior(&ctx.sub_rect(r), lay.state, &mut ()) {
+                            *c = !*c;
+                            update_brush = true;
+                            self.editor.brush_shape = Shape::Custom;
+                        }
+                        if *c {
+                            ctx.quad(rgba(0xFFFFFF_FF), r.pad(1.0));
+                        } else {
+                            ctx.quad(rgba(0x000000_FF), r.pad(1.0));
+                        }
+                    }
+                }
+            }
+            {
+                update_brush |= lay.num("size", "x", &mut self.editor.brush_size.x, 1, 1, 12);
+                update_brush |= lay.num("size", "y", &mut self.editor.brush_size.y, 1, 1, 12);
+                let size = self.editor.brush_size;
+                update_brush |= lay.num("offset", "x", &mut self.editor.brush_offset.x, 1, -size.x, size.x);
+                update_brush |= lay.num("offset", "y", &mut self.editor.brush_offset.y, 1, -size.y, size.y);
+            }
+
+            if update_brush {
+                self.editor.resize_brush();
+            }
+
+
             lay.header_checkbox("Grid", &mut self.grid.visible);
             if self.grid.visible {
                 lay.num("size", "x", &mut self.grid.size.x, 1, 0, None);
@@ -482,22 +532,23 @@ impl App {
         ctx.quad(TIMELINE_BG, ctx.rect());
 
         let state = unsafe { &mut *(&self.state as *const UiState as *mut UiState) };
-        let (ctx, grid) = ctx.split_x(0.7);
-        {
-            let mut lay = EditorLayout::new(ctx, state);
-            let m = self.editor.image.as_mut_receiver();
-            for layer in &mut m.data {
-                let ctx = lay.one_line_prop(&layer.name);
-                let w = ctx.rect().dy();
-                flow!(h ctx => {
-                    Flow::with_width(w).expand_across() => |ctx| {
-                        ::layout::checkbox_inner(ctx, &mut lay.state, &mut layer.visible);
-                    }
-                    Flow::with_width(w).expand_across() => |ctx| {
-                        ::layout::checkbox_inner(ctx, &mut lay.state, &mut layer.lock);
-                    }
-                });
-            }
+        let mut lay = EditorLayout::new(ctx, state);
+        let m = self.editor.image.as_mut_receiver();
+        for layer in &mut m.data {
+            let ctx = lay.line();
+            let w = ctx.rect().dy();
+            flow!(h ctx => {
+                Flow::with_width(32.0 * 5.0 - 40.0).expand_across() => |ctx| {
+                    ctx.label(0.0, 0.5, WHITE, &layer.name);
+                }
+                Flow::with_width(w).expand_across() => |ctx| {
+                    ::layout::checkbox_inner(ctx, &mut lay.state, &mut layer.lock, (ICON_LOCK, ICON_LOCK_OFF));
+                }
+                Flow::with_width(w).expand_across() => |ctx| {
+                    ::layout::checkbox_inner(ctx, &mut lay.state, &mut layer.visible, (ICON_EYE, ICON_EYE_OFF));
+                }
+                Flow::auto(1.0) => |ctx| {}
+            });
         }
     }
 
@@ -601,9 +652,12 @@ impl App {
 
     fn menubar(&mut self, ctx: ui::Context<Canvas>) {
         ctx.quad(MENUBAR_BG, ctx.rect());
+        self.file_menu_id = ctx.reserve_widget_id();
+        self.brush_menu_id = ctx.reserve_widget_id();
         MENUBAR.run(&ctx, &mut self.state, &mut self.menubar, &[
-            (ctx.reserve_widget_id(), "File"),
+            (self.file_menu_id, "File"),
             (ctx.reserve_widget_id(), "Edit"),
+            (self.brush_menu_id, "Brush"),
             (ctx.reserve_widget_id(), "View"),
             (ctx.reserve_widget_id(), "Tools"),
             (ctx.reserve_widget_id(), "Help"),
@@ -611,21 +665,10 @@ impl App {
     }
 
     fn second_menubar(&mut self, ctx: ui::Context<Canvas>) {
-        let items = [
-            Item::Text(Command::New, "New", "Ctrl-N"),
-            Item::Text(Command::Open, "Open", "Ctrl-O"),
-            Item::Text(Command::Recent, "Recent", ">"),
-            Item::Separator,
-            Item::Text(Command::Save, "Save", "Ctrl-S"),
-            Item::Text(Command::SaveAs, "Save as...", "Shift-Ctrl-S"),
-            Item::Separator,
-            Item::Text(Command::Quit, "Quit", "Ctrl-Q"),
-        ];
-
         let mut exit = true;
-
-        if let Some((id, base_rect)) = self.menubar.open_root {
-            match MENU.run(&ctx, &mut self.state, id, base_rect, &items) {
+        match self.menubar.open_root {
+        Some((id, base_rect)) if id == self.file_menu_id => {
+            match MENU.run(&ctx, &mut self.state, id, base_rect, &FILE_ITEMS) {
                 MenuEvent::Nothing => exit = false,
                 MenuEvent::Exit => (),
                 MenuEvent::Clicked(Command::Open) => {
@@ -641,6 +684,18 @@ impl App {
                     println!("click: {:?}", id);
                 }
             }
+        }
+        Some((id, base_rect)) if id == self.brush_menu_id => {
+            match MENU_BRUSH.run(&ctx, &mut self.state, id, base_rect, &BRUSH_ITEMS) {
+                MenuEvent::Nothing => exit = false,
+                MenuEvent::Exit => (),
+                MenuEvent::Clicked(cmd) => {
+                    self.editor.brush_shape = cmd;
+                    self.editor.resize_brush();
+                }
+            }
+        }
+        _ => exit = false,
         }
         if exit {
             self.menubar.open_root = None;

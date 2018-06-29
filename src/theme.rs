@@ -3,7 +3,7 @@
 
 use ui::*;
 use render::Canvas;
-
+use draw::Shape;
 
 pub const TRANSPARENT: u32 = 0x000000_00;
 
@@ -24,6 +24,12 @@ pub const ICON_TOOL_FILL: usize = 1000_1;
 pub const ICON_TOOL_CIRC: usize = 1000_2;
 pub const ICON_TOOL_RECT: usize = 1000_3;
 pub const ICON_TOOL_PIP: usize = 1000_4;
+
+pub const ICON_EYE: usize = 1100_0;
+pub const ICON_EYE_OFF: usize = 1100_1;
+
+pub const ICON_LOCK: usize = 1100_2;
+pub const ICON_LOCK_OFF: usize = 1100_3;
 
 pub const ICON_UNDO: usize = 2000_0;
 pub const ICON_REDO: usize = 2000_1;
@@ -124,8 +130,7 @@ pub enum Command {
     Quit,
 }
 
-pub const MENU: Menu<Canvas, Command> = Menu {
-    marker: ::std::marker::PhantomData,
+const MENU_STYLE: MenuStyle<Canvas> = MenuStyle {
     normal: ItemStyle {
         label:    rgba(0x000000_FF),
         shortcut: rgba(0x000000_88),
@@ -145,4 +150,41 @@ pub const MENU: Menu<Canvas, Command> = Menu {
     text_inset: 8.0,
     sep_height: 5.0,
     sep_inset: 2.0,
+};
+
+pub const FILE_ITEMS: [Item<Command>; 8] = [
+    Item::Text(Command::New, "New", "Ctrl-N"),
+    Item::Text(Command::Open, "Open", "Ctrl-O"),
+    Item::Text(Command::Recent, "Recent", ">"),
+    Item::Separator,
+    Item::Text(Command::Save, "Save", "Ctrl-S"),
+    Item::Text(Command::SaveAs, "Save as...", "Shift-Ctrl-S"),
+    Item::Separator,
+    Item::Text(Command::Quit, "Quit", "Ctrl-Q"),
+];
+
+pub const BRUSH_ITEMS: [Item<Shape>; 13] = [
+    Item::Text(Shape::Round, "Round", ""),
+    Item::Text(Shape::Square, "Square", ""),
+    Item::Text(Shape::HorizontalBar, "HorizontalBar", ""),
+    Item::Text(Shape::VerticalBar, "VerticalBar", ""),
+    Item::Text(Shape::Slash, "Slash", ""),
+    Item::Text(Shape::Antislash, "Antislash", ""),
+    Item::Text(Shape::Cross, "Cross", ""),
+    Item::Text(Shape::Plus, "Plus", ""),
+    Item::Text(Shape::Diamond, "Diamond", ""),
+    Item::Text(Shape::SieveRound, "SieveRound", ""),
+    Item::Text(Shape::SieveSquare, "SieveSquare", ""),
+    Item::Separator,
+    Item::Text(Shape::Custom, "Custom", ""),
+];
+
+pub const MENU: Menu<Canvas, Command> = Menu {
+    marker: ::std::marker::PhantomData,
+    style: MENU_STYLE,
+};
+
+pub const MENU_BRUSH: Menu<Canvas, ::draw::Shape> = Menu {
+    marker: ::std::marker::PhantomData,
+    style: MENU_STYLE,
 };

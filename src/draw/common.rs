@@ -1,8 +1,5 @@
-use math::{Rect, Point2, BaseNum, BaseIntExt, SliceExt};
 use std::mem::size_of;
-use std::ptr::copy_nonoverlapping;
-
-use super::{Bounded, CanvasRead, CanvasWrite, ViewRead, ViewWrite, Uniform};
+use math::{Rect, Point2, BaseNum, BaseIntExt};
 
 pub fn mask<N, F>(r: Rect<N>, br: Rect<N>, brush: &[bool], mut f: F)
     where
@@ -178,75 +175,5 @@ pub fn draw_ellipse<N, F>(r: Rect<N>, mut seg: F)
         let b = Point2::new(x1+1, y1).cast().unwrap();
         seg(a, b);
         y1 -= 1;
-    }
-}
-
-pub fn copy<C, N>(dst: &mut ViewWrite<C, N>, r: Rect<N>, src: &ViewRead<C, N>, sp: Point2<N>)
-    where C: Copy + Eq, N: BaseIntExt
-{
-    let n = r.dx().to_usize().unwrap() * size_of::<C>();
-    let mut dy = r.dy().to_usize().unwrap();
-    let mut d0 = dst.pix_offset(r.min.x, r.min.y);
-    let mut s0 = src.pix_offset(sp.x, sp.y);
-
-    if r.min.y <= sp.y {
-        while dy > 0 {
-            dst.pix[d0..d0+n].copy_from_slice(&src.pix[s0..s0+n]);
-            d0 += dst.stride;
-            s0 += src.stride;
-            dy -= 1;
-        }
-    } else {
-        d0 += (dy - 1) * dst.stride;
-        s0 += (dy - 1) * src.stride;
-        while dy > 0 {
-            dst.pix[d0..d0+n].copy_from_slice(&src.pix[s0..s0+n]);
-            d0 -= dst.stride;
-            s0 -= src.stride;
-            dy -= 1;
-        }
-    }
-}
-
-pub fn fill<C, N>(dst: &mut ViewWrite<C, N>, r: Rect<N>, src: Uniform<C>)
-    where C: Copy + Eq, N: BaseIntExt
-{
-    let mut i0 = dst.pix_offset(r.min.x, r.min.y);
-    let mut i1 = i0 + r.dx().to_usize().unwrap() * size_of::<C>();
-
-    {
-        let color = src.0;
-        let row = unsafe { dst.pix[i0..i1].cast_mut() };
-        for c in row.iter_mut() {
-            *c = color;
-        }
-    }
-
-    let (src, len) = {
-        let row = &dst.pix[i0..i1];
-        (row.as_ptr(), row.len())
-    };
-    for _ in r.min.y + N::one()..r.max.y {
-        i0 += dst.stride;
-        i1 += dst.stride;
-        let dst = dst.pix[i0..i1].as_mut_ptr();
-        unsafe { copy_nonoverlapping(src, dst, len); }
-    }
-}
-
-pub fn shade<V, F, C, N>(view: &mut V, mut shader: F)
-    where C: Copy + Eq,
-          N: BaseIntExt,
-          F: FnMut(N, N, C) -> C,
-          V: Bounded<N> + CanvasRead<C, N> + CanvasWrite<C, N>,
-{
-    let r = view.bounds();
-    for y in r.min.y..r.max.y {
-        for x in r.min.x..r.max.x {
-            unsafe {
-                let c = view.at_unchecked(x, y);
-                view.set_unchecked(x, y, shader(x, y, c));
-            }
-        }
     }
 }

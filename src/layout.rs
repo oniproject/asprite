@@ -47,32 +47,24 @@ impl<'a, 'state> EditorLayout<'a, 'state> {
         self.cursor.x = self.indent as f32 * INDENT;
     }
 
-    fn header(&mut self) -> Context<'a, Canvas> {
-        let rect = self.ctx.rect();
+    pub fn reserve(&mut self, height: f32, pad_x: f32) -> Context<'a, Canvas> {
+        let rect = self.ctx.rect().pad_x(pad_x);
 
         let min = rect.min + self.cursor;
-        let max = Point2::new(rect.max.x, min.y + LINE_HEIGHT);
+        let max = Point2::new(rect.max.x, min.y + height);
 
-        self.cursor.y += LINE_HEIGHT;
+        self.cursor.y += height;
 
         let rect = Rect { min, max };
         self.ctx.sub_rect(rect)
+    }
+
+    pub fn line(&mut self) -> Context<'a, Canvas> {
+        self.reserve(LINE_HEIGHT, LINE_PAD_X)
     }
 
     pub fn skip_line(&mut self) {
         self.cursor.y += LINE_HEIGHT;
-    }
-
-    fn one_line(&mut self) -> Context<'a, Canvas> {
-        let rect = self.ctx.rect().pad_x(LINE_PAD_X);
-
-        let min = rect.min + self.cursor;
-        let max = Point2::new(rect.max.x, min.y + LINE_HEIGHT);
-
-        self.cursor.y += LINE_HEIGHT;
-
-        let rect = Rect { min, max };
-        self.ctx.sub_rect(rect)
     }
 
     pub fn tree<F>(&mut self, label: &str, cb: F)
@@ -84,19 +76,33 @@ impl<'a, 'state> EditorLayout<'a, 'state> {
         self.decr_indent();
     }
 
-    pub fn label(&mut self, label: &str) {
-        let ctx = self.one_line();
+    pub fn header(&mut self, label: &str) {
+        let ctx = self.line();
+        ctx.quad(BAR_TITLE_BG, ctx.rect().pad_x(-LINE_PAD_X));
         ctx.label(0.0, 0.5, WHITE, label);
     }
 
-    pub fn one_line_prop(&mut self, label: &str) -> Context<'a, Canvas> {
-        let (label_ctx, ret) = self.one_line().split_x(0.3);
+    pub fn header_checkbox(&mut self, label: &str, v: &mut bool) -> bool {
+        let ctx = self.reserve(LINE_HEIGHT, 0.0);
+        ctx.quad(BAR_TITLE_BG, ctx.rect());
+        let update = checkbox(ctx, &mut self.state, v, label);
+        self.update |= update;
+        update
+    }
+
+    pub fn label(&mut self, label: &str) {
+        let ctx = self.line();
+        ctx.label(0.0, 0.5, WHITE, label);
+    }
+
+    fn line_prop(&mut self, label: &str) -> Context<'a, Canvas> {
+        let (label_ctx, ret) = self.line().split_x(0.3);
         label_ctx.label(0.0, 0.5, WHITE, label);
         ret
     }
 
     pub fn angle_slider(&mut self, label: &str, angle: &mut f32) {
-        let ctx = self.one_line_prop(label);
+        let ctx = self.line_prop(label);
 
         let mut slider = SliderModel {
             min: -f32::PI,
@@ -121,22 +127,14 @@ impl<'a, 'state> EditorLayout<'a, 'state> {
     pub fn num_base<T, F>(&mut self, label: &str, sub: &str, v: &mut T, filter: F) -> bool
         where T: BaseNumExt + ToString, F: FnOnce(bool, &mut T) + Copy
     {
-        let ctx = self.one_line_prop(label);
+        let ctx = self.line_prop(label);
         let update = edit_base(ctx, &mut self.state, v, sub, filter);
         self.update |= update;
         update
     }
 
-    pub fn header_checkbox(&mut self, label: &str, v: &mut bool) -> bool {
-        let ctx = self.header();
-        ctx.quad(BAR_TITLE_BG, ctx.rect());
-        let update = checkbox(ctx, &mut self.state, v, label);
-        self.update |= update;
-        update
-    }
-
     pub fn checkbox(&mut self, label: &str, v: &mut bool) -> bool {
-        let ctx = self.one_line();
+        let ctx = self.line();
         let update = checkbox(ctx, &mut self.state, v, label);
         self.update |= update;
         update
@@ -144,14 +142,14 @@ impl<'a, 'state> EditorLayout<'a, 'state> {
 
     pub fn toggle_prop(&mut self, label: &str, v: &mut bool) -> bool {
         /*
-        let ctx = self.one_line_prop(label);
+        let ctx = self.line_prop(label);
         let update = TOGGLE.behavior(&ctx, &mut self.state, v);
         self.update |= update;
         update
         */
 
-        let ctx = self.one_line_prop(label);
-        let update = checkbox_inner(ctx, &mut self.state, v);
+        let ctx = self.line_prop(label);
+        let update = checkbox_inner(ctx, &mut self.state, v, None);
         self.update |= update;
         update
     }
@@ -175,7 +173,7 @@ impl<'a, 'state> EditorLayout<'a, 'state> {
     pub fn vector2_base<T, F>(&mut self, label: &str, v: &mut Vector2<T>, filter: F) -> bool
         where T: BaseNumExt + ToString, F: FnOnce(bool, &mut T) + Copy
     {
-        let ctx = self.one_line_prop(label);
+        let ctx = self.line_prop(label);
         let (x, y) = ctx.split_x(0.5);
         let mut update = false;
         update |= edit_base(x, &mut self.state, &mut v.x, "X", filter);
@@ -216,14 +214,16 @@ pub fn edit_f<T>(ctx: Context<Canvas>, state: &mut UiState, v: &mut T, label: &s
     edit_base(ctx, state, v, label, |is, v| if is { *v += scale } else { *v -= scale })
 }
 
-pub fn checkbox_inner(ctx: Context<Canvas>, state: &mut UiState, v: &mut bool) -> bool {
+pub fn checkbox_inner<T>(ctx: Context<Canvas>, state: &mut UiState, v: &mut bool, theme: T) -> bool
+    where T: Into<Option<(usize, usize)>>
+{
     let update = TOGGLE.behavior(&ctx, state, v);
-    ctx.texture(if *v { ICON_CHECK_ON } else { ICON_CHECK_OFF }, ctx.rect());
+    let theme = theme.into().unwrap_or((ICON_CHECK_ON, ICON_CHECK_OFF));
+    ctx.texture(if *v { theme.0 } else { theme.1 }, ctx.rect());
     update
 }
 
 pub fn checkbox(ctx: Context<Canvas>, state: &mut UiState, v: &mut bool, label: &str) -> bool {
-    let wh = ctx.rect().dy();
     let label_size = ctx.measure_text(label);
     let widgets = [
         Flow::with_wh(LINE_HEIGHT, LINE_HEIGHT),
@@ -234,7 +234,7 @@ pub fn checkbox(ctx: Context<Canvas>, state: &mut UiState, v: &mut bool, label: 
 
     let icon = iter.next().unwrap();
     iter.next().unwrap().label(0.0, 0.5, WHITE, label);
-    checkbox_inner(icon, state, v)
+    checkbox_inner(icon, state, v, None)
 }
 
 pub fn edit_num<T>(ctx: Context<Canvas>, state: &mut UiState, v: T, label: &str) -> Option<bool>
