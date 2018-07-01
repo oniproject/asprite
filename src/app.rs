@@ -418,9 +418,10 @@ impl App {
     fn content(&mut self, ctx: ui::Context<Canvas>) {
         let state = unsafe { &mut *(&self.state as *const UiState as *mut UiState) };
 
+        const MAX_BRUSH_SIZE: f32 = 16.0;
         const WH: usize = 12;
         flow!(h ctx => {
-        Flow::with_width(32.0 * 5.0).expand_across() => |ctx| {
+        Flow::with_width(WH as f32 * MAX_BRUSH_SIZE).expand_across() => |ctx| {
             ctx.quad(BAR_BG, ctx.rect());
 
             let mut lay = EditorLayout::new(ctx, state);
@@ -432,7 +433,7 @@ impl App {
                 let dy = self.editor.brush_size.y as usize;
                 let size = Vector2::new(WH * dx as f32, WH * dy as f32);
                 let dim = Vector2::new(WH, WH);
-                let ctx = lay.reserve(WH * 12 as f32, 0.0)
+                let ctx = lay.reserve(WH * MAX_BRUSH_SIZE, 0.0)
                     .align(Vector2::new(0.5, 0.5), size);
                 let start = ctx.rect().min;
                 for y in 0..dy {
@@ -455,8 +456,8 @@ impl App {
                 }
             }
             {
-                update_brush |= lay.num("size", "x", &mut self.editor.brush_size.x, 1, 1, 12);
-                update_brush |= lay.num("size", "y", &mut self.editor.brush_size.y, 1, 1, 12);
+                update_brush |= lay.num("size", "x", &mut self.editor.brush_size.x, 1, 1, 16);
+                update_brush |= lay.num("size", "y", &mut self.editor.brush_size.y, 1, 1, 16);
                 let size = self.editor.brush_size;
                 update_brush |= lay.num("offset", "x", &mut self.editor.brush_offset.x, 1, -size.x, size.x);
                 update_brush |= lay.num("offset", "y", &mut self.editor.brush_offset.y, 1, -size.y, size.y);
@@ -547,7 +548,7 @@ impl App {
                 Flow::with_width(w).expand_across() => |ctx| {
                     ::layout::checkbox_inner(ctx, &mut lay.state, &mut layer.visible, (ICON_EYE, ICON_EYE_OFF));
                 }
-                Flow::auto(1.0) => |ctx| {}
+                Flow::auto(1.0) => |_ctx| {}
             });
         }
     }

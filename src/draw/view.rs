@@ -65,11 +65,7 @@ impl<'a, C, N> View<'a, C, N> where N: BaseIntExt {
 
 impl<'a, C, N> Bounded<N> for View<'a, C, N> where N: BaseIntExt {
     #[inline(always)]
-    fn bounds(&self) -> Rect<N> {
-        let min = N::min_value();
-        let max = N::max_value();
-        Rect::from_coords(min, min, max, max)
-    }
+    fn bounds(&self) -> Rect<N> { self.rect }
 }
 
 impl<'a, C, N> CanvasRead<C, N> for View<'a, C, N> where N: BaseIntExt, C: Copy {
@@ -123,11 +119,7 @@ impl<'a, C, N> ViewMut<'a, C, N> where N: BaseIntExt {
 
 impl<'a, C, N> Bounded<N> for ViewMut<'a, C, N> where N: BaseIntExt {
     #[inline(always)]
-    fn bounds(&self) -> Rect<N> {
-        let min = N::min_value();
-        let max = N::max_value();
-        Rect::from_coords(min, min, max, max)
-    }
+    fn bounds(&self) -> Rect<N> { self.rect }
 }
 
 impl<'a, C, N> CanvasRead<C, N> for ViewMut<'a, C, N> where N: BaseIntExt, C: Copy {

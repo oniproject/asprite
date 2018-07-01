@@ -141,13 +141,6 @@ impl<'a, 'state> EditorLayout<'a, 'state> {
     }
 
     pub fn toggle_prop(&mut self, label: &str, v: &mut bool) -> bool {
-        /*
-        let ctx = self.line_prop(label);
-        let update = TOGGLE.behavior(&ctx, &mut self.state, v);
-        self.update |= update;
-        update
-        */
-
         let ctx = self.line_prop(label);
         let update = checkbox_inner(ctx, &mut self.state, v, None);
         self.update |= update;

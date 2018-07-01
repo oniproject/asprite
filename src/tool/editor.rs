@@ -47,6 +47,7 @@ pub struct Editor {
     pub brush_shape: Shape,
     pub brush_offset: Point2<i32>,
     pub brush_size: Vector2<i32>,
+    pub brush_size_old: Vector2<i32>,
     pub color: u8,
 
     canvas: Frame,
@@ -61,16 +62,22 @@ impl Editor {
             brush: draw::shape::round(brush_size.x, brush_size.y).collect(),
             brush_shape: Shape::Round,
             brush_size,
+            brush_size_old: brush_size,
             brush_offset: Point2::new(-5, -5),
             color: 1,
         }
     }
 
     pub fn resize_brush(&mut self) {
+        use draw::{View, ViewMut};
         use draw::shape::*;
         use self::Shape::*;
+        use math::SliceExt;
+        use std::mem::replace;
+
         let s = self.brush_size;
         let (w, h) = (s.x, s.y);
+        let old = replace(&mut self.brush_size_old, self.brush_size);
         self.brush = match self.brush_shape {
             Round           => round(w, h).collect(),
             Square          => square(w, h).collect(),
@@ -83,7 +90,18 @@ impl Editor {
             VerticalBar     => vertical_bar(w, h).collect(),
             Cross           => cross(w, h).collect(),
             Diamond         => diamond(w, h).collect(),
-            _ => unreachable!(),
+            Custom => unsafe {
+                let src: View<bool, _> = View::new(&self.brush.cast(), old.x, old.y);
+                let mut data = vec![false; (w * h) as usize];
+                {
+                    let d = &mut data.cast_mut();
+                    let mut dst = ViewMut::new(d, w, h);
+                    let r = dst.bounds().intersect(src.bounds()).unwrap();
+                    println!("w: {} h: {} r: {:?}", w, h, r);
+                    draw::view::copy(&mut dst, r, &src, Point2::new(0, 0));
+                }
+                data
+            }
         };
     }
 

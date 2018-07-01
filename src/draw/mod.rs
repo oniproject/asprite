@@ -2,6 +2,7 @@
 
 pub mod gradient;
 pub mod shape;
+pub mod view;
 mod bresenham;
 
 mod common;
@@ -9,7 +10,6 @@ mod canvas;
 mod palette;
 mod frame;
 mod scanline;
-mod view;
 
 pub use self::shape::Shape;
 
